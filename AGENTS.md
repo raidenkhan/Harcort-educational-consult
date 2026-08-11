@@ -59,6 +59,13 @@ mobile app.
   `/chat` lists conversations with names + last-message previews, shows the
   thread, and has a composer. New messages appear via 5s `router.refresh()`
   polling (browser realtime is impossible without Supabase Auth/RLS session).
+- **Tutor directory (`/tutors`).** Public browse/search page: client-side text
+  + subject filtering over the cached approved-tutor list, credential-rich
+  cards (qualifications, per-course pricing), session-aware Contact button.
+  All browse CTAs (dashboard, home nav + hero, chat empty state) point here.
+  `BentoBackdrop` was softened (no hard square tiles — blurred panels +
+  faint grid) and the home hero blurs `gradback.jpg` slightly to hide
+  gradient banding.
 
 ---
 
