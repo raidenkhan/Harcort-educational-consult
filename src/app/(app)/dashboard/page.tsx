@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { SessionCard } from "@/components/sessions/SessionCard";
 import { TutorProfileCta } from "@/components/tutors/TutorProfileCta";
 import { PaymentGroundRules } from "@/components/support/PaymentGroundRules";
@@ -168,8 +169,9 @@ export default async function DashboardPage() {
             <dl className="mt-2 space-y-2 text-sm">
               <div className="flex items-center justify-between">
                 <dt className="text-slate-500">Role</dt>
-                <dd className="font-medium capitalize text-slate-900">
+                <dd className="flex items-center gap-1.5 font-medium capitalize text-slate-900">
                   {profile.role}
+                  {profile.role === "admin" && <VerifiedBadge />}
                 </dd>
               </div>
               <div className="flex items-center justify-between">

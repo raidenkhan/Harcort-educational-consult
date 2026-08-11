@@ -78,10 +78,20 @@ mobile app.
   gradient banding.
 - **Payment ground rules + admin contact.** Policy: students make and
   discuss payments ONLY with admins, never tutors. Rendered as a card on the
-  student dashboard and a compact banner on `/chat` (student role only) via
-  `src/components/support/PaymentGroundRules.tsx`. The WhatsApp CTA links to
-  `wa.me` from `NEXT_PUBLIC_ADMIN_WHATSAPP` (`src/lib/config.ts`) — the button
-  hides until the number is configured.
+  student dashboard and a compact banner on `/chat` (student AND tutor roles)
+  via `src/components/support/PaymentGroundRules.tsx` (an `audience` prop
+  swaps the copy). The WhatsApp CTA links to `wa.me` from
+  `NEXT_PUBLIC_ADMIN_WHATSAPP` (`src/lib/config.ts`) — the button hides until
+  the number is configured.
+- **Admin conversations + verified badge (0007).** Conversations gained a
+  nullable `admin_id` (student/tutor sides became nullable too; a check
+  constraint enforces exactly two participants; partial unique indexes dedupe
+  admin threads). Admins start threads with any student or approved tutor
+  from a **New message** panel on `/chat` (`startAdminConversation` action,
+  `listChatTargetsForAdmin` query). Admin accounts show a Twitter-style
+  **petrol verified check** (`src/components/ui/VerifiedBadge.tsx`) next to
+  their name in the app header, dashboard, chat list, thread header, and on
+  every message they send (bubbles matched by `admin_id`).
 
 ---
 
@@ -136,6 +146,7 @@ and all are safe to re-run:
 | `0004_tutoring_sessions.sql` | `tutoring_sessions` (tutor_profile_id, student_id, scheduled_at, duration_minutes, topic, location, notes, `tutor_confirmed_at`, `student_confirmed_at`) — deny-all RLS |
 | `0005_session_cancellations.sql` | `session_status` enum (`scheduled`/`cancelled`) + `status`, `cancelled_at`, `cancelled_by` columns — soft delete for cancellations |
 | `0006_password_resets.sql` | `password_resets` — admin-issued one-time reset codes (SHA-256 hashed, single-use, 30-min expiry), deny-all RLS |
+| `0007_admin_conversations.sql` | Conversations gain `admin_id` (student/tutor sides nullable), 2-participant check constraint, partial unique indexes — admins can chat with students/tutors |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in

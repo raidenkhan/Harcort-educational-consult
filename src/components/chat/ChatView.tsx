@@ -10,6 +10,7 @@ import type { Message } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { cn } from "@/lib/cn";
 import { chatDay, chatDayKey, chatTime, chatTimestamp } from "@/lib/time";
 
@@ -59,7 +60,16 @@ function buildRows(messages: Message[], now: number): Row[] {
 }
 
 /** One message bubble. Pure render of a single message — no state. */
-function MessageRow({ message, myId }: { message: Message; myId: string }) {
+function MessageRow({
+  message,
+  myId,
+  fromAdmin,
+}: {
+  message: Message;
+  myId: string;
+  /** True when this message was sent by the conversation's admin participant. */
+  fromAdmin: boolean;
+}) {
   const mine = message.sender_id === myId;
   return (
     <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
@@ -76,6 +86,7 @@ function MessageRow({ message, myId }: { message: Message; myId: string }) {
         </p>
         <p className="mt-1 flex items-center justify-end gap-1 text-right text-[11px] text-slate-400">
           {mine && <Check className="h-3 w-3" />}
+          {fromAdmin && <VerifiedBadge className="h-3.5 w-3.5" />}
           {chatTime(new Date(message.created_at))}
         </p>
       </div>
@@ -92,6 +103,9 @@ export function ChatView({
   closed = false,
   now,
   initialThreadOpen = false,
+  otherIsAdmin = false,
+  adminId = null,
+  isAdmin = false,
 }: {
   conversations: ConversationListItem[];
   activeId: string | null;
@@ -103,6 +117,12 @@ export function ChatView({
   now: number;
   /** Deep-linked straight into a thread (mobile) when the URL carries ?c=. */
   initialThreadOpen?: boolean;
+  /** The other party is a verified Harcot admin. */
+  otherIsAdmin?: boolean;
+  /** The conversation's admin participant id (marks their bubbles). */
+  adminId?: string | null;
+  /** The signed-in user is an admin (empty-state copy + no browse CTA). */
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -198,13 +218,22 @@ export function ChatView({
         <h2 className="mt-4 font-display text-xl font-bold text-slate-900">
           No conversations yet
         </h2>
-        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-600">
-          Find a tutor you like on the home page and tap “Contact tutor” — the
-          conversation will show up here for both of you.
-        </p>
-        <Link href="/tutors" className="mt-6 inline-block">
-          <Button>Browse tutors</Button>
-        </Link>
+        {isAdmin ? (
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-600">
+            Use the “New message” panel above to start a conversation with a
+            student or tutor.
+          </p>
+        ) : (
+          <>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-slate-600">
+              Find a tutor you like on the home page and tap “Contact tutor” —
+              the conversation will show up here for both of you.
+            </p>
+            <Link href="/tutors" className="mt-6 inline-block">
+              <Button>Browse tutors</Button>
+            </Link>
+          </>
+        )}
       </Card>
     );
   }
@@ -247,8 +276,11 @@ export function ChatView({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-sm font-semibold text-slate-900">
-                        {c.otherName}
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-sm font-semibold text-slate-900">
+                          {c.otherName}
+                        </span>
+                        {c.otherIsAdmin && <VerifiedBadge />}
                       </span>
                       {c.lastMessage && (
                         <span className="shrink-0 text-[11px] text-slate-400">
@@ -290,8 +322,11 @@ export function ChatView({
             {(otherName || "?").charAt(0).toUpperCase()}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-900">
-              {otherName}
+            <p className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-semibold text-slate-900">
+                {otherName}
+              </span>
+              {otherIsAdmin && <VerifiedBadge />}
             </p>
             <p className="text-xs text-slate-500">
               {closed ? "Conversation closed" : "Conversation open"}
@@ -321,7 +356,12 @@ export function ChatView({
                     </span>
                   </div>
                 ) : (
-                  <MessageRow key={row.message.id} message={row.message} myId={myId} />
+                  <MessageRow
+                    key={row.message.id}
+                    message={row.message}
+                    myId={myId}
+                    fromAdmin={row.message.sender_id === adminId}
+                  />
                 ),
               )}
 

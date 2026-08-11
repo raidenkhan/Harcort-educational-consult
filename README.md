@@ -84,6 +84,7 @@ Open **SQL Editor** in the Supabase dashboard and paste, **in order**:
 4. `supabase/migrations/0004_tutoring_sessions.sql`
 5. `supabase/migrations/0005_session_cancellations.sql`
 6. `supabase/migrations/0006_password_resets.sql`
+7. `supabase/migrations/0007_admin_conversations.sql`
 
 > 0001 creates the schema, RLS policies, admin RPCs, realtime publication,
 > and the base taxonomy. 0002 adds the KNUST engineering course catalog.
@@ -91,7 +92,9 @@ Open **SQL Editor** in the Supabase dashboard and paste, **in order**:
 > tables, `register_user` RPC, and admin RPCs that verify the acting admin
 > by profile id. 0004 adds the tutoring timetable (dual attendance ticks);
 > 0005 makes cancellations soft-deletes so the admin keeps an audit trail;
-> 0006 adds admin-issued password-reset codes (no email needed).
+> 0006 adds admin-issued password-reset codes (no email needed);
+> 0007 lets admins participate in conversations (student↔admin or
+> tutor↔admin) so students can reach the Harcot team in-chat.
 >
 > A deeper orientation (history, conventions, gotchas) lives in `AGENTS.md`.
 
@@ -137,6 +140,10 @@ modal opens automatically via `?auth=sign-in`.
   open (polling refresh — realtime upgrade planned). On mobile it works like
   WhatsApp: a chats list you tap into, then a back button returns to the list.
 - Threads show **Today / Yesterday / date** separators between messages.
+- **Admins are verified**: admin accounts carry a Twitter-style petrol
+  verified checkmark next to their name, and on every message they send.
+  Admins start threads with any student or approved tutor via the **New
+  message** panel at the top of `/chat`.
 - Only the student and the tutor in the conversation can read or send messages
   (enforced server-side per message).
 

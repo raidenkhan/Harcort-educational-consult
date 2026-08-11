@@ -4,6 +4,7 @@ import { signOutAction } from "@/services/auth/actions";
 import { Container } from "@/components/ui/Container";
 import { Badge } from "@/components/ui/Badge";
 import { Logo } from "@/components/ui/Logo";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 
 const roleTone = {
@@ -53,6 +54,7 @@ export default async function AppLayout({
             {profile && (
               <span className="hidden items-center gap-2 text-sm text-slate-600 lg:flex">
                 {profile.full_name}
+                {profile.role === "admin" && <VerifiedBadge />}
                 <Badge tone={roleTone[profile.role]}>{profile.role}</Badge>
               </span>
             )}

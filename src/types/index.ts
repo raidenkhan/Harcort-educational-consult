@@ -54,8 +54,12 @@ export interface TutorService {
 
 export interface Conversation {
   id: string;
-  student_id: string;
-  tutor_profile_id: string;
+  /** Null when the admin is the other participant (see 0007). */
+  student_id: string | null;
+  /** Null when the admin is the other participant (see 0007). */
+  tutor_profile_id: string | null;
+  /** Set when an admin participates (student↔admin or tutor↔admin). */
+  admin_id: string | null;
   status: ConversationStatus;
   created_at: string;
 }

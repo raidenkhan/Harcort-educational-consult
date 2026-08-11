@@ -93,7 +93,7 @@ export async function sendMessage(
 
   const { data: conversation } = await supabase
     .from("conversations")
-    .select("id, student_id, tutor_profile_id, status")
+    .select("id, student_id, tutor_profile_id, admin_id, status")
     .eq("id", conversationId)
     .maybeSingle();
 
@@ -114,4 +114,80 @@ export async function sendMessage(
 
   revalidatePath("/chat");
   return { ok: true };
+}
+
+/** Admin starts (or re-enters) a conversation with a student or tutor. */
+export async function startAdminConversation(
+  _prev: ConversationFormState,
+  formData: FormData,
+): Promise<ConversationFormState> {
+  const profile = await requireProfile();
+  if (profile.role !== "admin") {
+    return { error: "Only admins can start conversations here." };
+  }
+
+  const targetType = String(formData.get("targetType") ?? "");
+  const targetId = String(formData.get("targetId") ?? "");
+  if (!targetType || !targetId) {
+    return { error: "Choose someone to message." };
+  }
+
+  const supabase = createAdminClient();
+  const insert: { admin_id: string; student_id?: string; tutor_profile_id?: string } = {
+    admin_id: profile.id,
+  };
+
+  if (targetType === "student") {
+    const { data: student } = await supabase
+      .from("profiles")
+      .select("id, role")
+      .eq("id", targetId)
+      .maybeSingle();
+    if (!student || (student as { role: string }).role !== "student") {
+      return { error: "Student not found." };
+    }
+    insert.student_id = targetId;
+  } else if (targetType === "tutor") {
+    const { data: tutorProfile } = await supabase
+      .from("tutor_profiles")
+      .select("id, verification_status")
+      .eq("id", targetId)
+      .maybeSingle();
+    if (!tutorProfile) return { error: "Tutor not found." };
+    if (
+      (tutorProfile as { verification_status: string }).verification_status !==
+      "approved"
+    ) {
+      return { error: "This tutor isn't available yet." };
+    }
+    insert.tutor_profile_id = targetId;
+  } else {
+    return { error: "Unknown target type." };
+  }
+
+  const { data: inserted, error } = await supabase
+    .from("conversations")
+    .insert(insert)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    // Partial unique (admin_id, student_id)/(admin_id, tutor_profile_id) —
+    // they already have a thread. Re-open it.
+    if (error.code === "23505") {
+      const { data: existing } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("admin_id", profile.id)
+        .eq(targetType === "student" ? "student_id" : "tutor_profile_id", targetId)
+        .maybeSingle();
+      return existing
+        ? { ok: true, conversationId: (existing as { id: string }).id }
+        : { error: "You already have a conversation with this person." };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/chat");
+  return { ok: true, conversationId: (inserted as { id: string }).id };
 }
