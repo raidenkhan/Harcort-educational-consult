@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { Input } from "@/components/ui/Fields";
+import { AdminResetCode } from "@/components/admin/AdminResetCode";
 import { cn } from "@/lib/cn";
 import { sessionWhen } from "@/lib/time";
 import type { SessionView } from "@/services/sessions/queries";
@@ -173,6 +174,22 @@ export default async function AdminPage() {
               ))}
             </ul>
           )}
+        </section>
+
+        {/* ── Password resets ──────────────────────────────────────── */}
+        <section className="mt-14">
+          <div>
+            <h2 className="font-display text-xl font-bold tracking-tight text-slate-900">
+              Password resets
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Students can&apos;t reset via email (Supabase rate limits), so
+              issue a one-time code and share it out-of-band.
+            </p>
+          </div>
+          <div className="mt-6">
+            <AdminResetCode />
+          </div>
         </section>
 
         {/* ── Attendance tracker ───────────────────────────────────── */}

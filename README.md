@@ -80,13 +80,15 @@ Open **SQL Editor** in the Supabase dashboard and paste, **in order**:
 3. `supabase/migrations/0003_self_hosted_auth.sql`
 4. `supabase/migrations/0004_tutoring_sessions.sql`
 5. `supabase/migrations/0005_session_cancellations.sql`
+6. `supabase/migrations/0006_password_resets.sql`
 
 > 0001 creates the schema, RLS policies, admin RPCs, realtime publication,
 > and the base taxonomy. 0002 adds the KNUST engineering course catalog.
 > 0003 swaps Supabase Auth for self-hosted auth: `credentials` + `sessions`
 > tables, `register_user` RPC, and admin RPCs that verify the acting admin
 > by profile id. 0004 adds the tutoring timetable (dual attendance ticks);
-> 0005 makes cancellations soft-deletes so the admin keeps an audit trail.
+> 0005 makes cancellations soft-deletes so the admin keeps an audit trail;
+> 0006 adds admin-issued password-reset codes (no email needed).
 >
 > A deeper orientation (history, conventions, gotchas) lives in `AGENTS.md`.
 

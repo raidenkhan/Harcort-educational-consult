@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { GraduationCap, BookOpenCheck } from "lucide-react";
 import { signInAction, signUpAction, type AuthFormState } from "@/services/auth/actions";
 import { Field } from "@/components/ui/Field";
@@ -45,6 +46,14 @@ export function SignInFields() {
             autoComplete="current-password"
           />
         </Field>
+        <div className="flex items-center justify-end">
+          <Link
+            href="/forgot-password"
+            className="text-xs font-semibold text-brand-700 transition hover:text-brand-800"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <Button type="submit" size="lg" className="w-full" disabled={pending}>
           {pending ? "Signing in…" : "Sign in"}
         </Button>

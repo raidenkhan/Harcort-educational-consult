@@ -44,6 +44,11 @@ mobile app.
   30-day expiry), atomic `register_user` RPC, brute-force throttle on sign-in,
   middleware = cheap cookie-presence check only. All data access moved to the
   **service-role client with explicit scoping** (browser never touches the DB).
+- **Password reset without email.** Email recovery is unavailable (Supabase
+  auth rate limits), so admins issue one-time 8-digit codes from `/admin`
+  (hashed at rest, single-use, 30-min expiry) and share them out-of-band
+  (WhatsApp/phone). Students redeem them at `/forgot-password` (throttled,
+  no session required); redeeming revokes all of the user's sessions.
 - **Bento design + tutoring sessions.** Admin/tutor/dashboard pages got bento
   grid backdrops. New `tutoring_sessions` table: tutors schedule sessions with
   students who contacted them; **both** tutor and student tick attendance when
@@ -119,6 +124,7 @@ and all are safe to re-run:
 | `0003_self_hosted_auth.sql` | Decouples `profiles.id` from `auth.users`; `credentials` + `sessions` (deny-all RLS); `register_user` RPC; `is_admin(uuid)`; admin RPCs keyed by `actor_id` + GUC (`request.harcot.actor_id`); status-guard trigger rewritten |
 | `0004_tutoring_sessions.sql` | `tutoring_sessions` (tutor_profile_id, student_id, scheduled_at, duration_minutes, topic, location, notes, `tutor_confirmed_at`, `student_confirmed_at`) — deny-all RLS |
 | `0005_session_cancellations.sql` | `session_status` enum (`scheduled`/`cancelled`) + `status`, `cancelled_at`, `cancelled_by` columns — soft delete for cancellations |
+| `0006_password_resets.sql` | `password_resets` — admin-issued one-time reset codes (SHA-256 hashed, single-use, 30-min expiry), deny-all RLS |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in

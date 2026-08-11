@@ -19,5 +19,24 @@ export const signInSchema = z.object({
   password: z.string().min(1, "Enter your password").max(128, "Enter your password"),
 });
 
+/** Admin issues a one-time reset code for a user's email. */
+export const resetRequestSchema = z.object({
+  email: z.email("Enter a valid email address"),
+});
+
+/** User redeems a code with a new password (no session required). */
+export const resetRedeemSchema = z.object({
+  email: z.email("Enter a valid email address"),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{8}$/, "Enter the 8-digit code"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password must be at most 128 characters"),
+});
+
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
+export type ResetRedeemInput = z.infer<typeof resetRedeemSchema>;
