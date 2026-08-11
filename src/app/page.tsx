@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Search, ShieldCheck, MessagesSquare, type LucideIcon } from "lucide-react";
 import { listApprovedTutors } from "@/services/tutors/queries";
 import { listCourses } from "@/services/courses/queries";
+import { getCurrentProfile } from "@/services/auth/queries";
+import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { Container } from "@/components/ui/Container";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -16,9 +18,10 @@ import { AuthTrigger } from "@/components/auth/AuthTrigger";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [tutors, courses] = await Promise.all([
+  const [tutors, courses, currentProfile] = await Promise.all([
     listApprovedTutors(),
     listCourses(),
+    getCurrentProfile(),
   ]);
 
   const subjects = Array.from(new Set(courses.map((c) => c.subject)));
@@ -341,12 +344,11 @@ export default async function Home() {
                   )}
 
                   <div className="mt-auto pt-6">
-                    <AuthTrigger
-                      tab="sign-up"
+                    <ContactTutorButton
+                      tutorProfileId={tutorProfile.id}
+                      signedIn={Boolean(currentProfile)}
                       className="h-8 w-full rounded-md bg-slate-900 px-3 text-xs font-semibold text-white shadow-xs hover:bg-slate-800"
-                    >
-                      Contact tutor
-                    </AuthTrigger>
+                    />
                   </div>
                 </Card>
               ))}

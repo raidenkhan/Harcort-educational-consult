@@ -52,6 +52,13 @@ mobile app.
   so the admin keeps an audit trail.
 - **Performance.** Home page tutor/course listings cached with
   `unstable_cache` (5-min TTL, tag-invalidated on admin approve/reject).
+- **Contact-tutor flow + chat page.** The old "Contact tutor" CTA was just an
+  auth-modal trigger — it never checked the session. It's now session-aware:
+  signed-out visitors get the modal, signed-in students start a real
+  conversation (re-using an existing one on duplicate) and land in `/chat`.
+  `/chat` lists conversations with names + last-message previews, shows the
+  thread, and has a composer. New messages appear via 5s `router.refresh()`
+  polling (browser realtime is impossible without Supabase Auth/RLS session).
 
 ---
 
@@ -68,7 +75,8 @@ src/
 │  ├─ courses/           → taxonomy + search (cached)
 │  ├─ sessions/          → tutoring timetable: schedule, confirm attendance
 │  │                        (dual ticks), cancel (soft)
-│  ├─ chat/              → conversations & messages (Phase 2 scaffolding)
+│  ├─ chat/              → /chat page: conversation list (names + last-message
+│  │                        preview), thread, composer; polling refresh
 │  ├─ admin/             → approval workflow (RPCs) + audit log
 │  └─ moderation/        → reports & blocks
 ├─ lib/                  → supabase clients, auth primitives (password, session),
@@ -200,8 +208,9 @@ The dev machine is slow — give compiles 30–60s.
 **Near term:**
 - Google sign-in — slot into the existing `credentials` table (schema is
   ready: add an `auth_provider`/`provider_id` column when implementing).
-- Realtime chat UI (Phase 2) — `conversations`/`messages` are already
-  published to `supabase_realtime`.
+- Realtime chat upgrade — a polling-based `/chat` page is live; switch the
+  thread to `supabase_realtime` subscriptions once a Supabase-Auth-backed
+  path exists (or keep polling — it's fine at this scale). Unread counts.
 - Session reminders (email/WhatsApp) before scheduled meetings.
 - Weekly calendar view of the timetable; live "now" ticker so the confirm
   button appears the moment a session starts.

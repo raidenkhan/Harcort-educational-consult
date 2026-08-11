@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Saved-page dumps (webpack chunks from a browser save tool) — not app code.
+    "sn-*.js",
+    "sn-*.css",
   ]),
 ]);
 

@@ -20,6 +20,9 @@ export default async function AppLayout({
 
   const links = [
     { href: "/dashboard", label: "Dashboard" },
+    ...(profile?.role === "student" || profile?.role === "tutor"
+      ? [{ href: "/chat", label: "Messages" }]
+      : []),
     ...(profile?.role === "tutor"
       ? [{ href: "/tutor", label: "My tutor profile" }]
       : []),

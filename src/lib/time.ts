@@ -33,3 +33,15 @@ export function sessionWhen(date: Date, durationMinutes: number): string {
   const endTime = formatInTz(end, { hour: "numeric", minute: "2-digit" });
   return `${day} · ${startTime}–${endTime}`;
 }
+
+/** "14:05" — Accra time inside a message bubble. */
+export function chatTime(date: Date): string {
+  return formatInTz(date, { hour: "numeric", minute: "2-digit" });
+}
+
+/** "Mon 14 Aug · 14:05" — timestamp for the conversation list. */
+export function chatTimestamp(date: Date): string {
+  const day = formatInTz(date, { weekday: "short", day: "numeric", month: "short" });
+  const time = formatInTz(date, { hour: "numeric", minute: "2-digit" });
+  return `${day} · ${time}`;
+}

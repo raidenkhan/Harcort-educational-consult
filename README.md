@@ -12,7 +12,7 @@ service layer, so the same business logic can power a future mobile app.
 
 - **Next.js 16** (App Router, Server Components, Server Actions) + TypeScript
 - **Tailwind CSS v4**
-- **Supabase** — PostgreSQL only (no Supabase Auth). Realtime for chat (Phase 2), Storage later
+- **Supabase** — PostgreSQL only (no Supabase Auth). Storage later
 - **Self-hosted auth** — own `credentials` + `sessions` tables, scrypt-hashed passwords, httpOnly session cookies
 - **Zod** — validation at every boundary
 - npm (pnpm has symlink issues on Windows; **use npm**)
@@ -26,7 +26,7 @@ src/
 │  ├─ auth/             → sign-up/sign-in actions, session & role guards
 │  ├─ tutors/           → onboarding, approvals, service listings
 │  ├─ courses/          → subject taxonomy + search
-│  ├─ chat/             → conversations & messages (Phase 2 UI)
+│  ├─ chat/             → /chat page: conversations, message thread, composer
 │  ├─ admin/            → approval workflow (RPCs) + audit log
 │  └─ moderation/       → reports & blocks
 ├─ lib/supabase/        → server / browser / admin clients, middleware helper
@@ -122,6 +122,17 @@ close) instead of redirecting. The standalone `/sign-in` and `/sign-up` pages st
 exist for deep links. If the middleware bounces a signed-out user back to "/", the
 modal opens automatically via `?auth=sign-in`.
 
+## Chat
+
+- **Students** tap **Contact tutor** on any approved tutor's card — signed-out
+  visitors get the auth modal, signed-in students start a conversation and land
+  in `/chat` with that tutor.
+- `/chat` shows all conversations (other party's name + last-message preview),
+  the thread, and a composer. New messages appear within ~5s while the page is
+  open (polling refresh — realtime upgrade planned).
+- Only the student and the tutor in the conversation can read or send messages
+  (enforced server-side per message).
+
 ## Sessions & attendance
 
 - **Tutors** schedule sessions (`/tutor` → Timetable) with students who
@@ -153,6 +164,6 @@ modal opens automatically via `?auth=sign-in`.
 - **Phase 0 ✅** — foundation: auth + roles, schema, RLS, admin approval loop
 - **Phase 1 ✅** — KNUST engineering catalog, tutor profile pages, sessions/timetable with attendance ticks, soft-delete cancellations, admin attendance tracker, bento design refresh
 - **Phase 1.5** — Google sign-in, session reminders, calendar view, moderation UI
-- **Phase 2** — realtime chat (Supabase Realtime is already enabled), unread counts
+- **Phase 2** — realtime chat upgrade (page is live with polling; swap to Supabase Realtime subscriptions), unread counts
 - **Phase 3** — payments (Stripe), bookings, reviews — chat goes behind the paywall
 - **Phase 4** — mobile app (React Native / Expo) consuming the same backend
