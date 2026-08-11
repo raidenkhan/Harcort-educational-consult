@@ -85,7 +85,7 @@ export default async function DashboardPage() {
                 Browse approved tutors by subject and course, then reach out
                 when you find the right match.
               </p>
-              <Link href="/#tutors" className="mt-4 block">
+              <Link href="/tutors" className="mt-4 block">
                 <Button className="w-full sm:w-auto">Browse tutors</Button>
               </Link>
             </Card>

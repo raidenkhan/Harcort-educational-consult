@@ -54,7 +54,7 @@ export default async function Home() {
             <Link href="#subjects" className="transition hover:text-slate-900">
               Subjects
             </Link>
-            <Link href="#tutors" className="transition hover:text-slate-900">
+            <Link href="/tutors" className="transition hover:text-slate-900">
               Find a tutor
             </Link>
           </nav>
@@ -83,9 +83,9 @@ export default async function Home() {
           fill
           priority
           sizes="100vw"
-          className="object-cover"
+          className="scale-105 object-cover blur-[2px]"
         />
-        <div aria-hidden="true" className="absolute inset-0 bg-white/25" />
+        <div aria-hidden="true" className="absolute inset-0 bg-white/30" />
         <Container className="relative py-24 sm:py-28">
           <div className="mx-auto max-w-3xl text-center">
             <span
@@ -118,12 +118,12 @@ export default async function Home() {
               className="mt-10 flex animate-fade-up flex-wrap items-center justify-center gap-4"
               style={{ animationDelay: "180ms" }}
             >
-              <AuthTrigger
-                tab="sign-up"
-                className="h-12 rounded-md bg-slate-900 px-7 text-sm font-semibold text-white shadow-lift hover:bg-slate-800"
+              <Link
+                href="/tutors"
+                className="inline-flex h-12 items-center justify-center rounded-md bg-slate-900 px-7 text-sm font-semibold text-white shadow-lift transition duration-150 hover:bg-slate-800 active:scale-[0.97]"
               >
                 Find a tutor
-              </AuthTrigger>
+              </Link>
               <AuthTrigger
                 tab="sign-up"
                 className="h-12 rounded-md border border-slate-300 bg-white px-7 text-sm font-semibold text-slate-800 shadow-sm hover:border-slate-400 hover:bg-slate-50"

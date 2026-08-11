@@ -1,12 +1,13 @@
 import { cn } from "@/lib/cn";
 
 /**
- * Decorative "bento grid" backdrop for interior pages (admin, tutor, …).
+ * Decorative "bento" backdrop for interior pages (admin, tutor, dashboard, …).
  *
  * Pure CSS, pointer-events none, absolutely positioned — drop it as the first
  * child of a `relative overflow-hidden` page wrapper and it sits behind the
- * content. Subtle by design: tiles are faint borders + tints, plus the brand
- * gradient (public/gradback.jpg) washed to near-transparency at the top.
+ * content. Deliberately soft: no hard-edged squares or dot patterns; just
+ * rounded translucent panels with blurred edges, a couple of glow blobs, a
+ * whisper of the brand gradient, and faint blueprint grid lines near the top.
  */
 export function BentoBackdrop({
   tone = "petrol",
@@ -18,27 +19,23 @@ export function BentoBackdrop({
   const palette =
     tone === "amber"
       ? {
-          tile: "border-brand-200/70 bg-brand-50/40",
-          tileFill: "bg-brand-100/50",
-          dot: "bg-brand-300/30",
-          grid: "[background-image:linear-gradient(to_right,rgba(120,53,15,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,53,15,0.055)_1px,transparent_1px)]",
-          glow: "bg-brand-300/25",
+          panel: "bg-gradient-to-br from-brand-200/45 to-brand-100/5",
+          panelAlt: "bg-gradient-to-tr from-amber-100/40 to-brand-100/5",
+          grid: "[background-image:linear-gradient(to_right,rgba(120,53,15,0.045)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,53,15,0.045)_1px,transparent_1px)]",
+          glow: "bg-brand-300/20",
         }
       : {
-          tile: "border-petrol-200/60 bg-petrol-50/35",
-          tileFill: "bg-petrol-100/45",
-          dot: "bg-petrol-300/30",
-          grid: "[background-image:linear-gradient(to_right,rgba(10,75,89,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(10,75,89,0.05)_1px,transparent_1px)]",
+          panel: "bg-gradient-to-br from-petrol-200/40 to-petrol-100/5",
+          panelAlt: "bg-gradient-to-tr from-sky-100/40 to-petrol-100/5",
+          grid: "[background-image:linear-gradient(to_right,rgba(10,75,89,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(10,75,89,0.04)_1px,transparent_1px)]",
           glow: "bg-petrol-300/20",
         };
 
-  const tiles = [
-    "left-[3%] top-24 h-44 w-60 hidden sm:block",
-    "right-[4%] top-36 h-32 w-52",
-    "left-[12%] top-[24rem] h-28 w-48 hidden sm:block",
-    "right-[10%] top-[30rem] h-40 w-56",
-    "left-[2%] top-[40rem] h-24 w-40 hidden lg:block",
-    "right-[3%] top-[46rem] h-32 w-44 hidden lg:block",
+  const panels = [
+    "left-[4%] top-24 h-48 w-72 hidden sm:block rotate-[-1.5deg]",
+    "right-[6%] top-40 h-40 w-60 rotate-[1.5deg]",
+    "left-[16%] top-[26rem] h-32 w-52 hidden lg:block rotate-[1deg]",
+    "right-[4%] top-[34rem] h-44 w-64 hidden lg:block rotate-[-1deg]",
   ];
 
   return (
@@ -51,7 +48,7 @@ export function BentoBackdrop({
     >
       {/* Brand gradient art, washed out to a whisper */}
       <div
-        className="absolute inset-x-0 top-0 h-96 opacity-[0.07] [mask-image:linear-gradient(to_bottom,black_15%,transparent)]"
+        className="absolute inset-x-0 top-0 h-96 opacity-[0.06] [mask-image:linear-gradient(to_bottom,black_15%,transparent)]"
         style={{
           backgroundImage: "url(/gradback.jpg)",
           backgroundSize: "cover",
@@ -69,35 +66,29 @@ export function BentoBackdrop({
       <div
         className={cn(
           "absolute left-[-10%] top-[36%] h-72 w-72 rounded-full blur-3xl opacity-80",
-          palette.tileFill,
+          palette.panelAlt,
         )}
       />
 
-      {/* Blueprint grid lines, strongest at the top */}
+      {/* Rounded translucent panels — soft, blurred edges, no borders/shadows */}
+      {panels.map((panel, i) => (
+        <div
+          key={i}
+          className={cn(
+            "absolute rounded-[2.5rem] blur-[2px]",
+            i % 2 === 0 ? palette.panel : palette.panelAlt,
+            panel,
+          )}
+        />
+      ))}
+
+      {/* Faint blueprint grid lines, only near the top */}
       <div
         className={cn(
-          "absolute inset-0 [background-size:44px_44px] [mask-image:radial-gradient(ellipse_80%_65%_at_50%_0%,black,transparent_82%)]",
+          "absolute inset-x-0 top-0 h-[30rem] [background-size:44px_44px] [mask-image:linear-gradient(to_bottom,black_12%,transparent_55%)]",
           palette.grid,
         )}
       />
-
-      {/* Scattered bento tiles */}
-      {tiles.map((tile, i) => (
-        <div
-          key={i}
-          className={cn("absolute rounded-2xl border", palette.tile, tile)}
-        >
-          {/* Tiny spec dots on a couple of tiles, like a blueprint */}
-          {i % 2 === 0 && (
-            <div
-              className={cn(
-                "absolute inset-0 [background-image:radial-gradient(transparent_1.5px,currentColor_1.5px)] [background-size:12px_12px] opacity-20",
-                palette.dot,
-              )}
-            />
-          )}
-        </div>
-      ))}
     </div>
   );
 }

@@ -87,7 +87,7 @@ export function ChatView({
           Find a tutor you like on the home page and tap “Contact tutor” — the
           conversation will show up here for both of you.
         </p>
-        <Link href="/#tutors" className="mt-6 inline-block">
+        <Link href="/tutors" className="mt-6 inline-block">
           <Button>Browse tutors</Button>
         </Link>
       </Card>
