@@ -7,6 +7,7 @@ import {
 import { ChatView } from "@/components/chat/ChatView";
 import { Container } from "@/components/ui/Container";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
+import { PaymentGroundRules } from "@/components/support/PaymentGroundRules";
 
 /**
  * /chat — protected. The active thread is picked from ?c= (falling back to
@@ -51,6 +52,11 @@ export default async function ChatPage({
             ? "Students reach out when they find your profile. Chat here, then schedule sessions from your timetable."
             : "Contact a tutor from the home page — your chat lives here."}
         </p>
+
+        {/* Payment reminder for students — payments happen with admins only. */}
+        {profile.role === "student" && (
+          <PaymentGroundRules variant="banner" className="mt-8" />
+        )}
 
         <ChatView
           conversations={conversations}

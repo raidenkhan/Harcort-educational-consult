@@ -69,6 +69,9 @@ npm install
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY` (the `service_role` secret — **server only**)
+   - `NEXT_PUBLIC_ADMIN_WHATSAPP` — the admin WhatsApp number (international
+     format, digits only, no `+`, e.g. `233201234567`) used for the student
+     **Contact admin** button. Leave empty to hide the CTA until set.
 
    A template lives in `.env.example`.
 
@@ -134,6 +137,13 @@ modal opens automatically via `?auth=sign-in`.
   open (polling refresh — realtime upgrade planned).
 - Only the student and the tutor in the conversation can read or send messages
   (enforced server-side per message).
+
+## Payments & admin contact
+
+Students make and discuss payments **only with Harcot admins — never with
+ tutors**. This policy is shown to every student as a card on their dashboard
+ and as a banner at the top of `/chat` (where payment talk would happen), with
+ a **Contact admin on WhatsApp** button wired to `NEXT_PUBLIC_ADMIN_WHATSAPP`.
 
 ## Sessions & attendance
 

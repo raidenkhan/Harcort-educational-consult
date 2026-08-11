@@ -71,6 +71,12 @@ mobile app.
   `BentoBackdrop` was softened (no hard square tiles — blurred panels +
   faint grid) and the home hero blurs `gradback.jpg` slightly to hide
   gradient banding.
+- **Payment ground rules + admin contact.** Policy: students make and
+  discuss payments ONLY with admins, never tutors. Rendered as a card on the
+  student dashboard and a compact banner on `/chat` (student role only) via
+  `src/components/support/PaymentGroundRules.tsx`. The WhatsApp CTA links to
+  `wa.me` from `NEXT_PUBLIC_ADMIN_WHATSAPP` (`src/lib/config.ts`) — the button
+  hides until the number is configured.
 
 ---
 
@@ -171,6 +177,7 @@ Key security properties:
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=   # REQUIRED — everything runs through this
+NEXT_PUBLIC_ADMIN_WHATSAPP=   # student Contact-admin WhatsApp button (digits only, e.g. 233201234567)
 ```
 
 Setup runbook:

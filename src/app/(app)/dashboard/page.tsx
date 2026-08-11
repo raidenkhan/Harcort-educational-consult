@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { SessionCard } from "@/components/sessions/SessionCard";
 import { TutorProfileCta } from "@/components/tutors/TutorProfileCta";
+import { PaymentGroundRules } from "@/components/support/PaymentGroundRules";
 
 /** Sessions can be ticked from 15 minutes before their start time. */
 const GRACE_MS = 15 * 60 * 1000;
@@ -77,6 +78,9 @@ export default async function DashboardPage() {
           Welcome, {profile.full_name.split(" ")[0]}.
         </h1>
         <p className="mt-2 max-w-xl text-slate-600">{roleHeading[profile.role]}</p>
+
+        {/* Payment ground rules — the admin-only-payments policy, front and center. */}
+        {profile.role === "student" && <PaymentGroundRules className="mt-8" />}
 
         <div className="mt-10 grid gap-6 sm:grid-cols-2">
           {profile.role === "student" && (
