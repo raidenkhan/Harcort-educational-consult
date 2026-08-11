@@ -46,19 +46,22 @@ export function SessionCard({
   const { month, day } = sessionDateTile(start);
 
   return (
-    <Card className="flex flex-wrap items-start gap-5">
-      {/* Date tile (Accra time, deterministic server/client) */}
-      <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-          {month}
-        </span>
-        <span className="font-display text-xl font-bold leading-tight text-slate-900">
-          {day}
-        </span>
-      </div>
+    <Card className="sm:flex sm:items-start sm:gap-5">
+      {/* Date tile + details share one line; on mobile the details get the
+          full remaining width instead of being squeezed next to the actions. */}
+      <div className="flex min-w-0 flex-1 items-start gap-4 sm:gap-5">
+        {/* Date tile (Accra time, deterministic server/client) */}
+        <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-50 sm:h-16 sm:w-16">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            {month}
+          </span>
+          <span className="font-display text-xl font-bold leading-tight text-slate-900">
+            {day}
+          </span>
+        </div>
 
-      {/* Details */}
-      <div className="min-w-0 flex-1">
+        {/* Details */}
+        <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="font-semibold text-slate-900">
             {session.topic || "Tutoring session"}
@@ -117,10 +120,12 @@ export function SessionCard({
             {confirmState?.error || cancelState?.error || confirmState?.message || cancelState?.message}
           </p>
         )}
+        </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex shrink-0 flex-col gap-2 sm:w-40">
+      {/* Actions — full-width stacked buttons on mobile (easy thumb targets),
+          compact 160px column beside the details on sm+. */}
+      <div className="mt-4 flex shrink-0 flex-col gap-2 sm:mt-0 sm:w-40">
         {isDue && !myConfirmed ? (
           <form action={confirmAction}>
             <input type="hidden" name="sessionId" value={session.id} />
