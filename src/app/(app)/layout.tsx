@@ -4,6 +4,7 @@ import { signOutAction } from "@/services/auth/actions";
 import { Container } from "@/components/ui/Container";
 import { Badge } from "@/components/ui/Badge";
 import { Logo } from "@/components/ui/Logo";
+import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 
 const roleTone = {
   student: "neutral",
@@ -35,7 +36,7 @@ export default async function AppLayout({
         <Container className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-8">
             <Logo />
-            <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 sm:flex">
+            <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 lg:flex">
               {links.map((link) => (
                 <Link
                   key={link.href}
@@ -50,7 +51,7 @@ export default async function AppLayout({
 
           <div className="flex items-center gap-3">
             {profile && (
-              <span className="hidden items-center gap-2 text-sm text-slate-600 sm:flex">
+              <span className="hidden items-center gap-2 text-sm text-slate-600 lg:flex">
                 {profile.full_name}
                 <Badge tone={roleTone[profile.role]}>{profile.role}</Badge>
               </span>
@@ -66,7 +67,10 @@ export default async function AppLayout({
           </div>
         </Container>
       </header>
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 pb-20 lg:pb-0">{children}</main>
+
+      {/* Mobile gets an app-like bottom tab bar; lg+ uses the top nav. */}
+      {profile && <MobileTabBar role={profile.role} />}
     </div>
   );
 }

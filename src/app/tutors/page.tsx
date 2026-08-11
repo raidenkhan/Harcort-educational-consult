@@ -2,11 +2,13 @@ import Link from "next/link";
 import { Users } from "lucide-react";
 import { listApprovedTutors } from "@/services/tutors/queries";
 import { getCurrentProfile } from "@/services/auth/queries";
+import { signOutAction } from "@/services/auth/actions";
 import { TutorExplorer } from "@/components/tutors/TutorExplorer";
 import { Container } from "@/components/ui/Container";
 import { Logo } from "@/components/ui/Logo";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
+import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 
 /**
  * Public tutor directory — browse approved tutors with search + subject
@@ -29,7 +31,7 @@ export default async function TutorsPage() {
   ]);
 
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden">
+    <div className="relative flex flex-1 flex-col overflow-hidden pb-20 lg:pb-0">
       <BentoBackdrop tone="amber" />
 
       {/* ── Top navigation ───────────────────────────────────────── */}
@@ -37,7 +39,7 @@ export default async function TutorsPage() {
         <Container className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-8">
             <Logo />
-            <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 sm:flex">
+            <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 lg:flex">
               <Link href="/" className="transition hover:text-slate-900">
                 Home
               </Link>
@@ -45,18 +47,31 @@ export default async function TutorsPage() {
             </nav>
           </div>
           <div className="flex items-center gap-2.5">
-            <AuthTrigger
-              tab="sign-in"
-              className="h-10 rounded-md px-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-            >
-              Sign in
-            </AuthTrigger>
-            <AuthTrigger
-              tab="sign-up"
-              className="h-10 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white shadow-xs hover:bg-slate-800"
-            >
-              Get started
-            </AuthTrigger>
+            {profile ? (
+              <form action={signOutAction}>
+                <button
+                  type="submit"
+                  className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 shadow-xs transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  Sign out
+                </button>
+              </form>
+            ) : (
+              <>
+                <AuthTrigger
+                  tab="sign-in"
+                  className="h-10 rounded-md px-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Sign in
+                </AuthTrigger>
+                <AuthTrigger
+                  tab="sign-up"
+                  className="h-10 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white shadow-xs hover:bg-slate-800"
+                >
+                  Get started
+                </AuthTrigger>
+              </>
+            )}
           </div>
         </Container>
       </header>
@@ -95,6 +110,9 @@ export default async function TutorsPage() {
           )}
         </Container>
       </main>
+
+      {/* Mobile tab bar keeps the app feel when browsing the directory. */}
+      {profile && <MobileTabBar role={profile.role} />}
 
       {/* ── Footer ───────────────────────────────────────────────── */}
       <footer className="border-t border-slate-800 bg-slate-950">
