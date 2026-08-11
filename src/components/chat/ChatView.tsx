@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Inbox, Loader2, MessageCircle, Send } from "lucide-react";
+import { ArrowLeft, Check, Inbox, Loader2, MessageCircle, Send } from "lucide-react";
 import { sendMessage, type ConversationFormState } from "@/services/chat/mutations";
 import type { ConversationListItem } from "@/services/chat/queries";
 import type { Message } from "@/types";
@@ -11,17 +11,16 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
-import { chatTime, chatTimestamp } from "@/lib/time";
+import { chatDay, chatDayKey, chatTime, chatTimestamp } from "@/lib/time";
 
 /**
- * The /chat workspace: conversation sidebar + message thread + composer.
+ * The /chat workspace — WhatsApp-style.
  *
- * Sending is optimistic — the moment you hit send, your bubble appears with a
- * "Sending…" state (WhatsApp-style, so the experience never waits on the
- * network). The server action runs in the background; when the refreshed
- * thread confirms the message, the optimistic bubble is replaced by the real
- * one with a ✓. On failure the bubble is removed and your text is restored so
- * you can retry.
+ * Mobile: a chats list fills the screen; tapping a chat opens the thread
+ * (back button returns to the list). Desktop: conversation sidebar + thread
+ * sit side by side. Sending is optimistic — your bubble appears instantly
+ * with a "Sending…" state, reconciles to a ✓ once the refreshed thread has
+ * it, and rolls back with your text restored on failure.
  *
  * Incoming messages: conversations/messages are published to
  * supabase_realtime, but the app uses self-hosted auth (no Supabase session),
@@ -35,6 +34,55 @@ interface PendingMessage {
   body: string;
 }
 
+/** A thread row — either a day separator or a message bubble. */
+type Row =
+  | { kind: "separator"; id: string; label: string }
+  | { kind: "message"; message: Message };
+
+/** Insert day separators whenever the Accra date changes between messages. */
+function buildRows(messages: Message[], now: number): Row[] {
+  const rows: Row[] = [];
+  let prevKey: string | null = null;
+  for (const m of messages) {
+    const key = chatDayKey(new Date(m.created_at).getTime());
+    if (key !== prevKey) {
+      rows.push({
+        kind: "separator",
+        id: `sep-${key}`,
+        label: chatDay(new Date(m.created_at).getTime(), now),
+      });
+      prevKey = key;
+    }
+    rows.push({ kind: "message", message: m });
+  }
+  return rows;
+}
+
+/** One message bubble. Pure render of a single message — no state. */
+function MessageRow({ message, myId }: { message: Message; myId: string }) {
+  const mine = message.sender_id === myId;
+  return (
+    <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
+      <div
+        className={cn(
+          "max-w-[78%] rounded-lg px-3.5 py-2 shadow-xs",
+          mine
+            ? "rounded-br-sm bg-slate-900 text-white"
+            : "rounded-bl-sm bg-white text-slate-800 ring-1 ring-slate-200",
+        )}
+      >
+        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+          {message.body}
+        </p>
+        <p className="mt-1 flex items-center justify-end gap-1 text-right text-[11px] text-slate-400">
+          {mine && <Check className="h-3 w-3" />}
+          {chatTime(new Date(message.created_at))}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function ChatView({
   conversations,
   activeId,
@@ -42,6 +90,8 @@ export function ChatView({
   otherName,
   myId,
   closed = false,
+  now,
+  initialThreadOpen = false,
 }: {
   conversations: ConversationListItem[];
   activeId: string | null;
@@ -49,6 +99,10 @@ export function ChatView({
   otherName: string;
   myId: string;
   closed?: boolean;
+  /** Snapshot for "Today"/"Yesterday" separators — passed from the server page. */
+  now: number;
+  /** Deep-linked straight into a thread (mobile) when the URL carries ?c=. */
+  initialThreadOpen?: boolean;
 }) {
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -58,12 +112,23 @@ export function ChatView({
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
+  // Mobile: chats list ↔ open thread (desktop always shows both panes).
+  const [mobileThreadOpen, setMobileThreadOpen] = useState(initialThreadOpen);
+
+  const openThread = () => setMobileThreadOpen(true);
+  const closeThread = () => {
+    router.replace("/chat");
+    setMobileThreadOpen(false);
+  };
+
   // True once the server thread contains this body from me (reconciliation).
   const threadHasBody = (body: string) =>
     thread.some((m) => m.sender_id === myId && m.body === body);
 
   // Optimistic bubbles the server doesn't know about yet.
   const visiblePending = pendingMsgs.filter((p) => !threadHasBody(p.body));
+
+  const rows = buildRows(thread, now);
 
   // Pick up new messages while the page is open (see realtime note above).
   useEffect(() => {
@@ -145,25 +210,17 @@ export function ChatView({
   }
 
   return (
-    <div className="mt-10 grid gap-6 lg:grid-cols-[300px_1fr]">
-      {/* Mobile conversation picker */}
-      <select
-        value={activeId ?? ""}
-        onChange={(e) => router.push(`/chat?c=${e.target.value}`)}
-        className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-xs lg:hidden"
-        aria-label="Switch conversation"
+    <div className="mt-10 lg:grid lg:grid-cols-[300px_1fr] lg:gap-6">
+      {/* ── Chats list ─────────────────────────────────────────────── */}
+      <Card
+        padded={false}
+        className={cn(
+          "h-[calc(100dvh-15rem)] min-h-96 flex-col overflow-hidden lg:h-[600px] lg:min-h-0",
+          mobileThreadOpen ? "hidden lg:flex" : "flex",
+        )}
       >
-        {conversations.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.otherName}
-          </option>
-        ))}
-      </select>
-
-      {/* Sidebar */}
-      <Card padded={false} className="hidden h-[600px] flex-col overflow-hidden lg:flex">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">Conversations</h2>
+          <h2 className="text-sm font-semibold text-slate-900">Chats</h2>
           <Badge tone="petrol">{conversations.length}</Badge>
         </div>
         <ul className="flex-1 divide-y divide-slate-100 overflow-y-auto">
@@ -173,14 +230,16 @@ export function ChatView({
               <li key={c.id}>
                 <Link
                   href={`/chat?c=${c.id}`}
+                  onClick={openThread}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex items-start gap-3 px-5 py-4 transition duration-150",
+                    "flex items-center gap-3 px-5 py-4 transition duration-150",
                     active ? "bg-brand-50/70" : "hover:bg-slate-50",
                   )}
                 >
                   <span
                     className={cn(
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-sm font-bold",
+                      "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold",
                       active ? "bg-brand-600 text-white" : "bg-slate-900 text-white",
                     )}
                   >
@@ -210,18 +269,32 @@ export function ChatView({
         </ul>
       </Card>
 
-      {/* Thread */}
-      <Card padded={false} className="flex h-[600px] flex-col overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-900 text-sm font-bold text-white">
+      {/* ── Thread ─────────────────────────────────────────────────── */}
+      <Card
+        padded={false}
+        className={cn(
+          "h-[calc(100dvh-15rem)] min-h-96 flex-col overflow-hidden lg:h-[600px] lg:min-h-0",
+          !mobileThreadOpen ? "hidden lg:flex" : "flex",
+        )}
+      >
+        <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5">
+          <button
+            type="button"
+            onClick={closeThread}
+            aria-label="Back to chats"
+            className="-ml-1.5 rounded-md p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 lg:hidden"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">
             {(otherName || "?").charAt(0).toUpperCase()}
           </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-900">{otherName}</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-slate-900">
+              {otherName}
+            </p>
             <p className="text-xs text-slate-500">
-              {conversations.find((c) => c.id === activeId)?.status === "closed"
-                ? "Conversation closed"
-                : "Conversation open"}
+              {closed ? "Conversation closed" : "Conversation open"}
             </p>
           </div>
         </div>
@@ -231,7 +304,7 @@ export function ChatView({
           onScroll={handleScroll}
           className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-5 py-5"
         >
-          {thread.length === 0 && visiblePending.length === 0 ? (
+          {rows.length === 0 && visiblePending.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <MessageCircle className="h-8 w-8 text-slate-300" />
               <p className="mt-3 text-sm text-slate-500">
@@ -240,37 +313,17 @@ export function ChatView({
             </div>
           ) : (
             <>
-              {thread.map((m) => {
-                const mine = m.sender_id === myId;
-                return (
-                  <div
-                    key={m.id}
-                    className={cn("flex", mine ? "justify-end" : "justify-start")}
-                  >
-                    <div
-                      className={cn(
-                        "max-w-[78%] rounded-lg px-3.5 py-2 shadow-xs",
-                        mine
-                          ? "rounded-br-sm bg-slate-900 text-white"
-                          : "rounded-bl-sm bg-white text-slate-800 ring-1 ring-slate-200",
-                      )}
-                    >
-                      <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                        {m.body}
-                      </p>
-                      <p
-                        className={cn(
-                          "mt-1 flex items-center justify-end gap-1 text-right text-[11px]",
-                          mine ? "text-slate-400" : "text-slate-400",
-                        )}
-                      >
-                        {mine && <Check className="h-3 w-3" />}
-                        {chatTime(new Date(m.created_at))}
-                      </p>
-                    </div>
+              {rows.map((row) =>
+                row.kind === "separator" ? (
+                  <div key={row.id} className="flex justify-center">
+                    <span className="rounded-md bg-slate-200/80 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                      {row.label}
+                    </span>
                   </div>
-                );
-              })}
+                ) : (
+                  <MessageRow key={row.message.id} message={row.message} myId={myId} />
+                ),
+              )}
 
               {/* Optimistic bubbles still in flight */}
               {visiblePending.map((p) => (
@@ -290,14 +343,20 @@ export function ChatView({
           )}
         </div>
 
-        <form ref={formRef} onSubmit={handleSend} className="border-t border-slate-100 bg-white p-4">
+        <form
+          ref={formRef}
+          onSubmit={handleSend}
+          className="border-t border-slate-100 bg-white p-4"
+        >
           <div className="flex items-end gap-2">
             <textarea
               name="body"
               rows={1}
               maxLength={2000}
               disabled={closed}
-              placeholder={closed ? "This conversation is closed" : `Message ${otherName}…`}
+              placeholder={
+                closed ? "This conversation is closed" : `Message ${otherName}…`
+              }
               className="h-11 min-h-0 flex-1 resize-none rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-xs placeholder:text-slate-400 transition focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
             />
             <Button

@@ -65,13 +65,19 @@ function WhatsAppCta({ compact = false }: { compact?: boolean }) {
 
 export function PaymentGroundRules({
   variant = "card",
+  audience = "student",
   className,
 }: {
   variant?: "card" | "banner";
+  audience?: "student" | "tutor";
   className?: string;
 }) {
   // ── Compact banner (chat page) ─────────────────────────────────────
   if (variant === "banner") {
+    const message =
+      audience === "tutor"
+        ? "you never collect fees or discuss payments with students — direct them to a Harcot admin."
+        : "only Harcot admins handle payments — tutors never collect fees.";
     return (
       <div
         className={cn(
@@ -85,7 +91,7 @@ export function PaymentGroundRules({
             <span className="font-semibold text-slate-900">
               Payment reminder:
             </span>{" "}
-            only Harcot admins handle payments — tutors never collect fees.
+            {message}
           </p>
         </div>
         <WhatsAppCta compact />

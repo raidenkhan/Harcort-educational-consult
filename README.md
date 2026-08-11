@@ -134,7 +134,9 @@ modal opens automatically via `?auth=sign-in`.
   in `/chat` with that tutor.
 - `/chat` shows all conversations (other party's name + last-message preview),
   the thread, and a composer. New messages appear within ~5s while the page is
-  open (polling refresh — realtime upgrade planned).
+  open (polling refresh — realtime upgrade planned). On mobile it works like
+  WhatsApp: a chats list you tap into, then a back button returns to the list.
+- Threads show **Today / Yesterday / date** separators between messages.
 - Only the student and the tutor in the conversation can read or send messages
   (enforced server-side per message).
 

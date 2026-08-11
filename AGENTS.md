@@ -64,6 +64,11 @@ mobile app.
   `/chat` lists conversations with names + last-message previews, shows the
   thread, and has a composer. New messages appear via 5s `router.refresh()`
   polling (browser realtime is impossible without Supabase Auth/RLS session).
+  Mobile is WhatsApp-style: a chats list you tap into — the thread opens with
+  a back button (no dropdown); desktop keeps the two-pane sidebar + thread.
+  Threads show "Today"/"Yesterday"/date separators (Accra day math in
+  `lib/time.ts`) and optimistic sending stays.
+- **Payment ground rules + admin contact.** Policy: students make and
 - **Tutor directory (`/tutors`).** Public browse/search page: client-side text
   + subject filtering over the cached approved-tutor list, credential-rich
   cards (qualifications, per-course pricing), session-aware Contact button.

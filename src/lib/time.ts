@@ -45,3 +45,16 @@ export function chatTimestamp(date: Date): string {
   const time = formatInTz(date, { hour: "numeric", minute: "2-digit" });
   return `${day} · ${time}`;
 }
+
+/** "2026-08-11" (Accra) — used to group chat messages into days. */
+export function chatDayKey(ts: number): string {
+  return formatInTz(new Date(ts), { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
+/** "Today" / "Yesterday" / "14 Aug" — WhatsApp-style day separator for chat threads. */
+export function chatDay(ts: number, now: number): string {
+  const today = chatDayKey(now);
+  if (chatDayKey(ts) === today) return "Today";
+  if (chatDayKey(ts) === chatDayKey(now - 86_400_000)) return "Yesterday";
+  return formatInTz(new Date(ts), { day: "numeric", month: "short" });
+}
