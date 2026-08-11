@@ -41,6 +41,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# saved-page dumps (webpack chunks from a browser save tool)
+# saved-page dumps (webpack chunks / saved design pages from a browser save tool)
 sn-*.js
 sn-*.css
+supernova-home.html
