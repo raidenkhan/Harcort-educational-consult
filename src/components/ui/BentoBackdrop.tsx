@@ -1,13 +1,12 @@
 import { cn } from "@/lib/cn";
 
 /**
- * Decorative "bento" backdrop for interior pages (admin, tutor, dashboard, …).
+ * Decorative page backdrop (dashboard, tutor, admin, /tutors, …).
  *
  * Pure CSS, pointer-events none, absolutely positioned — drop it as the first
  * child of a `relative overflow-hidden` page wrapper and it sits behind the
- * content. Deliberately soft: no hard-edged squares or dot patterns; just
- * rounded translucent panels with blurred edges, a couple of glow blobs, a
- * whisper of the brand gradient, and faint blueprint grid lines near the top.
+ * content. Shape-free by design: no tiles, panels, or grid lines — just a
+ * whisper of the brand gradient and a couple of blurred glow blobs.
  */
 export function BentoBackdrop({
   tone = "petrol",
@@ -19,24 +18,13 @@ export function BentoBackdrop({
   const palette =
     tone === "amber"
       ? {
-          panel: "bg-gradient-to-br from-brand-200/45 to-brand-100/5",
-          panelAlt: "bg-gradient-to-tr from-amber-100/40 to-brand-100/5",
-          grid: "[background-image:linear-gradient(to_right,rgba(120,53,15,0.045)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,53,15,0.045)_1px,transparent_1px)]",
           glow: "bg-brand-300/20",
+          glowAlt: "bg-amber-200/40",
         }
       : {
-          panel: "bg-gradient-to-br from-petrol-200/40 to-petrol-100/5",
-          panelAlt: "bg-gradient-to-tr from-sky-100/40 to-petrol-100/5",
-          grid: "[background-image:linear-gradient(to_right,rgba(10,75,89,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(10,75,89,0.04)_1px,transparent_1px)]",
           glow: "bg-petrol-300/20",
+          glowAlt: "bg-sky-200/40",
         };
-
-  const panels = [
-    "left-[4%] top-24 h-48 w-72 hidden sm:block rotate-[-1.5deg]",
-    "right-[6%] top-40 h-40 w-60 rotate-[1.5deg]",
-    "left-[16%] top-[26rem] h-32 w-52 hidden lg:block rotate-[1deg]",
-    "right-[4%] top-[34rem] h-44 w-64 hidden lg:block rotate-[-1deg]",
-  ];
 
   return (
     <div
@@ -56,7 +44,7 @@ export function BentoBackdrop({
         }}
       />
 
-      {/* Soft glow blobs */}
+      {/* Soft glow blobs — blurred, no edges */}
       <div
         className={cn(
           "absolute -top-28 right-[-8%] h-80 w-80 rounded-full blur-3xl",
@@ -66,27 +54,13 @@ export function BentoBackdrop({
       <div
         className={cn(
           "absolute left-[-10%] top-[36%] h-72 w-72 rounded-full blur-3xl opacity-80",
-          palette.panelAlt,
+          palette.glowAlt,
         )}
       />
-
-      {/* Rounded translucent panels — soft, blurred edges, no borders/shadows */}
-      {panels.map((panel, i) => (
-        <div
-          key={i}
-          className={cn(
-            "absolute rounded-[2.5rem] blur-[2px]",
-            i % 2 === 0 ? palette.panel : palette.panelAlt,
-            panel,
-          )}
-        />
-      ))}
-
-      {/* Faint blueprint grid lines, only near the top */}
       <div
         className={cn(
-          "absolute inset-x-0 top-0 h-[30rem] [background-size:44px_44px] [mask-image:linear-gradient(to_bottom,black_12%,transparent_55%)]",
-          palette.grid,
+          "absolute bottom-[-10%] left-[45%] h-80 w-96 rounded-full blur-3xl opacity-60",
+          palette.glow,
         )}
       />
     </div>

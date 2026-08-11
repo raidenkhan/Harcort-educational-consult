@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { SessionCard } from "@/components/sessions/SessionCard";
+import { TutorProfileCta } from "@/components/tutors/TutorProfileCta";
 
 /** Sessions can be ticked from 15 minutes before their start time. */
 const GRACE_MS = 15 * 60 * 1000;
@@ -241,6 +242,11 @@ export default async function DashboardPage() {
           </section>
         )}
       </Container>
+
+      {/* Popup for tutors who haven't created a profile yet (review gate). */}
+      {profile.role === "tutor" && (
+        <TutorProfileCta hasProfile={Boolean(tutor?.profile)} />
+      )}
     </div>
   );
 }
