@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireProfile } from "@/services/auth/queries";
 import { tutorProfileSchema, tutorServiceSchema } from "./schemas";
@@ -56,8 +56,11 @@ export async function submitTutorProfile(
 
   if (error) return { error: error.message };
 
+  // Bio/rate render on the (cached) landing page — bust the tag.
+  revalidateTag("tutors", "max");
   revalidatePath("/tutor");
   revalidatePath("/dashboard");
+  revalidatePath("/");
   return { message: "Profile saved. An admin will review it shortly." };
 }
 
@@ -96,6 +99,9 @@ export async function addTutorService(
 
   if (error) return { error: error.message };
 
+  // Courses/prices render on the (cached) landing page — bust the tag.
+  revalidateTag("tutors", "max");
   revalidatePath("/tutor");
+  revalidatePath("/");
   return { message: "Course added to your services." };
 }

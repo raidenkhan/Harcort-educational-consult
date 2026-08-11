@@ -128,8 +128,11 @@ Key security properties:
   `src/app/(app)/tutor/page.tsx`) and pass snapshots down as props
   (see `SessionCard`'s `now` prop).
 - **Caching:** public read queries use `unstable_cache` from `next/cache` with
-  `tags` + a TTL (see `listApprovedTutors`, `listCourses`); invalidate with
-  `revalidateTag("tutors")` from mutations that change the data.
+  `tags` + a TTL (see `listApprovedTutors`, `listCourses`). Invalidate from
+  server actions with Next 16's two-arg form
+  `revalidateTag("tutors", "max")` (plus `revalidatePath("/")`) in every
+  mutation that changes the cached data — admin approve/reject, tutor
+  profile/service edits.
 - **UI:** Tailwind v4; design tokens in `src/app/globals.css` (`brand-*`
   amber, `petrol-*` teal, `font-display` Space Grotesk). **No emojis** — use
   lucide-react icons. Reuse `Card`/`Badge`/`Button`/`Container`/`Field(s)`.
@@ -176,6 +179,13 @@ The dev machine is slow — give compiles 30–60s.
 - **`next build` and `next dev` share `.next`** — running one after the other
   without `rm -rf .next` causes stale-chunk failures (sign-in "Failed to
   fetch"). Always clean-restart.
+- **Stale environment variables beat `.env.local`.** Next.js never overrides
+  an existing env var with a file value. If `SUPABASE_SERVICE_ROLE_KEY` (or
+  the other Supabase vars) is set to the old placeholder in the shell,
+  every DB call fails with "Invalid API key" and pages silently render empty
+  (e.g. "No tutors yet"). Launch with
+  `env -u SUPABASE_SERVICE_ROLE_KEY -u NEXT_PUBLIC_SUPABASE_URL -u
+  NEXT_PUBLIC_SUPABASE_ANON_KEY npm run dev`, or unset the stale vars first.
 - **Supabase Auth is NOT used** — never add `supabase.auth.*` calls back.
   Email "rate limits" don't exist here by design.
 - Browser-automation agents (browser-use) have been unreliable in this
