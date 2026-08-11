@@ -9,7 +9,7 @@ import {
 import { TutorProfileForm } from "@/components/tutor/TutorProfileForm";
 import { TutorServiceForm } from "@/components/tutor/TutorServiceForm";
 import { SessionCard } from "@/components/sessions/SessionCard";
-import { ScheduleSessionForm } from "@/components/sessions/ScheduleSessionForm";
+import { ScheduleSessionModal } from "@/components/sessions/ScheduleSessionModal";
 import { Container } from "@/components/ui/Container";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -181,7 +181,7 @@ export default async function TutorPage() {
                 <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-14 text-center">
                   <p className="text-sm text-slate-500">
                     No sessions yet. Once students contact you, schedule your
-                    first meeting from the form.
+                    first meeting with “Schedule a session”.
                   </p>
                 </div>
               ) : (
@@ -222,11 +222,21 @@ export default async function TutorPage() {
                   Schedule a session
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  Pick a student, a time, and a topic. It appears on both
+                  Pick a student, a time, and a topic — it appears on both
                   timetables immediately.
                 </p>
                 {isApproved ? (
-                  <ScheduleSessionForm students={students} />
+                  <>
+                    <div className="mt-4">
+                      <ScheduleSessionModal students={students} />
+                    </div>
+                    {students.length === 0 && (
+                      <p className="mt-3 rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-center text-sm text-slate-500">
+                        Students who contact you through Harcot will appear
+                        here, ready to be scheduled.
+                      </p>
+                    )}
+                  </>
                 ) : (
                   <p className="mt-4 rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center text-sm text-slate-500">
                     Your timetable unlocks once your tutor profile is approved.

@@ -77,7 +77,6 @@ export async function startConversation(
 
 /** Send a message in a conversation the caller is a member of. */
 export async function sendMessage(
-  _prev: ConversationFormState,
   formData: FormData,
 ): Promise<ConversationFormState> {
   const profile = await requireProfile();

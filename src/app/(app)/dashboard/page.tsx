@@ -184,7 +184,7 @@ export default async function DashboardPage() {
 
         {/* ── Student timetable ────────────────────────────────────── */}
         {profile.role === "student" && (
-          <section className="mt-14">
+          <section id="timetable" className="mt-14 scroll-mt-28">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">

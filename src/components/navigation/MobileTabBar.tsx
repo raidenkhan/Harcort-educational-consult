@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSyncExternalStore } from "react";
 import {
+  CalendarClock,
   Compass,
   GraduationCap,
   LayoutDashboard,
@@ -15,8 +17,8 @@ import type { UserRole } from "@/types";
 
 /**
  * App-like bottom tab bar for mobile (hidden on lg+ where the top nav takes
- * over). Role-aware: students get Home / Find tutors / Messages, tutors add
- * My profile, admins get Home / Admin.
+ * over). Role-aware: students get Home / Find tutors / Messages / Timetable,
+ * tutors add My profile, admins get Home / Admin.
  *
  * Motion follows the frequency gate: tab switching is a "tens of times per
  * day" interaction, so everything stays fast and subtle — a 200ms ease-out
@@ -24,14 +26,19 @@ import type { UserRole } from "@/types";
  * transitions, and scale press feedback. Reduced-motion users get instant
  * transitions.
  */
-const TABS: Record<
-  UserRole,
-  { href: string; label: string; icon: LucideIcon }[]
-> = {
+type Tab = { href: string; hash?: string; label: string; icon: LucideIcon };
+
+const TABS: Record<UserRole, Tab[]> = {
   student: [
     { href: "/dashboard", label: "Home", icon: LayoutDashboard },
     { href: "/tutors", label: "Find tutors", icon: Compass },
     { href: "/chat", label: "Messages", icon: MessageCircle },
+    {
+      href: "/dashboard",
+      hash: "#timetable",
+      label: "Timetable",
+      icon: CalendarClock,
+    },
   ],
   tutor: [
     { href: "/dashboard", label: "Home", icon: LayoutDashboard },
@@ -45,14 +52,38 @@ const TABS: Record<
   ],
 };
 
+function subscribeHash(cb: () => void) {
+  window.addEventListener("hashchange", cb);
+  return () => window.removeEventListener("hashchange", cb);
+}
+
+/** Live location.hash (empty string during SSR/hydration for consistency). */
+function useHash() {
+  return useSyncExternalStore(
+    subscribeHash,
+    () => window.location.hash,
+    () => "",
+  );
+}
+
 export function MobileTabBar({ role }: { role?: UserRole }) {
   const pathname = usePathname();
+  const hash = useHash();
   const tabs = role ? TABS[role] : [];
   if (tabs.length === 0) return null;
 
-  const activeIndex = tabs.findIndex(
-    (t) => pathname === t.href || pathname.startsWith(`${t.href}/`),
-  );
+  // Active-tab detection: a hash-specific tab (e.g. /dashboard#timetable) wins
+  // over its plain sibling on the same path, so Home and Timetable never both
+  // light up. Non-hash tabs match the path (and nested sub-routes).
+  const activeIndex = (() => {
+    const exact = tabs.findIndex(
+      (t) => t.hash && pathname === t.href && hash === t.hash,
+    );
+    if (exact >= 0) return exact;
+    return tabs.findIndex(
+      (t) => pathname === t.href || pathname.startsWith(`${t.href}/`),
+    );
+  })();
   const hasActive = activeIndex >= 0;
   const indicatorIndex = hasActive ? activeIndex : 0;
 
@@ -80,12 +111,12 @@ export function MobileTabBar({ role }: { role?: UserRole }) {
           const active = i === activeIndex;
           return (
             <Link
-              key={tab.href}
-              href={tab.href}
+              key={`${tab.href}${tab.hash ?? ""}`}
+              href={`${tab.href}${tab.hash ?? ""}`}
               aria-current={active ? "page" : undefined}
               onClick={() => {
                 // App convention: tapping the active tab scrolls back to top.
-                if (pathname === tab.href) window.scrollTo({ top: 0 });
+                if (active) window.scrollTo({ top: 0 });
               }}
               className={cn(
                 "relative flex flex-1 flex-col items-center justify-center gap-1 pb-1.5 pt-2.5 transition duration-150 active:scale-[0.96] motion-reduce:transition-none",

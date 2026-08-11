@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useActionState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Inbox, MessageCircle, Send, Loader2 } from "lucide-react";
+import { Check, Inbox, Loader2, MessageCircle, Send } from "lucide-react";
 import { sendMessage, type ConversationFormState } from "@/services/chat/mutations";
 import type { ConversationListItem } from "@/services/chat/queries";
 import type { Message } from "@/types";
@@ -16,13 +16,24 @@ import { chatTime, chatTimestamp } from "@/lib/time";
 /**
  * The /chat workspace: conversation sidebar + message thread + composer.
  *
- * Realtime note: messages/conversations are published to supabase_realtime,
- * but the app uses self-hosted auth (no Supabase session), so a browser
- * client can't subscribe under RLS. Instead we poll router.refresh() while
- * the page is open — new messages appear within ~5s with no extra deps.
+ * Sending is optimistic — the moment you hit send, your bubble appears with a
+ * "Sending…" state (WhatsApp-style, so the experience never waits on the
+ * network). The server action runs in the background; when the refreshed
+ * thread confirms the message, the optimistic bubble is replaced by the real
+ * one with a ✓. On failure the bubble is removed and your text is restored so
+ * you can retry.
+ *
+ * Incoming messages: conversations/messages are published to
+ * supabase_realtime, but the app uses self-hosted auth (no Supabase session),
+ * so a browser client can't subscribe under RLS. Instead we poll
+ * router.refresh() while the page is open — new messages appear within ~5s.
  */
-
 const POLL_MS = 5000;
+
+interface PendingMessage {
+  tempId: string;
+  body: string;
+}
 
 export function ChatView({
   conversations,
@@ -43,10 +54,16 @@ export function ChatView({
   const scrollRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
-  const [state, formAction, pending] = useActionState<ConversationFormState, FormData>(
-    sendMessage,
-    {},
-  );
+  const [pendingMsgs, setPendingMsgs] = useState<PendingMessage[]>([]);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  // True once the server thread contains this body from me (reconciliation).
+  const threadHasBody = (body: string) =>
+    thread.some((m) => m.sender_id === myId && m.body === body);
+
+  // Optimistic bubbles the server doesn't know about yet.
+  const visiblePending = pendingMsgs.filter((p) => !threadHasBody(p.body));
 
   // Pick up new messages while the page is open (see realtime note above).
   useEffect(() => {
@@ -59,18 +76,51 @@ export function ChatView({
   useEffect(() => {
     const el = scrollRef.current;
     if (el && stickToBottom) el.scrollTop = el.scrollHeight;
-  }, [thread, activeId, stickToBottom]);
-
-  // Clear the composer after a successful send.
-  useEffect(() => {
-    if (state?.ok) formRef.current?.reset();
-  }, [state]);
+  }, [thread, activeId, stickToBottom, pendingMsgs.length]);
 
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     setStickToBottom(nearBottom);
+  };
+
+  const handleSend = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!activeId || closed || sending) return;
+    const input = formRef.current?.querySelector<HTMLTextAreaElement>(
+      'textarea[name="body"]',
+    );
+    const body = input?.value.trim() ?? "";
+    if (!body) return;
+
+    // Optimistic bubble — show it before the network even gets involved.
+    setPendingMsgs((prev) => [
+      ...prev.filter((p) => !threadHasBody(p.body)),
+      { tempId: crypto.randomUUID(), body },
+    ]);
+    setSendError(null);
+    setSending(true);
+    formRef.current?.reset();
+
+    const fd = new FormData();
+    fd.set("conversationId", activeId);
+    fd.set("body", body);
+
+    const res: ConversationFormState | undefined = await sendMessage(fd);
+    setSending(false);
+
+    if (res?.error) {
+      // Failed — drop the bubble and restore the text so they can retry.
+      setSendError(res.error);
+      setPendingMsgs((prev) => prev.filter((p) => p.body !== body));
+      const el = formRef.current?.querySelector<HTMLTextAreaElement>(
+        'textarea[name="body"]',
+      );
+      if (el && !el.value.trim()) el.value = body;
+      return;
+    }
+    router.refresh();
   };
 
   // ── Empty state: no conversations at all ──────────────────────────
@@ -125,9 +175,7 @@ export function ChatView({
                   href={`/chat?c=${c.id}`}
                   className={cn(
                     "flex items-start gap-3 px-5 py-4 transition duration-150",
-                    active
-                      ? "bg-brand-50/70"
-                      : "hover:bg-slate-50",
+                    active ? "bg-brand-50/70" : "hover:bg-slate-50",
                   )}
                 >
                   <span
@@ -183,7 +231,7 @@ export function ChatView({
           onScroll={handleScroll}
           className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 px-5 py-5"
         >
-          {thread.length === 0 ? (
+          {thread.length === 0 && visiblePending.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <MessageCircle className="h-8 w-8 text-slate-300" />
               <p className="mt-3 text-sm text-slate-500">
@@ -191,41 +239,58 @@ export function ChatView({
               </p>
             </div>
           ) : (
-            thread.map((m) => {
-              const mine = m.sender_id === myId;
-              return (
-                <div
-                  key={m.id}
-                  className={cn("flex", mine ? "justify-end" : "justify-start")}
-                >
+            <>
+              {thread.map((m) => {
+                const mine = m.sender_id === myId;
+                return (
                   <div
-                    className={cn(
-                      "max-w-[78%] rounded-lg px-3.5 py-2 shadow-xs",
-                      mine
-                        ? "rounded-br-sm bg-slate-900 text-white"
-                        : "rounded-bl-sm bg-white text-slate-800 ring-1 ring-slate-200",
-                    )}
+                    key={m.id}
+                    className={cn("flex", mine ? "justify-end" : "justify-start")}
                   >
-                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                      {m.body}
-                    </p>
-                    <p
+                    <div
                       className={cn(
-                        "mt-1 text-right text-[11px]",
-                        mine ? "text-slate-400" : "text-slate-400",
+                        "max-w-[78%] rounded-lg px-3.5 py-2 shadow-xs",
+                        mine
+                          ? "rounded-br-sm bg-slate-900 text-white"
+                          : "rounded-bl-sm bg-white text-slate-800 ring-1 ring-slate-200",
                       )}
                     >
-                      {chatTime(new Date(m.created_at))}
+                      <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                        {m.body}
+                      </p>
+                      <p
+                        className={cn(
+                          "mt-1 flex items-center justify-end gap-1 text-right text-[11px]",
+                          mine ? "text-slate-400" : "text-slate-400",
+                        )}
+                      >
+                        {mine && <Check className="h-3 w-3" />}
+                        {chatTime(new Date(m.created_at))}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Optimistic bubbles still in flight */}
+              {visiblePending.map((p) => (
+                <div key={p.tempId} className="flex justify-end">
+                  <div className="max-w-[78%] rounded-lg rounded-br-sm bg-slate-900 px-3.5 py-2 shadow-xs text-white">
+                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                      {p.body}
+                    </p>
+                    <p className="mt-1 flex items-center justify-end gap-1 text-right text-[11px] text-slate-400">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Sending…
                     </p>
                   </div>
                 </div>
-              );
-            })
+              ))}
+            </>
           )}
         </div>
 
-        <form ref={formRef} action={formAction} className="border-t border-slate-100 bg-white p-4">
-          <input type="hidden" name="conversationId" value={activeId ?? ""} />
+        <form ref={formRef} onSubmit={handleSend} className="border-t border-slate-100 bg-white p-4">
           <div className="flex items-end gap-2">
             <textarea
               name="body"
@@ -237,20 +302,20 @@ export function ChatView({
             />
             <Button
               type="submit"
-              disabled={pending || !activeId || closed}
+              disabled={sending || !activeId || closed}
               className="h-11 w-11 shrink-0 px-0"
               aria-label="Send message"
             >
-              {pending ? (
+              {sending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
             </Button>
           </div>
-          {state?.error && (
+          {sendError && (
             <p className="mt-2 text-xs font-medium text-red-600" role="alert">
-              {state.error}
+              {sendError}
             </p>
           )}
         </form>
