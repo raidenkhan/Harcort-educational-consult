@@ -12,11 +12,11 @@ export function SignInForm() {
         Welcome back
       </h1>
       <p className="mt-1 text-sm text-slate-500">
-        Sign in to your Harcot account.
+        Sign in to your Harcourt account.
       </p>
       <SignInFields />
       <p className="mt-6 text-center text-sm text-slate-500">
-        New to Harcot?{" "}
+        New to Harcourt?{" "}
         <Link
           href="/sign-up"
           className="font-semibold text-brand-700 transition hover:text-brand-800"

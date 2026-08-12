@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 /**
  * Student-facing payment ground rules + admin contact.
  *
- * Policy: students make and discuss payments ONLY with Harcot admins — never
+ * Policy: students make and discuss payments ONLY with Harcourt admins — never
  * with tutors. Shown as a prominent card on the student dashboard and a
  * compact banner at the top of /chat (where payment talk would happen).
  *
@@ -15,7 +15,7 @@ import { Card } from "@/components/ui/Card";
  */
 
 const RULES = [
-  "All payments and payment discussions go through Harcot admins only.",
+  "All payments and payment discussions go through Harcourt admins only.",
   "If a tutor ever asks you to pay them, stop the conversation and contact an admin.",
   "Never share card, bank, or mobile-money details with a tutor.",
   "Fees, refunds and disputes are handled by the admin team.",
@@ -76,8 +76,8 @@ export function PaymentGroundRules({
   if (variant === "banner") {
     const message =
       audience === "tutor"
-        ? "you never collect fees or discuss payments with students — direct them to a Harcot admin."
-        : "only Harcot admins handle payments — tutors never collect fees.";
+        ? "you never collect fees or discuss payments with students — direct them to a Harcourt admin."
+        : "only Harcourt admins handle payments — tutors never collect fees.";
     return (
       <div
         className={cn(
@@ -108,10 +108,10 @@ export function PaymentGroundRules({
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold text-slate-900">
-            Payments go through Harcot — never to tutors
+            Payments go through Harcourt — never to tutors
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">
-            Every payment and payment discussion happens with a Harcot admin.
+            Every payment and payment discussion happens with a Harcourt admin.
             Tutors never collect fees — this keeps you safe and every
             transaction tracked.
           </p>

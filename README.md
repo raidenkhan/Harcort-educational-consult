@@ -1,4 +1,4 @@
-# Harcot Educational Consult
+# Harcourt Educational Consult
 
 A marketplace connecting **students** with **approved tutors**. Tutors advertise the
 courses they teach, our **admin team** verifies and approves every tutor before they
@@ -94,7 +94,7 @@ Open **SQL Editor** in the Supabase dashboard and paste, **in order**:
 > 0005 makes cancellations soft-deletes so the admin keeps an audit trail;
 > 0006 adds admin-issued password-reset codes (no email needed);
 > 0007 lets admins participate in conversations (student↔admin or
-> tutor↔admin) so students can reach the Harcot team in-chat.
+> tutor↔admin) so students can reach the Harcourt team in-chat.
 >
 > A deeper orientation (history, conventions, gotchas) lives in `AGENTS.md`.
 
@@ -149,7 +149,7 @@ modal opens automatically via `?auth=sign-in`.
 
 ## Payments & admin contact
 
-Students make and discuss payments **only with Harcot admins — never with
+Students make and discuss payments **only with Harcourt admins — never with
  tutors**. This policy is shown to every student as a card on their dashboard
  and as a banner at the top of `/chat` (where payment talk would happen), with
  a **Contact admin on WhatsApp** button wired to `NEXT_PUBLIC_ADMIN_WHATSAPP`.

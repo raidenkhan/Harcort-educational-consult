@@ -119,7 +119,7 @@ export default async function TutorsPage() {
         <Container className="flex flex-col items-center justify-between gap-4 py-8 text-sm text-slate-500 sm:flex-row">
           <Logo dark />
           <p>
-            © {new Date().getFullYear()} Harcot Educational Consult · Kumasi,
+            © {new Date().getFullYear()} Harcourt Educational Consult · Kumasi,
             Ghana. All rights reserved.
           </p>
         </Container>

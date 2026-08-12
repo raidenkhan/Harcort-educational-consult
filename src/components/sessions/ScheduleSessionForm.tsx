@@ -20,7 +20,7 @@ export function ScheduleSessionForm({
   if (students.length === 0) {
     return (
       <p className="mt-2 rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center text-sm text-slate-500">
-        Students who contact you through Harcot will appear here, ready to be
+        Students who contact you through Harcourt will appear here, ready to be
         scheduled.
       </p>
     );

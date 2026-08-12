@@ -2,7 +2,7 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
- * Twitter-style verified badge for Harcot admin accounts — a solid petrol
+ * Twitter-style verified badge for Harcourt admin accounts — a solid petrol
  * circle with a white check. Inline span so it sits next to names; carries
  * a title + aria-label for screen readers.
  */

@@ -1,5 +1,5 @@
 -- ============================================================================
--- Harcot Educational Consult — Phase 0 schema
+-- Harcourt Educational Consult — Phase 0 schema
 -- Apply in: Supabase Dashboard → SQL Editor (paste & run), or with the
 -- Supabase CLI:  supabase db push
 -- NOTE: Run ONCE per environment (standard migration semantics).

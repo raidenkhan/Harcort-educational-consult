@@ -109,7 +109,7 @@ export default async function Home() {
               className="mx-auto mt-6 max-w-xl animate-fade-up text-lg leading-relaxed text-slate-700"
               style={{ animationDelay: "120ms" }}
             >
-              Harcot connects students with approved, qualified tutors for the
+              Harcourt connects students with approved, qualified tutors for the
               courses they need. Built for Ghanaian students — starting with
               KNUST engineering — with clear pricing and a conversation that
               starts the moment you&apos;re ready.
@@ -192,7 +192,7 @@ export default async function Home() {
         <Container className="py-20">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
-              How Harcot works
+              How Harcourt works
             </p>
             <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
               A trusted path from student to tutor
@@ -316,7 +316,7 @@ export default async function Home() {
                     </span>
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-slate-900">
-                        {profile.full_name || "Harcot tutor"}
+                        {profile.full_name || "Harcourt tutor"}
                       </p>
                       <p className="text-xs text-slate-500">
                         {tutorProfile.rate_per_hour != null
@@ -365,7 +365,7 @@ export default async function Home() {
               Ready to learn without limits?
             </h2>
             <p className="mt-2 max-w-md text-slate-600">
-              Join Harcot today — free to start, built to grow with you.
+              Join Harcourt today — free to start, built to grow with you.
             </p>
           </div>
           <AuthTrigger
@@ -382,7 +382,7 @@ export default async function Home() {
         <Container className="flex flex-col items-center justify-between gap-4 py-8 text-sm text-slate-500 sm:flex-row">
           <Logo dark />
           <p>
-            © {new Date().getFullYear()} Harcot Educational Consult · Kumasi,
+            © {new Date().getFullYear()} Harcourt Educational Consult · Kumasi,
             Ghana. All rights reserved.
           </p>
         </Container>

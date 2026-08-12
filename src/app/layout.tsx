@@ -6,8 +6,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Harcot Educational Consult",
-    template: "%s · Harcot Educational Consult",
+    default: "Harcourt Educational Consult",
+    template: "%s · Harcourt Educational Consult",
   },
   description:
     "Find expert tutors for the courses you need. Verified educators, one-to-one guidance, and learning that moves at your pace.",

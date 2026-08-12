@@ -1,5 +1,5 @@
 -- ============================================================================
--- Harcot Educational Consult — Phase 2b: session cancellations (soft delete)
+-- Harcourt Educational Consult — Phase 2b: session cancellations (soft delete)
 --
 -- Cancelling a session now marks it 'cancelled' instead of deleting the row,
 -- so the admin's attendance tracker keeps a record of who cancelled and when.

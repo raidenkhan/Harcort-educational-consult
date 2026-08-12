@@ -18,6 +18,6 @@ const adminWhatsappNumber = ADMIN_WHATSAPP_RAW.replace(/[^0-9]/g, "");
 /** Tap-to-chat link (null until the number is configured). */
 export const ADMIN_WHATSAPP_URL = adminWhatsappNumber
   ? `https://wa.me/${adminWhatsappNumber}?text=${encodeURIComponent(
-      "Hi Harcot Educational Consult! I have a question about payments.",
+      "Hi Harcourt Educational Consult! I have a question about payments.",
     )}`
   : null;

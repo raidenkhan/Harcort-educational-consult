@@ -119,7 +119,7 @@ export function ChatView({
   closed?: boolean;
   /** Snapshot for "Today"/"Yesterday" separators — passed from the server page. */
   now: number;
-  /** The other party is a verified Harcot admin. */
+  /** The other party is a verified Harcourt admin. */
   otherIsAdmin?: boolean;
   /** The conversation's admin participant id (marks their bubbles). */
   adminId?: string | null;

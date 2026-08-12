@@ -45,5 +45,5 @@ export async function fileReport(
   if (error) return { error: error.message };
 
   revalidatePath("/admin");
-  return { message: "Report submitted. Thank you for helping keep Harcot safe." };
+  return { message: "Report submitted. Thank you for helping keep Harcourt safe." };
 }

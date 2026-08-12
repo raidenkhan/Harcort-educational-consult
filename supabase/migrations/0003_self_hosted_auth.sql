@@ -1,5 +1,5 @@
 -- ============================================================================
--- Harcot Educational Consult — Phase 1: self-hosted auth
+-- Harcourt Educational Consult — Phase 1: self-hosted auth
 -- Replaces Supabase Auth (email rate limits, confirmation emails) with our own
 -- users, hashed passwords, and revocable sessions. Google sign-in slots in
 -- later against the same credentials table.

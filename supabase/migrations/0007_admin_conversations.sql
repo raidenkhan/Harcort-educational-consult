@@ -1,11 +1,11 @@
 -- ============================================================================
--- Harcot Educational Consult — Phase: admin conversations
+-- Harcourt Educational Consult — Phase: admin conversations
 -- Apply in: Supabase Dashboard → SQL Editor (paste & run)
 -- Safe to re-run.
 --
 -- What this gives you:
 --   1. Conversations can have an ADMIN participant (student↔admin or
---      tutor↔admin), so students/tutors can reach the Harcot team in-chat —
+--      tutor↔admin), so students/tutors can reach the Harcourt team in-chat —
 --      the admin side shows a Twitter-style verified badge in the UI.
 --   2. Integrity: a conversation has exactly TWO participants (student+tutor,
 --      student+admin, or tutor+admin).

@@ -1,4 +1,4 @@
-# AGENTS.md — Harcot Educational Consult
+# AGENTS.md — Harcourt Educational Consult
 
 > Orientation doc for AI agents (and humans) picking up this codebase. Read
 > this first; it explains what exists, why it's shaped the way it is, and
@@ -198,7 +198,7 @@ NEXT_PUBLIC_ADMIN_WHATSAPP=   # student Contact-admin WhatsApp button (digits on
 
 Setup runbook:
 1. `npm install`
-2. Apply migrations 0001→0005 in the Supabase SQL Editor
+2. Apply migrations 0001→0007 in the Supabase SQL Editor
 3. `npm run dev` → http://localhost:3000 (no confirmation emails — sign-up
    signs you in immediately)
 4. Promote yourself to admin:
@@ -234,8 +234,13 @@ The dev machine is slow — give compiles 30–60s.
   Email "rate limits" don't exist here by design.
 - Browser-automation agents (browser-use) have been unreliable in this
   environment — prefer curl + code inspection for verification.
-- The GitHub repo is `Harcort-educational-consult` (note the spelling) —
-  project folder is `harcot-educational-consult`.
+- The institution is **Harcourt** Educational Consult (not "Harcot" — brand
+  text everywhere is corrected to Harcourt). The GitHub repo
+  (`Harcort-educational-consult`) and the local project folder
+  (`harcot-educational-consult`) keep their original misspelled names, and the
+  DB GUC `request.harcot.actor_id` in migration 0003 is deliberately unchanged
+  to stay in sync with what's already applied to Supabase. Rename the
+  repo/folder and migrate the GUC only if you want them to match.
 
 ---
 

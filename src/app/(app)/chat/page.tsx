@@ -56,7 +56,7 @@ export default async function ChatPage({
       ? {
           title: "Conversations with your students and tutors",
           subtitle:
-            "Reach students and tutors directly — your messages are verified as Harcot admin.",
+            "Reach students and tutors directly — your messages are verified as Harcourt admin.",
         }
       : profile.role === "tutor"
         ? {

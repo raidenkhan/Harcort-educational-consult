@@ -170,7 +170,7 @@ function TutorCard({
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold text-slate-900">
-            {profile.full_name || "Harcot tutor"}
+            {profile.full_name || "Harcourt tutor"}
           </p>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
             <Badge tone="green">

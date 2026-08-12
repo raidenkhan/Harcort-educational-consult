@@ -1,5 +1,5 @@
 -- ============================================================================
--- Harcot Educational Consult — Phase: admin-issued password reset codes
+-- Harcourt Educational Consult — Phase: admin-issued password reset codes
 -- Apply in: Supabase Dashboard → SQL Editor (paste & run)
 --
 -- Email-based recovery is unavailable (Supabase auth email rate limits), so

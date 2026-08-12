@@ -1,5 +1,5 @@
 -- ============================================================================
--- Harcot — 0002 · KNUST engineering course taxonomy
+-- Harcourt — 0002 · KNUST engineering course taxonomy
 -- Run in: Supabase Dashboard → SQL Editor (paste & run) — safe to re-run.
 --
 -- Targets the initial audience: Ghanaian students, KNUST engineering first.

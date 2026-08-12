@@ -10,7 +10,7 @@ export default function SignUpPage() {
         Create your account
       </h1>
       <p className="mt-1 text-sm text-slate-500">
-        Join Harcot as a student or a tutor.
+        Join Harcourt as a student or a tutor.
       </p>
       <SignUpFields />
       <p className="mt-6 text-center text-sm text-slate-500">

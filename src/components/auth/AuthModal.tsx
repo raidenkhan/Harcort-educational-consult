@@ -195,8 +195,8 @@ export function AuthModalProvider({ children }: { children: React.ReactNode }) {
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               {activeTab === "sign-in"
-                ? "Sign in to your Harcot account."
-                : "Join Harcot as a student or a tutor."}
+                ? "Sign in to your Harcourt account."
+                : "Join Harcourt as a student or a tutor."}
             </p>
 
             {activeTab === "sign-in" ? <SignInFields /> : <SignUpFields />}
@@ -204,7 +204,7 @@ export function AuthModalProvider({ children }: { children: React.ReactNode }) {
             <p className="mt-6 text-center text-sm text-slate-500">
               {activeTab === "sign-in" ? (
                 <>
-                  New to Harcot?{" "}
+                  New to Harcourt?{" "}
                   <button
                     type="button"
                     onClick={() => setTab("sign-up")}

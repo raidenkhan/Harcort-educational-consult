@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/Button";
  * renders in server HTML and there's no hydration mismatch when the client
  * finds the flag set.
  */
-const DISMISS_KEY = "harcot:tutor-profile-cta";
+const DISMISS_KEY = "harcourt:tutor-profile-cta";
 
 const dismissListeners = new Set<() => void>();
 

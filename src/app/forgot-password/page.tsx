@@ -8,7 +8,7 @@ import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 export const metadata = {
   title: "Forgot password",
   description:
-    "Reset your Harcot password with the one-time code your admin shared with you.",
+    "Reset your Harcourt password with the one-time code your admin shared with you.",
 };
 
 export default function ForgotPasswordPage() {

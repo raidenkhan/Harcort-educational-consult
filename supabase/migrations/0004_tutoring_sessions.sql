@@ -1,5 +1,5 @@
 -- ============================================================================
--- Harcot Educational Consult — Phase 2: tutoring sessions (timetable)
+-- Harcourt Educational Consult — Phase 2: tutoring sessions (timetable)
 --
 -- Tutors schedule sessions with the students who contact them; both the tutor
 -- and the student independently confirm attendance ("tick") when they meet.

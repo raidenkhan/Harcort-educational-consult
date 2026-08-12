@@ -64,7 +64,7 @@ export default async function DashboardPage() {
 
   const roleHeading: Record<string, string> = {
     student: "Find the right tutor for every course.",
-    tutor: "Manage how you teach on Harcot.",
+    tutor: "Manage how you teach on Harcourt.",
     admin: "Run the platform. Approve tutors, review reports.",
   };
 

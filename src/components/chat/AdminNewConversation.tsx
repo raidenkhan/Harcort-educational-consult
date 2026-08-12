@@ -48,7 +48,7 @@ export function AdminNewConversation({ targets }: { targets: ChatTarget[] }) {
           </h2>
           <p className="text-xs text-slate-500">
             Reach a student or tutor directly — your messages carry the
-            verified Harcot badge.
+            verified Harcourt badge.
           </p>
         </div>
       </div>

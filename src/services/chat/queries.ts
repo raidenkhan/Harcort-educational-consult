@@ -20,7 +20,7 @@ import type {
 export interface ConversationListItem {
   id: string;
   otherName: string;
-  /** True when the other party is the Harcot admin (verified badge). */
+  /** True when the other party is the Harcourt admin (verified badge). */
   otherIsAdmin: boolean;
   status: ConversationStatus;
   createdAt: string;
@@ -44,11 +44,11 @@ type ConversationRow = Conversation & {
 /** The other party's display name from the acting user's side. */
 function otherPartyName(row: ConversationRow, myRole: UserRole): string {
   if (myRole === "student") {
-    if (row.admin_id) return row.admin?.full_name ?? "Harcot admin";
+    if (row.admin_id) return row.admin?.full_name ?? "Harcourt admin";
     return row.tutor_profile?.profiles?.full_name ?? "Tutor";
   }
   if (myRole === "tutor") {
-    if (row.admin_id) return row.admin?.full_name ?? "Harcot admin";
+    if (row.admin_id) return row.admin?.full_name ?? "Harcourt admin";
     return row.student?.full_name ?? "Student";
   }
   // Admin's view — the other side is the student or the tutor.
