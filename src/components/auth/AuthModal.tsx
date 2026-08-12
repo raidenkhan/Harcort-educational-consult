@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { SignInFields, SignUpFields } from "./AuthFields";
+import { BrandMark } from "@/components/ui/BrandMark";
 import { cn } from "@/lib/cn";
 
 export type AuthTab = "sign-in" | "sign-up";
@@ -190,10 +191,13 @@ export function AuthModalProvider({ children }: { children: React.ReactNode }) {
 
           {/* body */}
           <div className="px-6 py-6">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+            <div className="mb-4 flex justify-center">
+              <BrandMark size="lg" />
+            </div>
+            <h2 className="text-center font-display text-2xl font-bold tracking-tight text-slate-900">
               {activeTab === "sign-in" ? "Welcome back" : "Create your account"}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-center text-sm text-slate-500">
               {activeTab === "sign-in"
                 ? "Sign in to your Harcourt account."
                 : "Join Harcourt as a student or a tutor."}

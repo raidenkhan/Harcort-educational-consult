@@ -3,6 +3,7 @@ import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
 import { Container } from "@/components/ui/Container";
 import { Card } from "@/components/ui/Card";
 import { Logo } from "@/components/ui/Logo";
+import { BrandMark } from "@/components/ui/BrandMark";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 
 export const metadata = {
@@ -31,10 +32,13 @@ export default function ForgotPasswordPage() {
       <main className="relative flex flex-1 items-center py-14">
         <Container size="narrow">
           <Card className="mx-auto w-full max-w-md">
-            <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+            <div className="mb-4 flex justify-center">
+              <BrandMark size="lg" />
+            </div>
+            <h1 className="text-center font-display text-2xl font-bold tracking-tight text-slate-900">
               Reset your password
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-center text-sm text-slate-500">
               Enter the one-time code your admin shared with you, along with
               your new password. Codes expire after 30 minutes.
             </p>

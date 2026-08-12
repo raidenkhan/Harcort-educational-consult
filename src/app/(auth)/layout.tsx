@@ -1,5 +1,4 @@
 import Image from "next/image";
-import { Logo } from "@/components/ui/Logo";
 
 export default function AuthLayout({
   children,
@@ -20,12 +19,8 @@ export default function AuthLayout({
         aria-hidden="true"
         className="absolute inset-0 bg-white/25"
       />
-      <div className="relative w-full max-w-md">
-        <div className="mb-6 flex justify-center">
-          <Logo />
-        </div>
-        {children}
-      </div>
+      {/* The card's BrandMark + heading are the brand anchor here. */}
+      <div className="relative w-full max-w-md">{children}</div>
     </div>
   );
 }
