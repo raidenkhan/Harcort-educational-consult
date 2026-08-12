@@ -28,17 +28,6 @@ export function isGoogleConfigured(): boolean {
   return Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET);
 }
 
-/**
- * Coerce an untrusted role value (query param, cookie payload) to the only
- * two self-selectable roles. Anything other than exactly "tutor" becomes
- * "student" — admin is impossible through this path.
- */
-export function normalizeGoogleRole(
-  raw: string | null | undefined,
-): "student" | "tutor" {
-  return raw === "tutor" ? "tutor" : "student";
-}
-
 /** OAuth2Client pinned to the given origin's callback URI. */
 export function getGoogleOAuthClient(origin: string): OAuth2Client {
   return new OAuth2Client(

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
-import { RolePicker, type AuthRole } from "./RolePicker";
+import { useSyncExternalStore } from "react";
 
 /**
  * "Continue with Google" + divider, shared by the auth modal and the
@@ -99,8 +98,6 @@ export function GoogleAuthBlock() {
     getGoogleErrorSnapshot,
     getGoogleErrorServerSnapshot,
   );
-  const [role, setRole] = useState<AuthRole>("student");
-
   const message = googleError
     ? (ERROR_MESSAGES[googleError] ?? "Google sign-in failed. Try again.")
     : null;
@@ -113,24 +110,8 @@ export function GoogleAuthBlock() {
         </div>
       )}
 
-      {/* Role choice is offered on BOTH auth tabs — a brand-new Google user
-          who lands on the sign-in tab gets the same prompt as one on the
-          sign-up tab. It only applies to new accounts (upsert_google_user
-          ignores it when linking an existing email/password account). */}
-      <div className="mb-4">
-        <RolePicker
-          legend="Join with Google as"
-          name="google-role"
-          onChange={(next) => setRole(next)}
-        />
-        <p className="mt-2 text-center text-xs leading-relaxed text-slate-400">
-          New Google accounts join as the role above. Existing accounts keep
-          their current role.
-        </p>
-      </div>
-
       <a
-        href={`/api/auth/google${role === "tutor" ? "?role=tutor" : ""}`}
+        href="/api/auth/google"
         onClick={clearGoogleError}
         className="flex w-full items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98]"
       >

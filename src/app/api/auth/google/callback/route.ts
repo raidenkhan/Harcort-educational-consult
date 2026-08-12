@@ -6,7 +6,6 @@ import {
   exchangeGoogleCode,
   getGoogleOAuthClient,
   isGoogleConfigured,
-  normalizeGoogleRole,
 } from "@/services/auth/google";
 
 /**
@@ -17,8 +16,9 @@ import {
  * 3. Upserts the Google identity into credentials via upsert_google_user
  *    (find-or-link-or-create; an existing email/password account gets the
  *    Google id linked to it — same profile, sessions and chats preserved).
- * 4. Issues the same session cookie as email sign-in and sends the user to
- *    /dashboard.
+ * 4. Issues the same session cookie as email sign-in, then sends the user
+ *    to /onboarding if this was a brand-new account (one-time role pick) or
+ *    straight to /dashboard if the email already had an account.
  *
  * Any failure bounces to /?auth=sign-in with a ?google_error= reason the
  * auth modal can surface.
@@ -38,33 +38,10 @@ export async function GET(request: NextRequest) {
     return bounce("invalid_request");
   }
 
-  // CSRF: the state must match the cookie we set before redirecting to
-  // Google. The cookie payload is JSON {state, role} — the role choice made
-  // on the sign-up form rides along and is applied to brand-new accounts
-  // only (upsert_google_user ignores it when linking an existing account).
+  // CSRF: the state must match the cookie we set before redirecting to Google.
   const cookieStore = await cookies();
-  const rawState = cookieStore.get("google_oauth_state")?.value;
+  const expectedState = cookieStore.get("google_oauth_state")?.value;
   cookieStore.delete("google_oauth_state");
-
-  let expectedState = rawState ?? "";
-  let role: "student" | "tutor" = "student";
-  if (rawState) {
-    try {
-      const parsed = JSON.parse(rawState) as {
-        state?: unknown;
-        role?: unknown;
-      };
-      if (typeof parsed.state === "string" && parsed.state.length > 0) {
-        expectedState = parsed.state;
-        role = normalizeGoogleRole(
-          typeof parsed.role === "string" ? parsed.role : null,
-        );
-      }
-    } catch {
-      // Legacy plain-string state cookie — expectedState stays the raw value.
-    }
-  }
-
   if (!expectedState || expectedState !== state) {
     return bounce("state_mismatch");
   }
@@ -87,7 +64,7 @@ export async function GET(request: NextRequest) {
     p_google_id: identity.googleId,
     p_full_name: identity.fullName,
     p_avatar_url: identity.avatarUrl,
-    p_role: role, // picked on the sign-up form; only applies to new accounts
+    p_role: "student", // placeholder — brand-new accounts pick their role on /onboarding
   });
 
   if (error || !profileId) {
@@ -98,5 +75,22 @@ export async function GET(request: NextRequest) {
   const token = await createSession(profileId as string);
   await setSessionCookie(token);
 
-  return NextResponse.redirect(new URL("/dashboard", request.url));
+  // Brand-new Google accounts (onboarding_completed_at null — the RPC stamps
+  // it when it LINKS an existing account) land on a one-time role pick;
+  // returning accounts go straight to the dashboard.
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("onboarding_completed_at")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  // On a DB hiccup, default to /dashboard — never wrongly route a returning
+  // user to onboarding (a genuinely new user is caught by /onboarding's own
+  // gate on their next Google sign-in).
+  const destination =
+    profileError || profile?.onboarding_completed_at
+      ? "/dashboard"
+      : "/onboarding";
+
+  return NextResponse.redirect(new URL(destination, request.url));
 }

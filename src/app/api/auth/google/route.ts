@@ -5,17 +5,17 @@ import {
   buildGoogleAuthUrl,
   getGoogleOAuthClient,
   isGoogleConfigured,
-  normalizeGoogleRole,
 } from "@/services/auth/google";
 
 /**
  * GET /api/auth/google — start "Sign in with Google".
  *
- * Sets a short-lived httpOnly state cookie (CSRF protection) that also
- * carries the sign-up role choice (optional ?role=tutor), then redirects
+ * Sets a short-lived httpOnly state cookie (CSRF protection), then redirects
  * the user to Google's consent screen. The callback at
  * /api/auth/google/callback verifies the state cookie before exchanging the
- * code, so an attacker can't replay a callback URL.
+ * code, so an attacker can't replay a callback URL. Brand-new Google emails
+ * get a one-time role pick on /onboarding after sign-in; accounts that
+ * already exist go straight to /dashboard.
  */
 export async function GET(request: NextRequest) {
   if (!isGoogleConfigured()) {
@@ -24,16 +24,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const url = new URL(request.url);
-  const origin = url.origin;
+  const origin = new URL(request.url).origin;
   const state = randomBytes(16).toString("hex");
-  // Optional ?role=tutor lets Google sign-ups pick their role before the
-  // redirect. It rides inside the CSRF cookie (not the state Google echoes)
-  // so the choice can't be forged or swapped mid-flow.
-  const role = normalizeGoogleRole(url.searchParams.get("role"));
 
   const cookieStore = await cookies();
-  cookieStore.set("google_oauth_state", JSON.stringify({ state, role }), {
+  cookieStore.set("google_oauth_state", state, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

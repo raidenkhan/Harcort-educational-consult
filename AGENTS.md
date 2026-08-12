@@ -111,12 +111,12 @@ mobile app.
   code, verifies the ID token (audience = our client id, email must be
   verified), then calls the `upsert_google_user` RPC — find-or-link-or-create
   against `credentials` (a Google sign-in on an existing email/password
-  account LINKS the two; same profile, sessions and chats preserved). New
-  accounts join as the role picked on either auth tab (student or tutor —
-  `?role=` rides inside the CSRF state cookie so it can't be forged; the RPC
-  ignores it when linking an existing account, so roles can't be silently
-  changed). Sessions use the exact same cookie path as email sign-in. Env:
-  `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (server-only).
+  account LINKS the two; same profile, sessions and chats preserved). The
+  callback then checks `profiles.onboarding_completed_at` (0010): brand-new
+  Google emails get a one-time role pick on `/onboarding` (student or
+  tutor), while existing/linked accounts go straight to `/dashboard` with
+  their role untouched. Sessions use the exact same cookie path as email
+  sign-in. Env: `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (server-only).
   UI: `components/auth/GoogleAuthBlock.tsx` (button + divider + `?google_error=`
   surfacing, read via `useSyncExternalStore`), rendered inside the shared
   `AuthFields`, so the modal and standalone pages both get it.
@@ -126,9 +126,9 @@ mobile app.
   switchable), the switch updates `profiles.role` and revalidates the cached
   tutor directory. A tutor who switches to student keeps their tutor_profile
   row (status untouched) but drops out of the public list — the list filter
-  is `profiles.role <> 'student'` — and switching back re-lists them. The
-  Google sign-in role picker shows on BOTH auth tabs, so a new Google user
-  who lands on the sign-in tab gets the same role prompt as on sign-up.
+  is `profiles.role <> 'student'` — and switching back re-lists them. Role
+  is chosen at sign-up (email form) or on the one-time `/onboarding` screen
+  (brand-new Google accounts, 0010 — no pre-auth picker on the auth tabs).
 - **Tests + CI.** Vitest unit tests for pure logic (`src/**/*.test.ts`,
   node environment, `@` alias in `vitest.config.ts`): password hashing,
   sign-in throttle (extracted to `src/lib/auth/throttle.ts` with an injectable
@@ -193,6 +193,7 @@ and all are safe to re-run:
 | `0007_admin_conversations.sql` | Conversations gain `admin_id` (student/tutor sides nullable), 2-participant check constraint, partial unique indexes — admins can chat with students/tutors |
 | `0008_admin_tutor_flag.sql` | `profiles.is_admin` flag — admin becomes a privilege, not an exclusive role; backfills legacy `role='admin'`; `is_admin(p_uid)` honors flag OR legacy role. A tutor with `is_admin=true` stays in the public tutor list with a verified badge |
 | `0009_google_signin.sql` | `credentials.google_id` (partial unique index), `password_hash` nullable, `upsert_google_user` RPC — find-or-link-or-create for Google identities |
+| `0010_google_onboarding.sql` | `profiles.onboarding_completed_at` (backfilled) — the Google callback sends brand-new accounts to `/onboarding` for a one-time role pick; the RPC stamps the flag when it LINKS an existing account |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in

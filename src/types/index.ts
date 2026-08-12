@@ -22,6 +22,9 @@ export interface Profile {
   role: UserRole;
   /** Admin privilege flag (0008) — a tutor can also be an admin. */
   is_admin: boolean;
+  /** Null until a brand-new Google account finishes the one-time role pick
+   *  (0010). Email sign-ups and linked/backfilled accounts are always set. */
+  onboarding_completed_at?: string | null;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;

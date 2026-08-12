@@ -159,7 +159,13 @@ export async function switchRoleAction(
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("profiles")
-    .update({ role: parsed.data.role, updated_at: new Date().toISOString() })
+    .update({
+      role: parsed.data.role,
+      updated_at: new Date().toISOString(),
+      // A conscious role choice counts as finishing onboarding — covers a
+      // brand-new Google user who skipped /onboarding and switched here.
+      onboarding_completed_at: new Date().toISOString(),
+    })
     .eq("id", profile.id);
 
   if (error) {
@@ -180,4 +186,43 @@ export async function switchRoleAction(
         ? "You're now a tutor. Set up your tutor profile to get reviewed."
         : "You're now a student. Your tutor profile is hidden until you switch back.",
   };
+}
+
+/**
+ * One-time onboarding for brand-new Google accounts (0010). Picks the role
+ * AND stamps onboarding_completed_at so the /onboarding screen never shows
+ * again. Same validation as switchRoleAction — admin is impossible.
+ */
+export async function completeOnboardingAction(formData: FormData): Promise<void> {
+  const parsed = switchRoleSchema.safeParse({ role: formData.get("role") });
+  if (!parsed.success) {
+    redirect("/onboarding"); // malformed — stay on the picker
+  }
+
+  const profile = await requireProfile();
+  if (profile.onboarding_completed_at) {
+    redirect("/dashboard"); // already done
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      role: parsed.data.role,
+      onboarding_completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profile.id);
+
+  if (error) {
+    redirect("/onboarding");
+  }
+
+  revalidateTag("tutors", "max");
+  revalidatePath("/dashboard");
+  revalidatePath("/");
+  revalidatePath("/tutor");
+  revalidatePath("/onboarding");
+
+  redirect("/dashboard");
 }
