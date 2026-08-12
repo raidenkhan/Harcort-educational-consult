@@ -25,13 +25,13 @@ export function BentoBackdrop({
     tone === "amber"
       ? {
           glow: "bg-brand-300/20",
-          glowAlt: "bg-amber-200/40",
-          grid: "[background-image:linear-gradient(to_right,rgba(120,53,15,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,53,15,0.05)_1px,transparent_1px)]",
+          glowAlt: "bg-lilac-200/40",
+          grid: "[background-image:linear-gradient(to_right,rgba(91,14,137,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(91,14,137,0.05)_1px,transparent_1px)]",
         }
       : {
           glow: "bg-petrol-300/20",
-          glowAlt: "bg-sky-200/40",
-          grid: "[background-image:linear-gradient(to_right,rgba(10,75,89,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(10,75,89,0.05)_1px,transparent_1px)]",
+          glowAlt: "bg-lilac-100/50",
+          grid: "[background-image:linear-gradient(to_right,rgba(28,15,43,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(28,15,43,0.06)_1px,transparent_1px)]",
         };
 
   return (

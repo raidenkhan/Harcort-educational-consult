@@ -116,7 +116,7 @@ export default async function TutorsPage() {
 
       {/* ── Footer ───────────────────────────────────────────────── */}
       <footer className="border-t border-slate-800 bg-slate-950">
-        <Container className="flex flex-col items-center justify-between gap-4 py-8 text-sm text-slate-500 sm:flex-row">
+        <Container className="flex flex-col items-center justify-between gap-4 py-8 text-sm text-lilac-200/80 sm:flex-row">
           <Logo dark />
           <p>
             © {new Date().getFullYear()} Harcourt Educational Consult · Kumasi,

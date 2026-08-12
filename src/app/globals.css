@@ -2,40 +2,62 @@
 
 /* ============================================================
    Harcourt Design System
-   Brand: warm gold/amber accents · petrol teal secondary
+   Brand: vibrant purple accent (#610B96 family) on deep navy-purple
+          ink (#1C0F2B family) · lilac whisper accents (#D1B4EF)
    Type: Space Grotesk (display) + Inter (body)
    Motion: purposeful only — see motion tokens below
    ============================================================ */
 
 @theme {
-  /* --- Brand: warm amber/gold (pairs with the pink-blue gradient) --- */
-  --color-brand-50: #fffbeb;
-  --color-brand-100: #fef3c7;
-  --color-brand-200: #fde68a;
-  --color-brand-300: #fcd34d;
-  --color-brand-400: #fbbf24;
-  --color-brand-500: #f59e0b;
-  --color-brand-600: #d97706;
-  --color-brand-700: #b45309;
-  --color-brand-800: #92400e;
-  --color-brand-900: #78350f;
-  --color-brand-950: #451a03;
+  /* --- Brand: vibrant purple accent (keyword emphasis, buttons, links) --- */
+  --color-brand-50: #f8f1fc;
+  --color-brand-100: #f0e2f9;
+  --color-brand-200: #e2c5f3;
+  --color-brand-300: #d1a2e8;
+  --color-brand-400: #b473da;
+  --color-brand-500: #9646c6;
+  --color-brand-600: #610b96;
+  --color-brand-700: #4c0878;
+  --color-brand-800: #39065c;
+  --color-brand-900: #290443;
+  --color-brand-950: #1c032f;
 
-  /* --- Secondary: petrol teal --- */
-  --color-petrol-50: #e7f1f3;
-  --color-petrol-100: #cde3e7;
-  --color-petrol-200: #9dc7cf;
-  --color-petrol-300: #6ba9b5;
-  --color-petrol-400: #3e8b9b;
-  --color-petrol-500: #237282;
-  --color-petrol-600: #135c6c;
-  --color-petrol-700: #0a4b59;
-  --color-petrol-800: #053d49;
-  --color-petrol-900: #00343a;
+  /* --- Secondary: deep navy-purple ink (primary text + dark surfaces) --- */
+  --color-petrol-50: #f4f1fa;
+  --color-petrol-100: #e8e2f3;
+  --color-petrol-200: #ccc0e2;
+  --color-petrol-300: #a493c8;
+  --color-petrol-400: #78649c;
+  --color-petrol-500: #503f6e;
+  --color-petrol-600: #382851;
+  --color-petrol-700: #291b3d;
+  --color-petrol-800: #211530;
+  --color-petrol-900: #1c0f2b;
+  --color-petrol-950: #150a20;
+
+  /* --- Lilac: soft light accent for subtle contrast on dark surfaces --- */
+  --color-lilac-100: #eadcf8;
+  --color-lilac-200: #d1b4ef;
+  --color-lilac-300: #c4a3ed;
+  --color-lilac-400: #af88e3;
+  --color-lilac-500: #9766d6;
+
+  /* --- Purple-tinted neutrals (slate-900 = primary text #1C0F2B) --- */
+  --color-slate-50: #f8f6fb;
+  --color-slate-100: #f0ecf7;
+  --color-slate-200: #e1daec;
+  --color-slate-300: #c9bedc;
+  --color-slate-400: #a18fc1;
+  --color-slate-500: #7d6b9e;
+  --color-slate-600: #5d4d7c;
+  --color-slate-700: #443462;
+  --color-slate-800: #2c1f47;
+  --color-slate-900: #1c0f2b;
+  --color-slate-950: #140a1f;
 
   /* --- Surfaces --- */
   --color-surface: #ffffff;
-  --color-canvas: #f6f7f9;
+  --color-canvas: #f7f5fa;
 
   /* --- Typography --- */
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system,
@@ -84,7 +106,7 @@
 
 body {
   background: var(--color-canvas);
-  color: #1e293b;
+  color: #1c0f2b;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }

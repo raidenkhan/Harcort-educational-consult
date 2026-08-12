@@ -34,10 +34,17 @@ mobile app.
   to GH₵; copy re-targeted to Ghanaian students.
 - **Auth modal + design system.** Sign in/sign up moved into a modal (tabs,
   Escape/backdrop to close, `?auth=` auto-open). Brand moved off blue →
-  warm amber/gold (`brand-*`) + petrol teal (`petrol-*`). Fonts: Space Grotesk
-  (display) + Inter (body), locally bundled. Emoji-free (lucide-react icons).
-  Motion: marquee, staggered hero entrance, modal scale-in, button press
-  feedback — all `prefers-reduced-motion` aware.
+  warm amber/gold (`brand-*`) + petrol teal (`petrol-*`) — later replaced by
+  the purple scheme below. Fonts: Space Grotesk (display) + Inter (body),
+  locally bundled. Emoji-free (lucide-react icons). Motion: marquee,
+  staggered hero entrance, modal scale-in, button press feedback — all
+  `prefers-reduced-motion` aware.
+- **Purple re-brand.** Off amber/teal. `brand-*` = vibrant purple accent
+  (#610B96, keywords/links/buttons); `petrol-*` = deep navy-purple ink
+  (#1C0F2B, primary text + dark surfaces); `lilac-*` = soft light accent
+  (#D1B4EF, secondary text on the dark footers); `slate-*` is a
+  purple-tinted neutral ramp with `slate-900` = #1C0F2B. Monogram/favicon
+  gradient regenerated (`npm run favicon`).
 - **Self-hosted auth (big pivot).** Supabase Auth was dropped entirely because
   of email rate limits / confirmation emails. Now: own `credentials` table
   (scrypt-hashed passwords), `sessions` table (SHA-256-hashed opaque tokens,
@@ -176,11 +183,13 @@ Key security properties:
   `revalidateTag("tutors", "max")` (plus `revalidatePath("/")`) in every
   mutation that changes the cached data — admin approve/reject, tutor
   profile/service edits.
-- **UI:** Tailwind v4; design tokens in `src/app/globals.css` (`brand-*`
-  amber, `petrol-*` teal, `font-display` Space Grotesk). **No emojis** — use
-  lucide-react icons. Reuse `Card`/`Badge`/`Button`/`Container`/`Field(s)`.
-  Interior pages get a `BentoBackdrop` (tone `amber`|`petrol`) inside a
-  `relative overflow-hidden` wrapper.
+- **UI:** Tailwind v4; design tokens in `src/app/globals.css` — `brand-*`
+  vibrant purple (#610B96), `petrol-*` deep navy-purple ink (#1C0F2B),
+  `lilac-*` soft accents (#D1B4EF), purple-tinted `slate-*` (slate-900 =
+  #1C0F2B), `font-display` Space Grotesk. **No emojis** — use lucide-react
+  icons. Reuse `Card`/`Badge`/`Button`/`Container`/`Field(s)`.
+  Interior pages get a `BentoBackdrop` (tone `amber`|`petrol` — vibrant
+  purple vs deep-navy glows) inside a `relative overflow-hidden` wrapper.
 - **Errors:** never expose raw DB errors to users beyond `error.message` in
   form states.
 

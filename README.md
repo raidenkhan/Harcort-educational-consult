@@ -140,8 +140,9 @@ modal opens automatically via `?auth=sign-in`.
   open (polling refresh — realtime upgrade planned). On mobile it works like
   WhatsApp: a chats list you tap into, then a back button returns to the list.
 - Threads show **Today / Yesterday / date** separators between messages.
-- **Admins are verified**: admin accounts carry a Twitter-style petrol
-  verified checkmark next to their name, and on every message they send.
+- **Admins are verified**: admin accounts carry a Twitter-style verified
+  checkmark (deep navy-purple) next to their name, and on every message
+  they send.
   Admins start threads with any student or approved tutor via the **New
   message** panel at the top of `/chat`.
 - Only the student and the tutor in the conversation can read or send messages
@@ -179,6 +180,7 @@ Students make and discuss payments **only with Harcourt admins — never with
 | `npm run start`    | Serve the production build |
 | `npm run lint`     | ESLint                     |
 | `npm run typecheck`| TypeScript check           |
+| `npm run favicon`  | Regenerate favicon set from `src/app/icon.svg` |
 
 ## Roadmap
 
