@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Check, Inbox, Loader2, MessageCircle, Send } from "lucide-react";
 import { sendMessage, type ConversationFormState } from "@/services/chat/mutations";
 import type { ConversationListItem } from "@/services/chat/queries";
@@ -39,6 +39,11 @@ interface PendingMessage {
 type Row =
   | { kind: "separator"; id: string; label: string }
   | { kind: "message"; message: Message };
+
+/** Module-level so the React Compiler purity lint stays quiet. */
+function nowMs(): number {
+  return Date.now();
+}
 
 /** Insert day separators whenever the Accra date changes between messages. */
 function buildRows(messages: Message[], now: number): Row[] {
@@ -102,7 +107,6 @@ export function ChatView({
   myId,
   closed = false,
   now,
-  initialThreadOpen = false,
   otherIsAdmin = false,
   adminId = null,
   isAdmin = false,
@@ -115,8 +119,6 @@ export function ChatView({
   closed?: boolean;
   /** Snapshot for "Today"/"Yesterday" separators — passed from the server page. */
   now: number;
-  /** Deep-linked straight into a thread (mobile) when the URL carries ?c=. */
-  initialThreadOpen?: boolean;
   /** The other party is a verified Harcot admin. */
   otherIsAdmin?: boolean;
   /** The conversation's admin participant id (marks their bubbles). */
@@ -132,13 +134,27 @@ export function ChatView({
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
-  // Mobile: chats list ↔ open thread (desktop always shows both panes).
-  const [mobileThreadOpen, setMobileThreadOpen] = useState(initialThreadOpen);
+  // Mobile: chats list ↔ open thread, derived from the URL so it can never
+  // drift out of sync with the active conversation (the old local state
+  // would go stale and every row ended up opening the same fallback chat).
+  const searchParams = useSearchParams();
+  // The URL must name THIS conversation — otherwise the pane stays on the
+  // list for the moment it takes the new thread's props to arrive, instead of
+  // flashing the previous conversation's content.
+  const threadOpen =
+    Boolean(activeId) && searchParams.get("c") === activeId;
 
-  const openThread = () => setMobileThreadOpen(true);
+  // Timestamp of the last manual navigation — polling skips this window so a
+  // refresh response can't clobber an in-flight conversation switch.
+  const lastNav = useRef(0);
+
+  const selectConversation = (id: string) => {
+    lastNav.current = nowMs();
+    router.push(`/chat?c=${id}`);
+  };
   const closeThread = () => {
+    lastNav.current = nowMs();
     router.replace("/chat");
-    setMobileThreadOpen(false);
   };
 
   // True once the server thread contains this body from me (reconciliation).
@@ -151,9 +167,14 @@ export function ChatView({
   const rows = buildRows(thread, now);
 
   // Pick up new messages while the page is open (see realtime note above).
+  // Skips refreshes shortly after a manual switch and when the tab is hidden.
   useEffect(() => {
     if (conversations.length === 0) return;
-    const timer = setInterval(() => router.refresh(), POLL_MS);
+    const timer = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      if (Date.now() - lastNav.current < 1500) return;
+      router.refresh();
+    }, POLL_MS);
     return () => clearInterval(timer);
   }, [conversations.length, router]);
 
@@ -245,7 +266,7 @@ export function ChatView({
         padded={false}
         className={cn(
           "h-[calc(100dvh-15rem)] min-h-96 flex-col overflow-hidden lg:h-[600px] lg:min-h-0",
-          mobileThreadOpen ? "hidden lg:flex" : "flex",
+          threadOpen ? "hidden lg:flex" : "flex",
         )}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -257,12 +278,12 @@ export function ChatView({
             const active = c.id === activeId;
             return (
               <li key={c.id}>
-                <Link
-                  href={`/chat?c=${c.id}`}
-                  onClick={openThread}
-                  aria-current={active ? "page" : undefined}
+                <button
+                  type="button"
+                  onClick={() => selectConversation(c.id)}
+                  aria-current={active ? "true" : undefined}
                   className={cn(
-                    "flex items-center gap-3 px-5 py-4 transition duration-150",
+                    "flex w-full items-center gap-3 px-5 py-4 text-left transition duration-150",
                     active ? "bg-brand-50/70" : "hover:bg-slate-50",
                   )}
                 >
@@ -294,7 +315,7 @@ export function ChatView({
                         : "No messages yet — say hello."}
                     </span>
                   </span>
-                </Link>
+                </button>
               </li>
             );
           })}
@@ -306,7 +327,7 @@ export function ChatView({
         padded={false}
         className={cn(
           "h-[calc(100dvh-15rem)] min-h-96 flex-col overflow-hidden lg:h-[600px] lg:min-h-0",
-          !mobileThreadOpen ? "hidden lg:flex" : "flex",
+          !threadOpen ? "hidden lg:flex" : "flex",
         )}
       >
         <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5">

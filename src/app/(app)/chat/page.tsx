@@ -105,7 +105,9 @@ export default async function ChatPage({
           <AdminNewConversation targets={chatTargets} />
         )}
 
+        {/* key remounts ChatView per conversation — fresh state, no cross-thread bleed. */}
         <ChatView
+          key={activeId ?? "none"}
           conversations={conversations}
           activeId={activeId}
           thread={thread ?? []}
@@ -115,7 +117,6 @@ export default async function ChatPage({
           myId={profile.id}
           closed={meta?.status === "closed"}
           now={nowSnapshot()}
-          initialThreadOpen={Boolean(c)}
           isAdmin={profile.role === "admin"}
         />
       </Container>
