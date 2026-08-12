@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "favicon": "node scripts/generate-favicon.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

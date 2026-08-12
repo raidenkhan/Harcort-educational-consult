@@ -208,6 +208,9 @@ Setup runbook:
    ```
 
 Validation commands: `npm run lint` · `npm run typecheck` · `npm run build`.
+Icons: `src/app/icon.svg` is the source of truth for the brand favicon;
+`npm run favicon` regenerates `favicon.ico` + `apple-icon.png` from it (sharp).
+Never sed binary files (a rename pass once corrupted `favicon.ico`).
 The dev machine is slow — give compiles 30–60s.
 
 ---
