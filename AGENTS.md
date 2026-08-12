@@ -112,7 +112,7 @@ mobile app.
   verified), then calls the `upsert_google_user` RPC — find-or-link-or-create
   against `credentials` (a Google sign-in on an existing email/password
   account LINKS the two; same profile, sessions and chats preserved). New
-  accounts join as the role picked on the sign-up form (student or tutor —
+  accounts join as the role picked on either auth tab (student or tutor —
   `?role=` rides inside the CSRF state cookie so it can't be forged; the RPC
   ignores it when linking an existing account, so roles can't be silently
   changed). Sessions use the exact same cookie path as email sign-in. Env:
@@ -120,6 +120,15 @@ mobile app.
   UI: `components/auth/GoogleAuthBlock.tsx` (button + divider + `?google_error=`
   surfacing, read via `useSyncExternalStore`), rendered inside the shared
   `AuthFields`, so the modal and standalone pages both get it.
+- **Role switching (student ↔ tutor).** Students and tutors can self-switch
+  roles from a dashboard card (`components/auth/RoleSwitcher.tsx` →
+  `switchRoleAction`): validated by `switchRoleSchema` (admin is never
+  switchable), the switch updates `profiles.role` and revalidates the cached
+  tutor directory. A tutor who switches to student keeps their tutor_profile
+  row (status untouched) but drops out of the public list — the list filter
+  is `profiles.role <> 'student'` — and switching back re-lists them. The
+  Google sign-in role picker shows on BOTH auth tabs, so a new Google user
+  who lands on the sign-in tab gets the same role prompt as on sign-up.
 - **Tests + CI.** Vitest unit tests for pure logic (`src/**/*.test.ts`,
   node environment, `@` alias in `vitest.config.ts`): password hashing,
   sign-in throttle (extracted to `src/lib/auth/throttle.ts` with an injectable

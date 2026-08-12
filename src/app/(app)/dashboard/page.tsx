@@ -16,6 +16,7 @@ import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { SessionCard } from "@/components/sessions/SessionCard";
 import { TutorProfileCta } from "@/components/tutors/TutorProfileCta";
 import { PaymentGroundRules } from "@/components/support/PaymentGroundRules";
+import { RoleSwitcher } from "@/components/auth/RoleSwitcher";
 
 /** Sessions can be ticked from 15 minutes before their start time. */
 const GRACE_MS = 15 * 60 * 1000;
@@ -162,6 +163,10 @@ export default async function DashboardPage() {
                 <Button className="w-full sm:w-auto">Open admin console</Button>
               </Link>
             </Card>
+          )}
+
+          {(profile.role === "student" || profile.role === "tutor") && (
+            <RoleSwitcher currentRole={profile.role} />
           )}
 
           <Card>

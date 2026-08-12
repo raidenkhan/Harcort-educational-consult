@@ -93,11 +93,7 @@ function GoogleG() {
   );
 }
 
-export function GoogleAuthBlock({
-  variant = "sign-in",
-}: {
-  variant?: "sign-in" | "sign-up";
-}) {
+export function GoogleAuthBlock() {
   const googleError = useSyncExternalStore(
     subscribeToGoogleError,
     getGoogleErrorSnapshot,
@@ -117,19 +113,21 @@ export function GoogleAuthBlock({
         </div>
       )}
 
-      {variant === "sign-up" && (
-        <div className="mb-4">
-          <RolePicker
-            legend="Join with Google as"
-            name="google-role"
-            onChange={(next) => setRole(next)}
-          />
-          <p className="mt-2 text-center text-xs leading-relaxed text-slate-400">
-            New Google accounts join as the role above. Existing accounts keep
-            their current role.
-          </p>
-        </div>
-      )}
+      {/* Role choice is offered on BOTH auth tabs — a brand-new Google user
+          who lands on the sign-in tab gets the same prompt as one on the
+          sign-up tab. It only applies to new accounts (upsert_google_user
+          ignores it when linking an existing email/password account). */}
+      <div className="mb-4">
+        <RolePicker
+          legend="Join with Google as"
+          name="google-role"
+          onChange={(next) => setRole(next)}
+        />
+        <p className="mt-2 text-center text-xs leading-relaxed text-slate-400">
+          New Google accounts join as the role above. Existing accounts keep
+          their current role.
+        </p>
+      </div>
 
       <a
         href={`/api/auth/google${role === "tutor" ? "?role=tutor" : ""}`}

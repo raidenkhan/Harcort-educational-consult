@@ -160,12 +160,20 @@ Google flow is a server-side OAuth authorization code exchange:
    account with the role picked on the sign-up form. A normal session cookie
    is issued — the user lands on `/dashboard`.
 
-On the **sign-up** tab, Google joins use the same student/tutor role picker
-as email sign-up; the choice rides inside the CSRF state cookie (not the URL
-Google echoes) so it can't be forged, and it only applies to **new** accounts
-— signing into an existing email/password account keeps that account's role.
-Admin is still impossible through this path. The browser never sees an ID
-token or a client secret.
+On **both auth tabs** (sign in and sign up), Google joins use the same
+student/tutor role picker as email sign-up; the choice rides inside the CSRF
+state cookie (not the URL Google echoes) so it can't be forged, and it only
+applies to **new** accounts — signing into an existing email/password account
+keeps that account's role. Admin is still impossible through this path. The
+browser never sees an ID token or a client secret.
+
+## Roles & switching
+
+Student and tutor are the two self-selectable roles (admin is a privilege set
+by the team — see the admin section). You can switch between them anytime
+from your **dashboard**: switching to tutor starts the tutor onboarding and
+review flow; switching to student hides your tutor listing until you switch
+back (your tutor profile isn't deleted).
 
 ## Chat
 

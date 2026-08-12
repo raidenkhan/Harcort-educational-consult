@@ -19,6 +19,13 @@ export const signInSchema = z.object({
   password: z.string().min(1, "Enter your password").max(128, "Enter your password"),
 });
 
+/** Self-service role switch (student ↔ tutor). Admin is impossible. */
+export const switchRoleSchema = z.object({
+  role: z.enum(["student", "tutor"], {
+    error: "Invalid role.",
+  }),
+});
+
 /** Admin issues a one-time reset code for a user's email. */
 export const resetRequestSchema = z.object({
   email: z.email("Enter a valid email address"),
@@ -39,4 +46,5 @@ export const resetRedeemSchema = z.object({
 
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
+export type SwitchRoleInput = z.infer<typeof switchRoleSchema>;
 export type ResetRedeemInput = z.infer<typeof resetRedeemSchema>;

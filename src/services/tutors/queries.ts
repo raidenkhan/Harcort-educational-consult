@@ -31,6 +31,11 @@ interface ServiceRow extends TutorService {
  * Cached after the first real request (5 min TTL) — the page reads from cache
  * instead of hitting Supabase on every visit. Admin approve/reject calls
  * revalidateTag("tutors") so changes show up immediately.
+ *
+ * Hidden: profiles whose role is 'student' (a tutor who self-switched to
+ * student keeps their approved tutor_profile row but stops being listed;
+ * switching back re-lists them). role='tutor' and legacy role='admin' (an
+ * admin who also tutors) both pass the filter.
  */
 export const listApprovedTutors = unstable_cache(
   async (): Promise<TutorListing[]> => {
@@ -40,6 +45,7 @@ export const listApprovedTutors = unstable_cache(
       .from("tutor_profiles")
       .select("*, profiles(*), tutor_services(*, courses(*))")
       .eq("verification_status", "approved")
+      .neq("profiles.role", "student")
       .order("created_at", { ascending: false });
 
     return (data ?? []).map((row: TutorProfileRow) => {

@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import {
@@ -10,7 +11,8 @@ import {
   setSessionCookie,
 } from "@/lib/auth/session";
 import { createThrottle } from "@/lib/auth/throttle";
-import { signInSchema, signUpSchema } from "./schemas";
+import { requireProfile } from "./queries";
+import { signInSchema, signUpSchema, switchRoleSchema } from "./schemas";
 
 /**
  * Auth server actions — self-hosted auth.
@@ -125,4 +127,57 @@ export async function signInAction(
 export async function signOutAction(): Promise<void> {
   await revokeSession();
   redirect("/");
+}
+
+/**
+ * Self-service role switch (student ↔ tutor) — e.g. a Google sign-up who
+ * defaulted to student, or a tutor taking a break. Admin is never switchable:
+ * the schema only allows 'student'/'tutor' and requireProfile guards the
+ * acting session.
+ *
+ * Switching to student hides the user's tutor listing (the public directory
+ * filters profiles.role); the tutor_profile row is kept, so switching back
+ * re-lists them. Switching to tutor surfaces the tutor onboarding prompt.
+ */
+export async function switchRoleAction(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const parsed = switchRoleSchema.safeParse({ role: formData.get("role") });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid role." };
+  }
+
+  const profile = await requireProfile();
+  if (profile.role !== "student" && profile.role !== "tutor") {
+    return { error: "This role can't be switched." };
+  }
+  if (profile.role === parsed.data.role) {
+    return { error: `You're already a ${parsed.data.role}.` };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ role: parsed.data.role, updated_at: new Date().toISOString() })
+    .eq("id", profile.id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  // The public tutor directory is cached — refresh it plus the role-driven
+  // pages so nav, cards, and the tutor onboarding prompt all update.
+  revalidateTag("tutors", "max");
+  revalidatePath("/dashboard");
+  revalidatePath("/");
+  revalidatePath("/tutor");
+  revalidatePath("/admin");
+
+  return {
+    message:
+      parsed.data.role === "tutor"
+        ? "You're now a tutor. Set up your tutor profile to get reviewed."
+        : "You're now a student. Your tutor profile is hidden until you switch back.",
+  };
 }

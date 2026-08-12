@@ -33,7 +33,7 @@ export function SignInFields() {
         </div>
       )}
 
-      <GoogleAuthBlock variant="sign-in" />
+      <GoogleAuthBlock />
 
       <form action={formAction} className="space-y-4">
         <Field label="Email" htmlFor="email">
@@ -83,7 +83,7 @@ export function SignUpFields() {
         </div>
       )}
 
-      <GoogleAuthBlock variant="sign-up" />
+      <GoogleAuthBlock />
 
       <form action={formAction} className="space-y-4">
         <Field label="Full name" htmlFor="fullName">

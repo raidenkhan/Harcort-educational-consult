@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resetRedeemSchema, signInSchema, signUpSchema } from "./schemas";
+import { resetRedeemSchema, signInSchema, signUpSchema, switchRoleSchema } from "./schemas";
 
 describe("signUpSchema", () => {
   it("accepts a valid signup", () => {
@@ -50,6 +50,19 @@ describe("signInSchema", () => {
 
   it("rejects a blank password", () => {
     expect(signInSchema.safeParse({ email: "a@b.com", password: "" }).success).toBe(false);
+  });
+});
+
+describe("switchRoleSchema", () => {
+  it("accepts student and tutor", () => {
+    expect(switchRoleSchema.safeParse({ role: "student" }).success).toBe(true);
+    expect(switchRoleSchema.safeParse({ role: "tutor" }).success).toBe(true);
+  });
+
+  it("rejects admin and anything else — admin is never switchable", () => {
+    expect(switchRoleSchema.safeParse({ role: "admin" }).success).toBe(false);
+    expect(switchRoleSchema.safeParse({ role: "" }).success).toBe(false);
+    expect(switchRoleSchema.safeParse({ role: "TUTOR" }).success).toBe(false);
   });
 });
 
