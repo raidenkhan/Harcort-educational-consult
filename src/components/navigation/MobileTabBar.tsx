@@ -66,10 +66,23 @@ function useHash() {
   );
 }
 
-export function MobileTabBar({ role }: { role?: UserRole }) {
+export function MobileTabBar({
+  role,
+  isAdmin = false,
+}: {
+  role?: UserRole;
+  /** Admin privilege flag (0008) — admin-tutors get an extra Admin tab. */
+  isAdmin?: boolean;
+}) {
   const pathname = usePathname();
   const hash = useHash();
-  const tabs = role ? TABS[role] : [];
+  const base = role ? TABS[role] : [];
+  // A tutor who is also an admin gets the Admin tab on top of their tutor tabs
+  // (role === "admin" already has it in TABS.admin).
+  const tabs =
+    isAdmin && role && role !== "admin"
+      ? [...base, { href: "/admin", label: "Admin", icon: ShieldCheck }]
+      : base;
   if (tabs.length === 0) return null;
 
   // Active-tab detection: a hash-specific tab (e.g. /dashboard#timetable) wins

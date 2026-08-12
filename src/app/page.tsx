@@ -3,12 +3,13 @@ import Link from "next/link";
 import { Search, ShieldCheck, MessagesSquare, type LucideIcon } from "lucide-react";
 import { listApprovedTutors } from "@/services/tutors/queries";
 import { listCourses } from "@/services/courses/queries";
-import { getCurrentProfile } from "@/services/auth/queries";
+import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { Container } from "@/components/ui/Container";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Logo } from "@/components/ui/Logo";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
 
 /**
@@ -315,8 +316,11 @@ export default async function Home() {
                       {(profile.full_name || "T").charAt(0).toUpperCase()}
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-900">
-                        {profile.full_name || "Harcourt tutor"}
+                      <p className="flex items-center gap-1.5">
+                        <span className="truncate font-semibold text-slate-900">
+                          {profile.full_name || "Harcourt tutor"}
+                        </span>
+                        {profileIsAdmin(profile) && <VerifiedBadge />}
                       </p>
                       <p className="text-xs text-slate-500">
                         {tutorProfile.rate_per_hour != null

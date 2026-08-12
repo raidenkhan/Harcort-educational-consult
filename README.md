@@ -117,11 +117,17 @@ sign up normally, then promote yourself in the SQL editor:
 ```sql
 -- in Supabase SQL editor, replace the email
 update public.profiles
-set role = 'admin'
+set is_admin = true
 where id = (select profile_id from public.credentials where email = 'you@example.com');
 ```
 
 Then sign in and visit `/admin` to review tutor applications.
+
+> **Admins can also tutor (0008).** Admin is a privilege, not a role: set
+> `is_admin = true` on any profile. A tutor who's also an admin (`role =
+> 'tutor'` + `is_admin = true`) keeps their tutor onboarding, appears in the
+> public tutor list (with the verified badge), and gets admin nav, admin
+> chat, and the admin console.
 
 ## Auth modal
 

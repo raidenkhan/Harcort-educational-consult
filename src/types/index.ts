@@ -16,7 +16,12 @@ export type SessionStatus = "scheduled" | "cancelled";
 export interface Profile {
   id: string;
   full_name: string;
+  /** The primary role (student | tutor). Admin is a privilege, not a role —
+   *  see is_admin. Legacy 'admin' values still exist (pre-0008) and are
+   *  treated as admins by profileIsAdmin(). */
   role: UserRole;
+  /** Admin privilege flag (0008) — a tutor can also be an admin. */
+  is_admin: boolean;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;

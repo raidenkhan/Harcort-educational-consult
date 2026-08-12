@@ -1,4 +1,4 @@
-import { requireProfile } from "@/services/auth/queries";
+import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
 import {
   listConversationsForUser,
   listMessagesForConversation,
@@ -36,7 +36,7 @@ export default async function ChatPage({
 
   const [conversations, chatTargets] = await Promise.all([
     listConversationsForUser(),
-    profile.role === "admin" ? listChatTargetsForAdmin() : Promise.resolve([]),
+    profileIsAdmin(profile) ? listChatTargetsForAdmin() : Promise.resolve([]),
   ]);
 
   const activeId =
@@ -52,7 +52,7 @@ export default async function ChatPage({
     : [null, null];
 
   const roleCopy =
-    profile.role === "admin"
+    profileIsAdmin(profile)
       ? {
           title: "Conversations with your students and tutors",
           subtitle:
@@ -81,7 +81,7 @@ export default async function ChatPage({
           {roleCopy.title}
         </h1>
         <p className="mt-2 max-w-xl text-slate-600">
-          {profile.role === "admin" ? (
+          {profileIsAdmin(profile) ? (
             <span className="inline-flex items-center gap-1.5">
               {roleCopy.subtitle}
               <VerifiedBadge className="align-[-1px]" />
@@ -101,7 +101,7 @@ export default async function ChatPage({
         )}
 
         {/* Admins start threads with students/tutors from here. */}
-        {profile.role === "admin" && (
+        {profileIsAdmin(profile) && (
           <AdminNewConversation targets={chatTargets} />
         )}
 
@@ -117,7 +117,7 @@ export default async function ChatPage({
           myId={profile.id}
           closed={meta?.status === "closed"}
           now={nowSnapshot()}
-          isAdmin={profile.role === "admin"}
+          isAdmin={profileIsAdmin(profile)}
         />
       </Container>
     </div>

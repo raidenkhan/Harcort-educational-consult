@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CalendarClock } from "lucide-react";
-import { requireProfile } from "@/services/auth/queries";
+import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
 import { getOwnTutorProfile } from "@/services/tutors/queries";
 import {
   listSessionsForStudent,
@@ -149,7 +149,7 @@ export default async function DashboardPage() {
             </Card>
           )}
 
-          {profile.role === "admin" && (
+          {profileIsAdmin(profile) && (
             <Card>
               <h2 className="text-lg font-semibold text-slate-900">
                 Tutor applications
@@ -171,7 +171,7 @@ export default async function DashboardPage() {
                 <dt className="text-slate-500">Role</dt>
                 <dd className="flex items-center gap-1.5 font-medium capitalize text-slate-900">
                   {profile.role}
-                  {profile.role === "admin" && <VerifiedBadge />}
+                  {profileIsAdmin(profile) && <VerifiedBadge />}
                 </dd>
               </div>
               <div className="flex items-center justify-between">

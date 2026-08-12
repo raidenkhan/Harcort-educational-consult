@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentProfile } from "@/services/auth/queries";
+import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
 import type {
   Conversation,
   ConversationStatus,
@@ -98,10 +98,13 @@ export async function listConversationsForUser(): Promise<ConversationListItem[]
   // Admins only see conversations where they're the admin participant — a
   // profile promoted from student to admin shouldn't surface its old
   // student-side threads here.
-  const orParts =
-    current.role === "admin"
-      ? [`admin_id.eq.${current.id}`]
-      : [`student_id.eq.${current.id}`];
+  // Admins (flag or legacy role) only see conversations where they're the
+  // admin participant — a profile promoted from student to admin shouldn't
+  // surface its old student-side threads here. Admin-tutors still see their
+  // tutor threads via the tutor_profile_id.in(...) part below.
+  const orParts = profileIsAdmin(current)
+    ? [`admin_id.eq.${current.id}`]
+    : [`student_id.eq.${current.id}`];
   if (tutorProfileIds.length > 0) {
     orParts.push(`tutor_profile_id.in.(${tutorProfileIds.join(",")})`);
   }

@@ -6,6 +6,7 @@ import type { TutorListing } from "@/services/tutors/queries";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { cn } from "@/lib/cn";
 
 /**
@@ -169,8 +170,13 @@ function TutorCard({
           {(profile.full_name || "T").charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold text-slate-900">
-            {profile.full_name || "Harcourt tutor"}
+          <p className="flex items-center gap-1.5">
+            <span className="truncate font-semibold text-slate-900">
+              {profile.full_name || "Harcourt tutor"}
+            </span>
+            {/* Client component — use the raw flag (the isAdmin helper lives
+                in a server-only module). Post-0008 rows always carry it. */}
+            {profile.is_admin && <VerifiedBadge />}
           </p>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
             <Badge tone="green">

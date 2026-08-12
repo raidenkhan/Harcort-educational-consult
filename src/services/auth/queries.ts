@@ -23,13 +23,25 @@ export async function requireProfile(): Promise<Profile> {
   redirect("/?auth=sign-in");
 }
 
+/**
+ * True when a profile carries admin privileges: the is_admin flag (0008,
+ * tutors who are also admins) or the legacy role='admin' (pre-0008). Pure,
+ * so client components can use it on serialized profiles.
+ */
+export function profileIsAdmin(profile: Pick<Profile, "role" | "is_admin">): boolean {
+  return profile.is_admin || profile.role === "admin";
+}
+
 export async function requireRole(...roles: UserRole[]): Promise<Profile> {
   const profile = await requireProfile();
-  if (!roles.includes(profile.role)) redirect("/dashboard");
+  const ok = roles.some((r) =>
+    r === "admin" ? profileIsAdmin(profile) : profile.role === r,
+  );
+  if (!ok) redirect("/dashboard");
   return profile;
 }
 
 export async function isAdmin(): Promise<boolean> {
   const profile = await getSessionProfile();
-  return profile?.role === "admin";
+  return profile ? profileIsAdmin(profile) : false;
 }

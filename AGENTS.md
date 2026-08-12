@@ -154,6 +154,7 @@ and all are safe to re-run:
 | `0005_session_cancellations.sql` | `session_status` enum (`scheduled`/`cancelled`) + `status`, `cancelled_at`, `cancelled_by` columns — soft delete for cancellations |
 | `0006_password_resets.sql` | `password_resets` — admin-issued one-time reset codes (SHA-256 hashed, single-use, 30-min expiry), deny-all RLS |
 | `0007_admin_conversations.sql` | Conversations gain `admin_id` (student/tutor sides nullable), 2-participant check constraint, partial unique indexes — admins can chat with students/tutors |
+| `0008_admin_tutor_flag.sql` | `profiles.is_admin` flag — admin becomes a privilege, not an exclusive role; backfills legacy `role='admin'`; `is_admin(p_uid)` honors flag OR legacy role. A tutor with `is_admin=true` stays in the public tutor list with a verified badge |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -212,9 +213,11 @@ Setup runbook:
    signs you in immediately)
 4. Promote yourself to admin:
    ```sql
-   update public.profiles set role = 'admin'
+   update public.profiles set is_admin = true
    where id = (select profile_id from public.credentials where email = 'you@example.com');
    ```
+   (Admin is a privilege — `is_admin = true` on any profile. A tutor who's
+   also an admin keeps their tutor listing and gets admin access too.)
 
 Validation commands: `npm run lint` · `npm run typecheck` · `npm run build`.
 Icons: `src/app/icon.svg` is the source of truth for the brand favicon;

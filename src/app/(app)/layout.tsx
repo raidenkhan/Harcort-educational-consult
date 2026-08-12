@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getCurrentProfile } from "@/services/auth/queries";
+import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
 import { Container } from "@/components/ui/Container";
 import { Badge } from "@/components/ui/Badge";
@@ -28,7 +28,9 @@ export default async function AppLayout({
     ...(profile?.role === "tutor"
       ? [{ href: "/tutor", label: "My tutor profile" }]
       : []),
-    ...(profile?.role === "admin" ? [{ href: "/admin", label: "Admin" }] : []),
+    ...(profile && profileIsAdmin(profile)
+      ? [{ href: "/admin", label: "Admin" }]
+      : []),
   ];
 
   return (
@@ -54,7 +56,7 @@ export default async function AppLayout({
             {profile && (
               <span className="hidden items-center gap-2 text-sm text-slate-600 lg:flex">
                 {profile.full_name}
-                {profile.role === "admin" && <VerifiedBadge />}
+                {profileIsAdmin(profile) && <VerifiedBadge />}
                 <Badge tone={roleTone[profile.role]}>{profile.role}</Badge>
               </span>
             )}
@@ -72,7 +74,9 @@ export default async function AppLayout({
       <main className="flex-1 pb-20 lg:pb-0">{children}</main>
 
       {/* Mobile gets an app-like bottom tab bar; lg+ uses the top nav. */}
-      {profile && <MobileTabBar role={profile.role} />}
+      {profile && (
+        <MobileTabBar role={profile.role} isAdmin={profileIsAdmin(profile)} />
+      )}
     </div>
   );
 }
