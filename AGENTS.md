@@ -99,6 +99,31 @@ mobile app.
   **petrol verified check** (`src/components/ui/VerifiedBadge.tsx`) next to
   their name in the app header, dashboard, chat list, thread header, and on
   every message they send (bubbles matched by `admin_id`).
+- **Admin-as-privilege (0008).** `profiles.is_admin` flag — admin becomes a
+  privilege, not an exclusive role. A tutor with `is_admin = true` keeps the
+  tutor onboarding + public listing (with verified badge) AND gets admin nav,
+  admin chat, and the admin console. `profileIsAdmin()` (in
+  `services/auth/queries.ts`, pure + unit-tested) is the single source of
+  truth for admin checks; `requireRole("admin")` honors the flag.
+- **Google sign-in (0009).** Authorization code flow, fully server-side:
+  `GET /api/auth/google` sets a CSRF `state` cookie and redirects to Google;
+  `GET /api/auth/google/callback` verifies the state cookie, exchanges the
+  code, verifies the ID token (audience = our client id, email must be
+  verified), then calls the `upsert_google_user` RPC — find-or-link-or-create
+  against `credentials` (a Google sign-in on an existing email/password
+  account LINKS the two; same profile, sessions and chats preserved). New
+  accounts start as `student`. Sessions use the exact same cookie path as
+  email sign-in. Env: `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (server-only).
+  UI: `components/auth/GoogleAuthBlock.tsx` (button + divider + `?google_error=`
+  surfacing, read via `useSyncExternalStore`), rendered inside the shared
+  `AuthFields`, so the modal and standalone pages both get it.
+- **Tests + CI.** Vitest unit tests for pure logic (`src/**/*.test.ts`,
+  node environment, `@` alias in `vitest.config.ts`): password hashing,
+  sign-in throttle (extracted to `src/lib/auth/throttle.ts` with an injectable
+  clock), Accra time helpers, auth zod schemas, `profileIsAdmin`. GitHub
+  Actions (`.github/workflows/ci.yml`) runs lint + typecheck + test on every
+  push/PR; the build job runs only when the Supabase secrets are configured
+  in the repo (they're needed to prerender the landing page).
 
 ---
 
@@ -155,6 +180,7 @@ and all are safe to re-run:
 | `0006_password_resets.sql` | `password_resets` — admin-issued one-time reset codes (SHA-256 hashed, single-use, 30-min expiry), deny-all RLS |
 | `0007_admin_conversations.sql` | Conversations gain `admin_id` (student/tutor sides nullable), 2-participant check constraint, partial unique indexes — admins can chat with students/tutors |
 | `0008_admin_tutor_flag.sql` | `profiles.is_admin` flag — admin becomes a privilege, not an exclusive role; backfills legacy `role='admin'`; `is_admin(p_uid)` honors flag OR legacy role. A tutor with `is_admin=true` stays in the public tutor list with a verified badge |
+| `0009_google_signin.sql` | `credentials.google_id` (partial unique index), `password_hash` nullable, `upsert_google_user` RPC — find-or-link-or-create for Google identities |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -219,7 +245,9 @@ Setup runbook:
    (Admin is a privilege — `is_admin = true` on any profile. A tutor who's
    also an admin keeps their tutor listing and gets admin access too.)
 
-Validation commands: `npm run lint` · `npm run typecheck` · `npm run build`.
+Validation commands: `npm run lint` · `npm run typecheck` · `npm run build` ·
+`npm test` (Vitest — unit tests for pure logic; no Supabase/DB involved).
+CI runs lint/typecheck/test on GitHub (`.github/workflows/ci.yml`).
 Icons: `src/app/icon.svg` is the source of truth for the brand favicon;
 `npm run favicon` regenerates `favicon.ico` + `apple-icon.png` from it (sharp).
 Never sed binary files (a rename pass once corrupted `favicon.ico`).
@@ -262,8 +290,8 @@ The dev machine is slow — give compiles 30–60s.
 ## 8. Direction / roadmap
 
 **Near term:**
-- Google sign-in — slot into the existing `credentials` table (schema is
-  ready: add an `auth_provider`/`provider_id` column when implementing).
+- ~~Google sign-in~~ ✅ (0009 — authorization code flow via
+  `/api/auth/google` + callback; linking + `upsert_google_user`).
 - Realtime chat upgrade — a polling-based `/chat` page is live; switch the
   thread to `supabase_realtime` subscriptions once a Supabase-Auth-backed
   path exists (or keep polling — it's fine at this scale). Unread counts.
@@ -276,7 +304,7 @@ The dev machine is slow — give compiles 30–60s.
 **Later:**
 - Payments (Stripe), bookings, reviews.
 - Mobile app (React Native / Expo) consuming the same backend.
-- Test suite (the repo currently has none) + CI (lint/typecheck/build) on the
-  GitHub repo before hosting.
+- CI build job currently skips until Supabase repo secrets are configured
+  (see `.github/workflows/ci.yml`).
 - Hosting: the GitHub repo is the deployment source (Vercel or similar);
   remember the `.env.local` vars must be set in the host's env.

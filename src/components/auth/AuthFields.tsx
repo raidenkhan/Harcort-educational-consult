@@ -7,6 +7,7 @@ import { signInAction, signUpAction, type AuthFormState } from "@/services/auth/
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Fields";
 import { Button } from "@/components/ui/Button";
+import { GoogleAuthBlock } from "./GoogleAuthBlock";
 import { cn } from "@/lib/cn";
 
 /**
@@ -33,7 +34,9 @@ export function SignInFields() {
         </div>
       )}
 
-      <form action={formAction} className="mt-5 space-y-4">
+      <GoogleAuthBlock variant="sign-in" />
+
+      <form action={formAction} className="space-y-4">
         <Field label="Email" htmlFor="email">
           <Input id="email" name="email" type="email" required autoComplete="email" />
         </Field>
@@ -96,7 +99,9 @@ export function SignUpFields() {
         </div>
       )}
 
-      <form action={formAction} className="mt-5 space-y-4">
+      <GoogleAuthBlock variant="sign-up" />
+
+      <form action={formAction} className="space-y-4">
         <Field label="Full name" htmlFor="fullName">
           <Input
             id="fullName"

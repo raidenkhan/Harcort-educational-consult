@@ -72,6 +72,11 @@ npm install
    - `NEXT_PUBLIC_ADMIN_WHATSAPP` — the admin WhatsApp number (international
      format, digits only, no `+`, e.g. `233201234567`) used for the student
      **Contact admin** button. Leave empty to hide the CTA until set.
+   - `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` — for **Sign in with Google**
+     (server-only). Create them in Google Cloud Console → APIs & Services →
+     Credentials → OAuth client ID → **Web application**, with the redirect
+     URI `http://localhost:3000/api/auth/google/callback` (plus your
+     production origin). Leave empty to hide the Google button.
 
    A template lives in `.env.example`.
 
@@ -85,6 +90,8 @@ Open **SQL Editor** in the Supabase dashboard and paste, **in order**:
 5. `supabase/migrations/0005_session_cancellations.sql`
 6. `supabase/migrations/0006_password_resets.sql`
 7. `supabase/migrations/0007_admin_conversations.sql`
+8. `supabase/migrations/0008_admin_tutor_flag.sql`
+9. `supabase/migrations/0009_google_signin.sql`
 
 > 0001 creates the schema, RLS policies, admin RPCs, realtime publication,
 > and the base taxonomy. 0002 adds the KNUST engineering course catalog.
@@ -95,6 +102,8 @@ Open **SQL Editor** in the Supabase dashboard and paste, **in order**:
 > 0006 adds admin-issued password-reset codes (no email needed);
 > 0007 lets admins participate in conversations (student↔admin or
 > tutor↔admin) so students can reach the Harcourt team in-chat.
+> 0008 makes admin a privilege (`is_admin` flag) instead of an exclusive
+> role; 0009 adds Google sign-in (`google_id` + `upsert_google_user`).
 >
 > A deeper orientation (history, conventions, gotchas) lives in `AGENTS.md`.
 
@@ -135,6 +144,25 @@ The landing page opens **sign in / sign up in a modal** (tabs, Escape/backdrop t
 close) instead of redirecting. The standalone `/sign-in` and `/sign-up` pages still
 exist for deep links. If the middleware bounces a signed-out user back to "/", the
 modal opens automatically via `?auth=sign-in`.
+
+## Sign in with Google
+
+Email/password and Google sign-in share one account store (`credentials`). The
+Google flow is a server-side OAuth authorization code exchange:
+
+1. **Continue with Google** → `GET /api/auth/google` sets a CSRF state cookie
+   and redirects to Google's consent screen.
+2. Google redirects to `/api/auth/google/callback`; the state cookie is
+   verified and consumed, the code is exchanged, and the ID token is verified
+   (audience = our client id; unverified emails are rejected).
+3. `upsert_google_user` finds the profile by Google id, else **links** the
+   Google id to an existing account with the same email, else creates a new
+   student account. A normal session cookie is issued — the user lands on
+   `/dashboard`.
+
+Google sign-ups join as **students** (the sign-up tab says so); tutor/admin
+roles are set the same way as before. The browser never sees an ID token or a
+client secret.
 
 ## Chat
 
@@ -186,13 +214,29 @@ Students make and discuss payments **only with Harcourt admins — never with
 | `npm run start`    | Serve the production build |
 | `npm run lint`     | ESLint                     |
 | `npm run typecheck`| TypeScript check           |
+| `npm test`         | Vitest unit tests (pure logic — no DB) |
+| `npm run test:watch`| Vitest watch mode          |
 | `npm run favicon`  | Regenerate favicon set from `src/app/icon.svg` |
+
+## Testing & CI
+
+- **Unit tests** live next to the code (`src/**/*.test.ts`) and cover the
+  security-critical pure logic: scrypt password hashing, the brute-force
+  sign-in throttle, Accra time formatting, auth validation schemas, and the
+  admin-flag check. They need no database or env vars: `npm test`.
+- **CI** (`.github/workflows/ci.yml`) runs lint, typecheck and tests on every
+  push to `main` and on pull requests. The `build` job is skipped until you
+  add the Supabase repo secrets (Settings → Secrets and variables → Actions):
+  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
+  `SUPABASE_SERVICE_ROLE_KEY` — the build prerenders the landing page, which
+  reads the tutor list.
 
 ## Roadmap
 
 - **Phase 0 ✅** — foundation: auth + roles, schema, RLS, admin approval loop
 - **Phase 1 ✅** — KNUST engineering catalog, tutor profile pages, sessions/timetable with attendance ticks, soft-delete cancellations, admin attendance tracker, bento design refresh
-- **Phase 1.5** — Google sign-in, session reminders, calendar view, moderation UI
+- **Phase 1.5** — ✅ Google sign-in (0009); session reminders, calendar view, moderation UI remain
+- **Phase 1.5b** — ✅ Vitest unit tests + GitHub Actions CI (lint/typecheck/test; build once Supabase secrets are set)
 - **Phase 2** — realtime chat upgrade (page is live with polling; swap to Supabase Realtime subscriptions), unread counts
 - **Phase 3** — payments (Stripe), bookings, reviews — chat goes behind the paywall
 - **Phase 4** — mobile app (React Native / Expo) consuming the same backend

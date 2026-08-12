@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionProfile } from "@/lib/auth/session";
+import { profileIsAdmin } from "@/lib/auth/admin";
 import type { Profile, UserRole } from "@/types";
 
 /**
@@ -23,14 +24,9 @@ export async function requireProfile(): Promise<Profile> {
   redirect("/?auth=sign-in");
 }
 
-/**
- * True when a profile carries admin privileges: the is_admin flag (0008,
- * tutors who are also admins) or the legacy role='admin' (pre-0008). Pure,
- * so client components can use it on serialized profiles.
- */
-export function profileIsAdmin(profile: Pick<Profile, "role" | "is_admin">): boolean {
-  return profile.is_admin || profile.role === "admin";
-}
+/** Re-exported from the pure module (src/lib/auth/admin.ts) so the rest of
+ *  the app can keep importing it from here. */
+export { profileIsAdmin };
 
 export async function requireRole(...roles: UserRole[]): Promise<Profile> {
   const profile = await requireProfile();

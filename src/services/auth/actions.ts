@@ -9,6 +9,7 @@ import {
   revokeSession,
   setSessionCookie,
 } from "@/lib/auth/session";
+import { createThrottle } from "@/lib/auth/throttle";
 import { signInSchema, signUpSchema } from "./schemas";
 
 /**
@@ -27,44 +28,9 @@ export type AuthFormState = { error?: string; message?: string };
 const DUMMY_HASH = `scrypt$${"0".repeat(32)}$${"0".repeat(128)}`;
 
 // ---------------------------------------------------------------------------
-// Brute-force throttle. In-memory is fine for a single Node instance; swap
-// for a DB/Redis-backed limiter when the app runs on multiple instances.
+// Brute-force throttle (see src/lib/auth/throttle.ts).
 // ---------------------------------------------------------------------------
-const MAX_FAILED_ATTEMPTS = 5;
-const THROTTLE_WINDOW_MS = 15 * 60 * 1000;
-
-interface AttemptRecord {
-  count: number;
-  resetAt: number;
-}
-
-const failedAttempts = new Map<string, AttemptRecord>();
-
-function pruneAttempts(now: number) {
-  for (const [key, record] of failedAttempts) {
-    if (now > record.resetAt) failedAttempts.delete(key);
-  }
-}
-
-function isThrottled(key: string): boolean {
-  const record = failedAttempts.get(key);
-  if (!record) return false;
-  if (Date.now() > record.resetAt) {
-    failedAttempts.delete(key);
-    return false;
-  }
-  return record.count >= MAX_FAILED_ATTEMPTS;
-}
-
-function recordFailure(key: string) {
-  const now = Date.now();
-  const record = failedAttempts.get(key);
-  if (!record || now > record.resetAt) {
-    failedAttempts.set(key, { count: 1, resetAt: now + THROTTLE_WINDOW_MS });
-  } else {
-    record.count += 1;
-  }
-}
+const throttle = createThrottle();
 
 async function getClientIp(): Promise<string> {
   const headersList = await headers();
@@ -124,9 +90,9 @@ export async function signInAction(
 
   const emailKey = `email:${parsed.data.email.trim().toLowerCase()}`;
   const ipKey = `ip:${await getClientIp()}`;
-  pruneAttempts(Date.now());
+  throttle.prune();
 
-  if (isThrottled(emailKey) || isThrottled(ipKey)) {
+  if (throttle.isThrottled(emailKey) || throttle.isThrottled(ipKey)) {
     return { error: "Too many attempts. Please wait a few minutes and try again." };
   }
 
@@ -144,20 +110,16 @@ export async function signInAction(
   );
 
   if (!credential || !passwordOk) {
-    recordFailure(emailKey);
-    recordFailure(ipKey);
+    throttle.recordFailure(emailKey);
+    throttle.recordFailure(ipKey);
     return { error: "Invalid email or password." };
   }
 
-  clearAttempts(emailKey);
+  throttle.clear(emailKey);
   const token = await createSession(credential.profile_id);
   await setSessionCookie(token);
 
   redirect("/dashboard");
-}
-
-function clearAttempts(key: string) {
-  failedAttempts.delete(key);
 }
 
 export async function signOutAction(): Promise<void> {
