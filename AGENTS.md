@@ -112,8 +112,11 @@ mobile app.
   verified), then calls the `upsert_google_user` RPC — find-or-link-or-create
   against `credentials` (a Google sign-in on an existing email/password
   account LINKS the two; same profile, sessions and chats preserved). New
-  accounts start as `student`. Sessions use the exact same cookie path as
-  email sign-in. Env: `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (server-only).
+  accounts join as the role picked on the sign-up form (student or tutor —
+  `?role=` rides inside the CSRF state cookie so it can't be forged; the RPC
+  ignores it when linking an existing account, so roles can't be silently
+  changed). Sessions use the exact same cookie path as email sign-in. Env:
+  `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` (server-only).
   UI: `components/auth/GoogleAuthBlock.tsx` (button + divider + `?google_error=`
   surfacing, read via `useSyncExternalStore`), rendered inside the shared
   `AuthFields`, so the modal and standalone pages both get it.

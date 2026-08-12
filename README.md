@@ -157,12 +157,15 @@ Google flow is a server-side OAuth authorization code exchange:
    (audience = our client id; unverified emails are rejected).
 3. `upsert_google_user` finds the profile by Google id, else **links** the
    Google id to an existing account with the same email, else creates a new
-   student account. A normal session cookie is issued — the user lands on
-   `/dashboard`.
+   account with the role picked on the sign-up form. A normal session cookie
+   is issued — the user lands on `/dashboard`.
 
-Google sign-ups join as **students** (the sign-up tab says so); tutor/admin
-roles are set the same way as before. The browser never sees an ID token or a
-client secret.
+On the **sign-up** tab, Google joins use the same student/tutor role picker
+as email sign-up; the choice rides inside the CSRF state cookie (not the URL
+Google echoes) so it can't be forged, and it only applies to **new** accounts
+— signing into an existing email/password account keeps that account's role.
+Admin is still impossible through this path. The browser never sees an ID
+token or a client secret.
 
 ## Chat
 

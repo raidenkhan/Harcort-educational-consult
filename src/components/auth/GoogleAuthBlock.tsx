@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { RolePicker, type AuthRole } from "./RolePicker";
 
 /**
  * "Continue with Google" + divider, shared by the auth modal and the
@@ -102,6 +103,7 @@ export function GoogleAuthBlock({
     getGoogleErrorSnapshot,
     getGoogleErrorServerSnapshot,
   );
+  const [role, setRole] = useState<AuthRole>("student");
 
   const message = googleError
     ? (ERROR_MESSAGES[googleError] ?? "Google sign-in failed. Try again.")
@@ -115,21 +117,28 @@ export function GoogleAuthBlock({
         </div>
       )}
 
+      {variant === "sign-up" && (
+        <div className="mb-4">
+          <RolePicker
+            legend="Join with Google as"
+            name="google-role"
+            onChange={(next) => setRole(next)}
+          />
+          <p className="mt-2 text-center text-xs leading-relaxed text-slate-400">
+            New Google accounts join as the role above. Existing accounts keep
+            their current role.
+          </p>
+        </div>
+      )}
+
       <a
-        href="/api/auth/google"
+        href={`/api/auth/google${role === "tutor" ? "?role=tutor" : ""}`}
         onClick={clearGoogleError}
         className="flex w-full items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98]"
       >
         <GoogleG />
         Continue with Google
       </a>
-
-      {variant === "sign-up" && (
-        <p className="mt-2 text-center text-xs leading-relaxed text-slate-400">
-          Google accounts join as students. Joining as a tutor? Use email
-          sign-up below.
-        </p>
-      )}
 
       <div className="my-5 flex items-center gap-3" aria-hidden="true">
         <span className="h-px flex-1 bg-slate-200" />
