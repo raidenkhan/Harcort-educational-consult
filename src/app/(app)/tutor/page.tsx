@@ -56,7 +56,7 @@ export default async function TutorPage() {
 
   return (
     <div className="relative overflow-hidden">
-      <BentoBackdrop tone="amber" />
+      <BentoBackdrop tone="purple" />
       <Container className="py-12">
         <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
           For tutors

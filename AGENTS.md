@@ -188,7 +188,7 @@ Key security properties:
   `lilac-*` soft accents (#D1B4EF), purple-tinted `slate-*` (slate-900 =
   #1C0F2B), `font-display` Space Grotesk. **No emojis** — use lucide-react
   icons. Reuse `Card`/`Badge`/`Button`/`Container`/`Field(s)`.
-  Interior pages get a `BentoBackdrop` (tone `amber`|`petrol` — vibrant
+  Interior pages get a `BentoBackdrop` (tone `purple`|`petrol` — vibrant
   purple vs deep-navy glows) inside a `relative overflow-hidden` wrapper.
 - **Errors:** never expose raw DB errors to users beyond `error.message` in
   form states.

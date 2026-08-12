@@ -2,7 +2,7 @@ import { cn } from "@/lib/cn";
 
 export type BadgeTone =
   | "neutral"
-  | "blue"
+  | "brand"
   | "petrol"
   | "green"
   | "amber"
@@ -11,7 +11,7 @@ export type BadgeTone =
 
 const tones: Record<BadgeTone, string> = {
   neutral: "bg-slate-100 text-slate-700",
-  blue: "bg-brand-50 text-brand-800",
+  brand: "bg-brand-50 text-brand-800",
   petrol: "bg-petrol-50 text-petrol-800",
   green: "bg-emerald-50 text-emerald-700",
   amber: "bg-amber-50 text-amber-700",

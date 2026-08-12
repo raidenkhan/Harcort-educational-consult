@@ -32,7 +32,7 @@ export default async function TutorsPage() {
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden pb-20 lg:pb-0">
-      <BentoBackdrop tone="amber" />
+      <BentoBackdrop tone="purple" />
 
       {/* ── Top navigation ───────────────────────────────────────── */}
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">

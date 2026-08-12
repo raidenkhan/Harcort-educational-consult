@@ -17,12 +17,12 @@ export function BentoBackdrop({
   variant = "grid",
   className,
 }: {
-  tone?: "amber" | "petrol";
+  tone?: "purple" | "petrol";
   variant?: "grid" | "smooth";
   className?: string;
 }) {
   const palette =
-    tone === "amber"
+    tone === "purple"
       ? {
           glow: "bg-brand-300/20",
           glowAlt: "bg-lilac-200/40",

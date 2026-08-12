@@ -15,7 +15,7 @@ export const metadata = {
 export default function ForgotPasswordPage() {
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">
-      <BentoBackdrop tone="amber" />
+      <BentoBackdrop tone="purple" />
 
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
         <Container className="flex h-16 items-center justify-between">
