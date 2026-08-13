@@ -1,24 +1,32 @@
 "use server";
 
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
+import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createThrottle } from "@/lib/auth/throttle";
 import { notifyPasswordReset } from "@/lib/email/notify";
 import { hashPassword } from "@/lib/auth/password";
 import { requireRole } from "@/services/auth/queries";
 import { resetRedeemSchema, resetRequestSchema } from "./schemas";
 
 /**
- * Password reset — admin-issued one-time codes.
+ * Password reset — self-service by email, with an admin out-of-band fallback.
  *
- * Email recovery isn't available (Supabase auth email rate limits), so an
- * admin generates a code and shares it out-of-band (WhatsApp / phone). The
- * user redeems it — no session required, since a locked-out user has none —
- * with a new password. Redeeming revokes every existing session for that
- * user, and redemption is throttled per-email against brute force.
+ * Primary path: a student who forgot their password enters their email on
+ * /forgot-password → `requestResetCode` generates a one-time code, emails it
+ * straight to them, and they redeem it (no session required). The response is
+ * deliberately generic ("if an account exists, a code was sent") so the public
+ * endpoint can't be used to probe which emails have accounts.
  *
- * Codes are stored SHA-256-hashed (same discipline as `sessions`) and are
- * single-use with a 30-minute expiry; issuing a new code voids outstanding
- * ones for that user.
+ * Fallback: an admin can still issue a code from /admin (`generateResetCode`)
+ * and share it out-of-band (WhatsApp / phone) for users who signed up with a
+ * fake or no email. Both paths write to the same `password_resets` table.
+ *
+ * Codes are stored SHA-256-hashed, single-use with a 30-minute expiry; issuing
+ * a new code voids outstanding ones for that user. Redeeming revokes every
+ * existing session, and redemption is throttled per-email against brute force.
+ * Requesting is throttled per-email + per-IP (same throttle as sign-in) to
+ * stop inbox flooding and enumeration.
  */
 
 export type ResetFormState = { error?: string; message?: string; code?: string };
@@ -79,7 +87,100 @@ function clearAttempts(key: string) {
   failedAttempts.delete(key);
 }
 
-/** Admin generates a one-time reset code for a user's email. */
+// Request throttle — shared primitive (same as sign-in), keyed per email + IP.
+const requestThrottle = createThrottle();
+
+async function getClientIp(): Promise<string> {
+  const headersList = await headers();
+  return headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+}
+
+/**
+ * Create a reset code for an existing profile. Voids any outstanding codes
+ * first (only the newest should ever work), then inserts a fresh one.
+ * Returns the plaintext code so the caller decides how to share it.
+ */
+async function createResetCode(
+  profileId: string,
+  createdBy: string | null,
+): Promise<{ code: string } | { error: string }> {
+  const supabase = createAdminClient();
+
+  await supabase
+    .from("password_resets")
+    .update({ used_at: new Date().toISOString() })
+    .eq("profile_id", profileId)
+    .is("used_at", null);
+
+  const code = String(randomInt(10 ** (CODE_DIGITS - 1), 10 ** CODE_DIGITS));
+  const { error } = await supabase.from("password_resets").insert({
+    profile_id: profileId,
+    code_hash: hashCode(code),
+    expires_at: new Date(Date.now() + RESET_TTL_MS).toISOString(),
+    created_by: createdBy,
+  });
+  if (error) return { error: error.message };
+  return { code };
+}
+
+/**
+ * Self-service: a locked-out user enters their email and the code is emailed
+ * automatically — no admin involved. Throttled per email + per IP. The reply
+ * is identical whether or not the account exists (no email enumeration), so a
+ * wrong email just quietly sends nothing.
+ */
+export async function requestResetCode(
+  _prev: ResetFormState,
+  formData: FormData,
+): Promise<ResetFormState> {
+  const parsed = resetRequestSchema.safeParse({ email: formData.get("email") });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Enter your email." };
+  }
+  const email = parsed.data.email.trim().toLowerCase();
+
+  const emailKey = `request:${email}`;
+  const ipKey = `request-ip:${await getClientIp()}`;
+  requestThrottle.prune();
+
+  // Every request burns a slot (success or not) — prevents both inbox
+  // flooding and timing-based account probing.
+  if (requestThrottle.isThrottled(emailKey) || requestThrottle.isThrottled(ipKey)) {
+    return { error: "Too many requests. Please wait a few minutes and try again." };
+  }
+  requestThrottle.recordFailure(emailKey);
+  requestThrottle.recordFailure(ipKey);
+
+  const supabase = createAdminClient();
+  const { data: credential } = await supabase
+    .from("credentials")
+    .select("profile_id")
+    .eq("email", email)
+    .maybeSingle();
+
+  // Unknown email — same generic reply, no code generated, nothing emailed.
+  if (!credential) {
+    return {
+      message:
+        "If an account exists for that email, a reset code has been sent to it.",
+    };
+  }
+
+  const issued = await createResetCode(
+    (credential as { profile_id: string }).profile_id,
+    null, // self-service — no admin involved
+  );
+  if ("error" in issued) return { error: issued.error };
+
+  notifyPasswordReset({ email, code: issued.code });
+
+  return {
+    message:
+      "If an account exists for that email, a reset code has been sent to it.",
+  };
+}
+
+/** Admin generates a one-time reset code for a user's email (fallback). */
 export async function generateResetCode(
   _prev: ResetFormState,
   formData: FormData,
@@ -102,29 +203,19 @@ export async function generateResetCode(
 
   if (!credential) return { error: "No account found for that email." };
 
-  // Only the newest code should ever work — void any outstanding ones.
-  await supabase
-    .from("password_resets")
-    .update({ used_at: new Date().toISOString() })
-    .eq("profile_id", (credential as { profile_id: string }).profile_id)
-    .is("used_at", null);
-
-  const code = String(randomInt(10 ** (CODE_DIGITS - 1), 10 ** CODE_DIGITS));
-  const { error } = await supabase.from("password_resets").insert({
-    profile_id: (credential as { profile_id: string }).profile_id,
-    code_hash: hashCode(code),
-    expires_at: new Date(Date.now() + RESET_TTL_MS).toISOString(),
-    created_by: admin.id,
-  });
-  if (error) return { error: error.message };
+  const issued = await createResetCode(
+    (credential as { profile_id: string }).profile_id,
+    admin.id,
+  );
+  if ("error" in issued) return { error: issued.error };
 
   // Email the code straight to the student (best-effort, after the response).
   // The admin still sees it as a fallback if email ever fails.
-  notifyPasswordReset({ email, code });
+  notifyPasswordReset({ email, code: issued.code });
 
   return {
     message: `Code generated for ${email} and emailed to them — it expires in 30 minutes.`,
-    code,
+    code: issued.code,
   };
 }
 

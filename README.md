@@ -109,7 +109,9 @@ Open **SQL Editor** in the Supabase dashboard and paste, **in order**:
 > tables, `register_user` RPC, and admin RPCs that verify the acting admin
 > by profile id. 0004 adds the tutoring timetable (dual attendance ticks);
 > 0005 makes cancellations soft-deletes so the admin keeps an audit trail;
-> 0006 adds admin-issued password-reset codes (no email needed);
+> 0006 adds password-reset codes (hashed, single-use, 30-min expiry) —
+> issued by admins as a fallback, or self-service via email now that Resend
+> is wired up;
 > 0007 lets admins participate in conversations (student↔admin or
 > tutor↔admin) so students can reach the Harcourt team in-chat.
 > 0008 makes admin a privilege (`is_admin` flag) instead of an exclusive
@@ -207,6 +209,16 @@ is missing or a send fails, the app carries on silently.
 The plumbing lives in `src/lib/email/` (`client`, `templates`, `recipients`,
 `notify`). Session *reminders* (N minutes before `scheduled_at`) are the
 planned next step — a cron job can reuse the same `notify` functions.
+
+### Forgot password — self-service
+
+A locked-out user enters their email on `/forgot-password` and the one-time
+code is **emailed automatically** (no admin involved). The request is
+throttled per-email + per-IP and replies generically whether or not the
+account exists (no account probing). The admin fallback still exists: admins
+can generate a code from `/admin` and share it out-of-band for users who
+signed up with a fake or no email. Signup does **not** verify email (by
+design — keep signup frictionless).
 
 ## Chat
 

@@ -9,7 +9,7 @@ import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 export const metadata = {
   title: "Forgot password",
   description:
-    "Reset your Harcourt password with the one-time code your admin shared with you.",
+    "Reset your Harcourt password — we'll email you a one-time code. No admin needed.",
 };
 
 export default function ForgotPasswordPage() {
@@ -39,8 +39,8 @@ export default function ForgotPasswordPage() {
               Reset your password
             </h1>
             <p className="mt-1 text-center text-sm text-slate-500">
-              Enter the one-time code your admin shared with you, along with
-              your new password. Codes expire after 30 minutes.
+              Enter your email and we&apos;ll send you a one-time reset code — no
+              admin needed. Codes expire after 30 minutes.
             </p>
             <ForgotPasswordForm />
           </Card>

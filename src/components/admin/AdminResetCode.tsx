@@ -45,9 +45,11 @@ export function AdminResetCode() {
             Password reset codes
           </h3>
           <p className="mt-0.5 text-sm text-slate-600">
-            Generate a one-time code for a student who forgot their password,
-            then share it with them (WhatsApp / phone). Codes expire in 30
-            minutes and can only be used once.
+            Generate a one-time code for a student who forgot their password.
+            The code is emailed to them automatically — it&apos;s shown here as a
+            fallback to share out-of-band (WhatsApp / phone) for students who
+            signed up without a working email. Codes expire in 30 minutes and
+            can only be used once.
           </p>
         </div>
       </div>

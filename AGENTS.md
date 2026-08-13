@@ -51,11 +51,16 @@ mobile app.
   30-day expiry), atomic `register_user` RPC, brute-force throttle on sign-in,
   middleware = cheap cookie-presence check only. All data access moved to the
   **service-role client with explicit scoping** (browser never touches the DB).
-- **Password reset without email.** Email recovery is unavailable (Supabase
-  auth rate limits), so admins issue one-time 8-digit codes from `/admin`
-  (hashed at rest, single-use, 30-min expiry) and share them out-of-band
-  (WhatsApp/phone). Students redeem them at `/forgot-password` (throttled,
-  no session required); redeeming revokes all of the user's sessions.
+- **Password reset — self-service by email, admin fallback.** With Resend in
+  place, a locked-out user can now request a reset code themselves on
+  `/forgot-password` (two-step: request → redeem). `requestResetCode` is
+  public, throttled per-email + per-IP (same `createThrottle` as sign-in),
+  and returns a **generic** reply whether or not the account exists (no email
+  enumeration) — the code is emailed automatically when the account is real.
+  The admin out-of-band path still exists (`generateResetCode` from `/admin`,
+  hashed at rest, single-use, 30-min expiry) for users who signed up with a
+  fake/no email. Redeeming revokes all of the user's sessions. No email
+  verification at signup (by design — signup stays frictionless).
 - **Bento design + tutoring sessions.** Admin/tutor/dashboard pages got bento
   grid backdrops. New `tutoring_sessions` table: tutors schedule sessions with
   students who contacted them; **both** tutor and student tick attendance when
@@ -133,11 +138,11 @@ mobile app.
   email: new chat messages (recipient gets the sender + preview + chat link),
   session scheduled/cancelled, attendance ticks (admins emailed — proves
   tutors are working), new tutor application (admins), approve/reject outcome
-  (tutor), and the password-reset code now goes **straight to the student's
-  inbox** instead of the admin sharing it out-of-band. Everything runs after
-  the response via Next's `after()` so sending never slows the primary action;
-  when `RESEND_API_KEY` is unset every send is a silent no-op. Env:
-  `RESEND_API_KEY`, `EMAIL_FROM` (verified-domain sender), `APP_URL`.
+  (tutor), and password-reset codes go **straight to the student's inbox**.
+  Everything runs after the response via Next's `after()` so sending never
+  slows the primary action; when `RESEND_API_KEY` is unset every send is a
+  silent no-op. Env: `RESEND_API_KEY`, `EMAIL_FROM` (verified-domain sender),
+  `APP_URL`.
 - **Tests + CI.** Vitest unit tests for pure logic (`src/**/*.test.ts`,
   node environment, `@` alias in `vitest.config.ts`): password hashing,
   sign-in throttle (extracted to `src/lib/auth/throttle.ts` with an injectable
