@@ -172,7 +172,17 @@ export async function requestResetCode(
   );
   if ("error" in issued) return { error: issued.error };
 
-  notifyPasswordReset({ email, code: issued.code });
+  // Awaited so a real failure surfaces instead of a silent false success.
+  // Success keeps the SAME generic reply as the no-account path above (no
+  // email enumeration); a send failure is the one case that's worth exposing
+  // — it's the user's own email, and they need to know delivery broke.
+  const sendError = await notifyPasswordReset({ email, code: issued.code });
+  if (sendError) {
+    return {
+      error:
+        "Your reset code was created but couldn't be emailed: " + sendError,
+    };
+  }
 
   return {
     message:
@@ -209,12 +219,15 @@ export async function generateResetCode(
   );
   if ("error" in issued) return { error: issued.error };
 
-  // Email the code straight to the student (best-effort, after the response).
-  // The admin still sees it as a fallback if email ever fails.
-  notifyPasswordReset({ email, code: issued.code });
+  // Email the code straight to the student (awaited so failures surface).
+  // The admin still sees the code as a fallback if email ever fails.
+  const sendError = await notifyPasswordReset({ email, code: issued.code });
+  const emailed = sendError
+    ? ` (email failed: ${sendError} — share the code manually)`
+    : " and emailed to them";
 
   return {
-    message: `Code generated for ${email} and emailed to them — it expires in 30 minutes.`,
+    message: `Code generated for ${email}${emailed} — it expires in 30 minutes.`,
     code: issued.code,
   };
 }

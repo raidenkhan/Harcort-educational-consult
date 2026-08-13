@@ -20,9 +20,10 @@ import {
  * sends run after the response via Next's `after()`.
  */
 
-async function deliver(to: string, message: EmailMessage): Promise<void> {
+/** Best-effort send; returns the error string (or null) instead of throwing. */
+async function deliver(to: string, message: EmailMessage): Promise<string | null> {
   const client = getEmailClient();
-  if (!client) return; // not configured — silent no-op
+  if (!client) return "Email isn't configured (missing RESEND_API_KEY).";
   try {
     await client.emails.send({
       from: EMAIL_FROM,
@@ -31,9 +32,13 @@ async function deliver(to: string, message: EmailMessage): Promise<void> {
       text: message.text,
       html: message.html,
     });
+    return null;
   } catch (err) {
-    // Log only — the app must never break because email failed.
+    const reason =
+      (err as { response?: { data?: { message?: string } } })?.response?.data
+        ?.message ?? (err as Error).message;
     console.error(`[email] failed to send "${message.subject}" to ${to}`, err);
+    return reason || "Unknown email error";
   }
 }
 
@@ -186,16 +191,16 @@ export function notifyTutorReviewed(opts: {
 // Password reset
 // ---------------------------------------------------------------------------
 
-/** The one-time code, emailed straight to the user instead of out-of-band. */
-export function notifyPasswordReset(opts: {
+/**
+ * The one-time code, emailed straight to the user instead of out-of-band.
+ * AWAITED (not `after()`) so the caller can surface send failures to the
+ * user — for password reset it's worth the few hundred ms to know whether
+ * the code actually left. Returns null on success or the error message.
+ */
+export async function notifyPasswordReset(opts: {
   email: string;
   code: string;
-}): void {
+}): Promise<string | null> {
   const resetUrl = `${APP_URL}/forgot-password`;
-  afterResponse(async () => {
-    await deliver(
-      opts.email,
-      passwordResetEmail({ code: opts.code, resetUrl }),
-    );
-  });
+  return deliver(opts.email, passwordResetEmail({ code: opts.code, resetUrl }));
 }
