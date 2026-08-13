@@ -2,6 +2,7 @@
 
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyPasswordReset } from "@/lib/email/notify";
 import { hashPassword } from "@/lib/auth/password";
 import { requireRole } from "@/services/auth/queries";
 import { resetRedeemSchema, resetRequestSchema } from "./schemas";
@@ -117,8 +118,12 @@ export async function generateResetCode(
   });
   if (error) return { error: error.message };
 
+  // Email the code straight to the student (best-effort, after the response).
+  // The admin still sees it as a fallback if email ever fails.
+  notifyPasswordReset({ email, code });
+
   return {
-    message: `Code generated for ${email}. Share it with the student — it expires in 30 minutes.`,
+    message: `Code generated for ${email} and emailed to them — it expires in 30 minutes.`,
     code,
   };
 }

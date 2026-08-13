@@ -14,6 +14,7 @@ service layer, so the same business logic can power a future mobile app.
 - **Tailwind CSS v4**
 - **Supabase** — PostgreSQL only (no Supabase Auth). Storage later
 - **Self-hosted auth** — own `credentials` + `sessions` tables, scrypt-hashed passwords, httpOnly session cookies
+- **Email notifications** — Resend (free tier), fail-safe and fire-and-forget
 - **Zod** — validation at every boundary
 - npm (pnpm has symlink issues on Windows; **use npm**)
 
@@ -77,6 +78,14 @@ npm install
      Credentials → OAuth client ID → **Web application**, with the redirect
      URI `http://localhost:3000/api/auth/google/callback` (plus your
      production origin). Leave empty to hide the Google button.
+   - `RESEND_API_KEY` — for **email notifications** (free tier: 3,000
+     emails/month, 100/day). Create a key at https://resend.com/api-keys.
+     Leave empty and every notification is a silent no-op. For real
+     recipients, verify a domain and set `EMAIL_FROM` (e.g.
+     `"Harcourt Educational Consult <notifications@yourdomain.com>"`);
+     without it, the default `onboarding@resend.dev` only delivers to your
+     own account email. `APP_URL` sets the public origin used in email
+     links (defaults to `http://localhost:3000`).
 
    A template lives in `.env.example`.
 
@@ -117,7 +126,8 @@ npm run dev
 Open http://localhost:3000.
 
 > There are **no confirmation emails** — sign-up creates your account and
-> signs you in immediately.
+> signs you in immediately. (Transactional notification emails are a
+> separate thing — see below.)
 
 ### 6. Create an admin account
 
@@ -177,6 +187,27 @@ from your **dashboard**: switching to tutor starts the tutor onboarding and
 review flow; switching to student hides your tutor listing until you switch
 back (your tutor profile isn't deleted).
 
+## Email notifications
+
+Resend powers **transactional** emails (no marketing blasts — stay within the
+free tier). Everything is best-effort: sends happen after the response via
+Next's `after()`, so email never slows the primary action, and if the API key
+is missing or a send fails, the app carries on silently.
+
+| Event | Who gets it |
+|---|---|
+| New chat message | The other participant(s) (sender + preview + chat link) |
+| Session scheduled | The student (who / when / topic / location) |
+| Session cancelled | The other party |
+| Attendance ticked | The admin team (proves the tutor is teaching) |
+| New tutor application | The admin team (review link) |
+| Tutor approved / rejected | The tutor (with the admin's note) |
+| Password-reset code | The student, straight to their inbox |
+
+The plumbing lives in `src/lib/email/` (`client`, `templates`, `recipients`,
+`notify`). Session *reminders* (N minutes before `scheduled_at`) are the
+planned next step — a cron job can reuse the same `notify` functions.
+
 ## Chat
 
 - **Students** tap **Contact tutor** on any approved tutor's card — signed-out
@@ -235,8 +266,9 @@ Students make and discuss payments **only with Harcourt admins — never with
 
 - **Unit tests** live next to the code (`src/**/*.test.ts`) and cover the
   security-critical pure logic: scrypt password hashing, the brute-force
-  sign-in throttle, Accra time formatting, auth validation schemas, and the
-  admin-flag check. They need no database or env vars: `npm test`.
+  sign-in throttle, Accra time formatting, auth validation schemas, the
+  admin-flag check, and the email templates. They need no database or env
+  vars: `npm test`.
 - **CI** (`.github/workflows/ci.yml`) runs lint, typecheck and tests on every
   push to `main` and on pull requests. The `build` job is skipped until you
   add the Supabase repo secrets (Settings → Secrets and variables → Actions):

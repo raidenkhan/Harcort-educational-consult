@@ -2,6 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  notifyAttendanceTicked,
+  notifySessionCancelled,
+  notifySessionScheduled,
+} from "@/lib/email/notify";
+import { sessionWhen } from "@/lib/time";
 import { requireProfile } from "@/services/auth/queries";
 import { createSessionSchema } from "./schemas";
 import type { TutoringSession } from "@/types";
@@ -89,6 +95,21 @@ export async function createSession(
 
   if (error) return { error: error.message };
 
+  // Email the student (best-effort, after the response).
+  const { data: studentRow } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", parsed.data.studentId)
+    .maybeSingle();
+  notifySessionScheduled({
+    studentProfileId: parsed.data.studentId,
+    tutorName: profile.full_name || "Your tutor",
+    studentName: (studentRow as { full_name: string } | null)?.full_name || "you",
+    when: sessionWhen(start, parsed.data.durationMinutes),
+    topic: parsed.data.topic ?? null,
+    location: parsed.data.location ?? null,
+  });
+
   revalidatePath("/tutor");
   revalidatePath("/dashboard");
   return { message: "Session scheduled. It now shows on both your and the student's timetable." };
@@ -167,6 +188,34 @@ export async function confirmSessionAttendance(
     return { error: "Only tutors and students can confirm attendance." };
   }
 
+  // Admins are emailed on each tick — that's how they know the tutor is
+  // actually doing the job (best-effort, after the response).
+  const { data: names } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", [sessionRow.student_id, profile.id]);
+  const nameMap = new Map((names ?? []).map((n) => [n.id as string, n.full_name as string]));
+  const { data: tutorRow } = await supabase
+    .from("tutor_profiles")
+    .select("profiles(full_name)")
+    .eq("id", sessionRow.tutor_profile_id)
+    .maybeSingle();
+  const tutorName =
+    (tutorRow as { profiles?: { full_name: string } } | null)?.profiles?.full_name ||
+    nameMap.get(profile.id) ||
+    "The tutor";
+  const studentName = nameMap.get(sessionRow.student_id) || "The student";
+
+  notifyAttendanceTicked({
+    tutorName,
+    studentName,
+    when: sessionWhen(new Date(sessionRow.scheduled_at), sessionRow.duration_minutes),
+    topic: sessionRow.topic,
+    confirmedBy: profile.full_name || (profile.role === "tutor" ? "The tutor" : "The student"),
+    tutorTick: Boolean(sessionRow.tutor_confirmed_at) || profile.role === "tutor",
+    studentTick: Boolean(sessionRow.student_confirmed_at) || profile.role === "student",
+  });
+
   revalidatePath("/tutor");
   revalidatePath("/dashboard");
   revalidatePath("/admin");
@@ -231,6 +280,30 @@ export async function cancelSession(
     })
     .eq("id", sessionRow.id);
   if (error) return { error: error.message };
+
+  // Email the other party so they know the session is off (best-effort).
+  if (profile.role === "tutor") {
+    notifySessionCancelled({
+      recipientProfileIds: [sessionRow.student_id],
+      cancelledByName: profile.full_name || "The tutor",
+      when: sessionWhen(new Date(sessionRow.scheduled_at), sessionRow.duration_minutes),
+      topic: sessionRow.topic,
+    });
+  } else {
+    const { data: tp } = await supabase
+      .from("tutor_profiles")
+      .select("profile_id")
+      .eq("id", sessionRow.tutor_profile_id)
+      .maybeSingle();
+    if (tp) {
+      notifySessionCancelled({
+        recipientProfileIds: [(tp as { profile_id: string }).profile_id],
+        cancelledByName: profile.full_name || "The student",
+        when: sessionWhen(new Date(sessionRow.scheduled_at), sessionRow.duration_minutes),
+        topic: sessionRow.topic,
+      });
+    }
+  }
 
   revalidatePath("/tutor");
   revalidatePath("/dashboard");

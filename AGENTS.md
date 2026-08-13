@@ -129,6 +129,15 @@ mobile app.
   is `profiles.role <> 'student'` — and switching back re-lists them. Role
   is chosen at sign-up (email form) or on the one-time `/onboarding` screen
   (brand-new Google accounts, 0010 — no pre-auth picker on the auth tabs).
+- **Email notifications (Resend).** `src/lib/email/` — fail-safe transactional
+  email: new chat messages (recipient gets the sender + preview + chat link),
+  session scheduled/cancelled, attendance ticks (admins emailed — proves
+  tutors are working), new tutor application (admins), approve/reject outcome
+  (tutor), and the password-reset code now goes **straight to the student's
+  inbox** instead of the admin sharing it out-of-band. Everything runs after
+  the response via Next's `after()` so sending never slows the primary action;
+  when `RESEND_API_KEY` is unset every send is a silent no-op. Env:
+  `RESEND_API_KEY`, `EMAIL_FROM` (verified-domain sender), `APP_URL`.
 - **Tests + CI.** Vitest unit tests for pure logic (`src/**/*.test.ts`,
   node environment, `@` alias in `vitest.config.ts`): password hashing,
   sign-in throttle (extracted to `src/lib/auth/throttle.ts` with an injectable
@@ -243,6 +252,9 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=   # REQUIRED — everything runs through this
 NEXT_PUBLIC_ADMIN_WHATSAPP=   # student Contact-admin WhatsApp button (digits only, e.g. 233201234567)
+RESEND_API_KEY=               # optional — email notifications (Resend, free tier)
+EMAIL_FROM=                   # optional — verified-domain sender, e.g. "Harcourt <noreply@yourdomain.com>"
+APP_URL=                      # optional — public origin for email links (default http://localhost:3000)
 ```
 
 Setup runbook:
@@ -308,7 +320,11 @@ The dev machine is slow — give compiles 30–60s.
 - Realtime chat upgrade — a polling-based `/chat` page is live; switch the
   thread to `supabase_realtime` subscriptions once a Supabase-Auth-backed
   path exists (or keep polling — it's fine at this scale). Unread counts.
-- Session reminders (email/WhatsApp) before scheduled meetings.
+- ~~Email notifications~~ ✅ (Resend — messages, sessions, admin review,
+  password-reset codes; `src/lib/email/`, `after()`-based, no-op without a key).
+- Session reminders (email/WhatsApp) before scheduled meetings — a cron/timer
+  job that emails both parties N minutes before `scheduled_at` (the notify
+  plumbing in `src/lib/email/` is ready for it).
 - Weekly calendar view of the timetable; live "now" ticker so the confirm
   button appears the moment a session starts.
 - Cancellation-rate warnings on the admin page for tutors who cancel a lot.

@@ -2,6 +2,7 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyTutorReviewed } from "@/lib/email/notify";
 import { requireProfile } from "@/services/auth/queries";
 
 /**
@@ -29,6 +30,9 @@ export async function approveTutor(formData: FormData): Promise<void> {
   });
   if (error) throw new Error(error.message);
 
+  // Email the tutor the good news (best-effort, after the response).
+  notifyTutorReviewedFor(targetId, true, note || null);
+
   // Bust the cached approved-tutor list on the landing page.
   revalidateTag("tutors", "max");
   revalidatePath("/admin");
@@ -51,8 +55,32 @@ export async function rejectTutor(formData: FormData): Promise<void> {
   });
   if (error) throw new Error(error.message);
 
+  // Email the tutor the decision (best-effort, after the response).
+  notifyTutorReviewedFor(targetId, false, note);
+
   // Bust the cached approved-tutor list on the landing page.
   revalidateTag("tutors", "max");
   revalidatePath("/admin");
   revalidatePath("/");
+}
+
+/** Email the owner of a tutor profile about an approve/reject decision. */
+async function notifyTutorReviewedFor(
+  tutorProfileId: string,
+  approved: boolean,
+  note: string | null,
+): Promise<void> {
+  const supabase = createAdminClient();
+  const { data: tp } = await supabase
+    .from("tutor_profiles")
+    .select("profile_id")
+    .eq("id", tutorProfileId)
+    .maybeSingle();
+  if (!tp) return;
+
+  notifyTutorReviewed({
+    recipientProfileId: (tp as { profile_id: string }).profile_id,
+    approved,
+    note,
+  });
 }

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyNewMessage } from "@/lib/email/notify";
 import { requireProfile } from "@/services/auth/queries";
 import { isConversationMember } from "./queries";
 import type { Conversation } from "@/types";
@@ -111,6 +112,30 @@ export async function sendMessage(
     body,
   });
   if (error) return { error: error.message };
+
+  // Email the other participant(s) — best-effort, sent after the response.
+  const conv = conversation as Conversation;
+  const recipients: string[] = [];
+  if (conv.student_id && conv.student_id !== profile.id) recipients.push(conv.student_id);
+  if (conv.admin_id && conv.admin_id !== profile.id) recipients.push(conv.admin_id);
+  if (conv.tutor_profile_id) {
+    const { data: tp } = await supabase
+      .from("tutor_profiles")
+      .select("profile_id")
+      .eq("id", conv.tutor_profile_id)
+      .maybeSingle();
+    if (tp && (tp as { profile_id: string }).profile_id !== profile.id) {
+      recipients.push((tp as { profile_id: string }).profile_id);
+    }
+  }
+  if (recipients.length > 0) {
+    notifyNewMessage({
+      recipientProfileIds: recipients,
+      senderName: profile.full_name || "Someone",
+      body,
+      conversationId,
+    });
+  }
 
   revalidatePath("/chat");
   return { ok: true };

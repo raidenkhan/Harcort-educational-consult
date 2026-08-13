@@ -2,6 +2,7 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyTutorApplication } from "@/lib/email/notify";
 import { requireProfile } from "@/services/auth/queries";
 import { tutorProfileSchema, tutorServiceSchema } from "./schemas";
 
@@ -34,7 +35,7 @@ export async function submitTutorProfile(
   // Fetch the existing tutor profile to decide insert vs update.
   const { data: existing } = await supabase
     .from("tutor_profiles")
-    .select("id")
+    .select("id, verification_status")
     .eq("profile_id", profile.id)
     .maybeSingle();
 
@@ -55,6 +56,16 @@ export async function submitTutorProfile(
       });
 
   if (error) return { error: error.message };
+
+  // Ping the admin team when a profile needs review — a brand-new one, or a
+  // rejected one being resubmitted. Edits to an already-approved profile are
+  // silent (best-effort, after the response).
+  const needsReview =
+    !existing ||
+    (existing as { verification_status: string }).verification_status !== "approved";
+  if (needsReview) {
+    notifyTutorApplication({ tutorName: profile.full_name || "A new tutor" });
+  }
 
   // Bio/rate render on the (cached) landing page — bust the tag.
   revalidateTag("tutors", "max");
