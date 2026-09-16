@@ -109,6 +109,18 @@
   @keyframes marquee {
     to { transform: translateX(-50%); }
   }
+  /* PerspectiveGrid shimmer. grid-pan drifts background-position by exactly
+     one 56px tile per loop (the background repeats at 56px, so the loop is
+     seamless); grid-breathe dims/brightens the band. Both are applied in ONE
+     combined animation declaration on the plane — two animation shorthands on
+     the same element override each other. */
+  @keyframes grid-pan {
+    to { background-position: 56px 56px; }
+  }
+  @keyframes grid-breathe {
+    0%, 100% { opacity: 0.65; }
+    50% { opacity: 0.45; }
+  }
   @keyframes move-vertical {
     0% { transform: translateY(-50%); }
     50% { transform: translateY(50%); }

@@ -28,8 +28,19 @@ import { cn } from "@/lib/cn";
  *  - Everything per-instance (line colour, transform, mask) is an inline style.
  *    Tailwind only compiles class names it can read as literal strings, so
  *    interpolating values into class names silently produces no CSS.
- *  - Static by design: no animation, so there is nothing for
- *    `prefers-reduced-motion` to switch off.
+ *  - The shimmer is the one animation, and it is deliberately cheap and
+ *    seamless: `grid-pan` slides `background-position` by exactly one 56px
+ *    tile per 26s loop (the background repeats at 56px, so the loop has no
+ *    visible seam), and `grid-breathe` slowly dims/brightens the band. Both
+ *    run in a single `animation` declaration — two animation *shorthands*
+ *    on one element override each other, so the combined value goes in one
+ *    arbitrary property. Disabled for `prefers-reduced-motion` (utility on
+ *    the element plus the global reduced-motion override in globals.css as
+ *    a second net).
+ *  - If you ever change `backgroundSize`, change the `grid-pan` keyframe to
+ *    the same value or the loop will visibly snap.
+ *  - Never split the shimmer into two `animate-*` utilities — see the
+ *    shorthand-override note above.
  */
 export function PerspectiveGrid({
   tone = "petrol",
@@ -74,9 +85,18 @@ export function PerspectiveGrid({
         />
       )}
 
-      {/* The receding grid plane. */}
+      {/* The receding grid plane, drifting one seamless 56px cell per 26s
+          loop while the band slowly breathes (0.65 -> 0.45 opacity) — both
+          in ONE animation shorthand. Two shorthand utilities on the same
+          element override each other (the second wins and the first dies
+          silently), so the combined value lives in a plain Tailwind
+          arbitrary property instead of two utilities. The pan animates
+          `background-position`, so the load-bearing inline `transform` is
+          never touched. `motion-reduce:animate-none` is the first line of
+          defence; the global reduced-motion override in globals.css freezes
+          the keyframes as the second. */}
       <div
-        className="absolute inset-0 opacity-[0.65]"
+        className="absolute inset-0 [animation:grid-pan_26s_linear_infinite,grid-breathe_13s_ease-in-out_infinite] motion-reduce:animate-none"
         style={{
           backgroundImage: `linear-gradient(to right, ${line} 1px, transparent 1px), linear-gradient(to bottom, ${line} 1px, transparent 1px)`,
           backgroundSize: "56px 56px",

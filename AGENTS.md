@@ -180,7 +180,12 @@ mobile app.
   bands **decay** — `strength` 1 / 0.55 / 0.3 from top to bottom — so the
   horizon recedes with the page's depth instead of repeating at full strength;
   `PerspectiveGrid`'s `strength` prop scales both the line alpha and the beam
-  opacity (inline styles — see the Tailwind gotcha below).
+  opacity (inline styles — see the Tailwind gotcha below). The plane shimmers:
+  `grid-pan` slides `background-position` one seamless 56px tile per 26s while
+  `grid-breathe` dims the band 0.65 → 0.45 → 0.65 over 13s — both disabled by
+  `motion-reduce:animate-none` plus the global reduced-motion override. If you
+  change the plane's `backgroundSize`, change the `grid-pan` keyframe to match
+  or the loop snaps.
 - **Security pass.** Real security headers from `next.config.ts` (a
   `default-src 'self'` CSP, `X-Frame-Options: DENY`, nosniff,
   Referrer-Policy, Permissions-Policy, HSTS) plus `poweredByHeader: false`
