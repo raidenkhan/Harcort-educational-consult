@@ -3,7 +3,8 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyTutorReviewed } from "@/lib/email/notify";
-import { requireProfile } from "@/services/auth/queries";
+import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
+import { MAX_REVIEW_NOTE_LENGTH, tutorReviewIdSchema } from "./schemas";
 
 /**
  * Admin mutations — the tutor approval workflow.
@@ -16,11 +17,14 @@ import { requireProfile } from "@/services/auth/queries";
 
 export async function approveTutor(formData: FormData): Promise<void> {
   const profile = await requireProfile();
-  if (profile.role !== "admin") throw new Error("Forbidden");
+  if (!profileIsAdmin(profile)) throw new Error("Forbidden");
 
-  const targetId = String(formData.get("tutorProfileId") ?? "");
-  const note = String(formData.get("note") ?? "").slice(0, 500);
-  if (!targetId) return;
+  const parsed = tutorReviewIdSchema.safeParse({
+    tutorProfileId: formData.get("tutorProfileId"),
+  });
+  if (!parsed.success) return;
+  const targetId = parsed.data.tutorProfileId;
+  const note = String(formData.get("note") ?? "").slice(0, MAX_REVIEW_NOTE_LENGTH);
 
   const supabase = createAdminClient();
   const { error } = await supabase.rpc("admin_approve_tutor", {
@@ -41,11 +45,16 @@ export async function approveTutor(formData: FormData): Promise<void> {
 
 export async function rejectTutor(formData: FormData): Promise<void> {
   const profile = await requireProfile();
-  if (profile.role !== "admin") throw new Error("Forbidden");
+  if (!profileIsAdmin(profile)) throw new Error("Forbidden");
 
-  const targetId = String(formData.get("tutorProfileId") ?? "");
-  const note = String(formData.get("note") ?? "Rejected").slice(0, 500);
-  if (!targetId) return;
+  const parsed = tutorReviewIdSchema.safeParse({
+    tutorProfileId: formData.get("tutorProfileId"),
+  });
+  if (!parsed.success) return;
+  const targetId = parsed.data.tutorProfileId;
+  const note =
+    String(formData.get("note") ?? "").trim().slice(0, MAX_REVIEW_NOTE_LENGTH) ||
+    "Rejected";
 
   const supabase = createAdminClient();
   const { error } = await supabase.rpc("admin_reject_tutor", {

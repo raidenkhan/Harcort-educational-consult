@@ -12,6 +12,7 @@ export const config = {
     "/admin/:path*",
     "/tutor/:path*",
     "/chat/:path*",
+    "/onboarding/:path*",
     "/sign-in",
     "/sign-up",
   ],

@@ -5,12 +5,27 @@
  *
  * The HTML wrapper is intentionally minimal + inline-styled — email clients
  * strip external stylesheets, so everything must be inline and table-based.
+ *
+ * ⚠️ SECURITY: names, message bodies, topics and admin notes are all
+ * attacker-controllable free text. Every dynamic value interpolated into
+ * `html` goes through `escapeHtml()` — otherwise a student could name
+ * themselves `<img src=x onerror=…>` and land markup in an admin's inbox.
  */
 
 export interface EmailMessage {
   subject: string;
   text: string;
   html: string;
+}
+
+/** Escape a value for safe interpolation into HTML (text or attribute). */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /** Shared branded HTML shell (deep-navy ink #1C0F2B, purple accent #610B96). */
@@ -28,7 +43,7 @@ function wrap(title: string, bodyHtml: string): string {
           </tr>
           <tr>
             <td style="background:#ffffff;border-radius:0 0 16px 16px;padding:28px;">
-              <h1 style="margin:0 0 16px;color:#1C0F2B;font-size:20px;line-height:1.3;">${title}</h1>
+              <h1 style="margin:0 0 16px;color:#1C0F2B;font-size:20px;line-height:1.3;">${escapeHtml(title)}</h1>
               ${bodyHtml}
               <hr style="border:none;border-top:1px solid #EFE7F7;margin:24px 0 16px;" />
               <p style="margin:0;color:#8A7A9B;font-size:12px;line-height:1.5;">
@@ -46,10 +61,13 @@ function wrap(title: string, bodyHtml: string): string {
 }
 
 function actionButton(href: string, label: string): string {
-  return `<p style="margin:20px 0 0;"><a href="${href}" style="display:inline-block;background:#610B96;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:600;">${label}</a></p>`;
+  // Defence in depth — never emit a non-http(s) href (e.g. javascript:), even
+  // if one of these URLs is ever built from user data.
+  const safeHref = /^https?:\/\//i.test(href) ? href : "#";
+  return `<p style="margin:20px 0 0;"><a href="${escapeHtml(safeHref)}" style="display:inline-block;background:#610B96;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:600;">${escapeHtml(label)}</a></p>`;
 }
 
-/** Plain <p> with the brand's muted purple. */
+/** Plain <p> with the brand's muted purple. Expects pre-escaped/HTML input. */
 function p(text: string): string {
   return `<p style="margin:0 0 12px;color:#3A2B4A;font-size:14px;line-height:1.6;">${text}</p>`;
 }
@@ -69,8 +87,8 @@ export function newMessageEmail(opts: {
   const text = `${opts.senderName} sent you a message on Harcourt Educational Consult:\n\n"${preview}"\n\nOpen the conversation: ${opts.chatUrl}`;
   const html = wrap(
     `New message from ${opts.senderName}`,
-    `${p(`<strong>${opts.senderName}</strong> sent you a message:`)}${p(
-      `<em>"${preview}"</em>`,
+    `${p(`<strong>${escapeHtml(opts.senderName)}</strong> sent you a message:`)}${p(
+      `<em>"${escapeHtml(preview)}"</em>`,
     )}${actionButton(opts.chatUrl, "Open conversation")}`,
   );
   return { subject, text, html };
@@ -103,10 +121,10 @@ export function sessionScheduledEmail(opts: {
   const text = lines.filter(Boolean).join("\n");
   const html = wrap(
     `New session scheduled`,
-    `${p(`<strong>${opts.tutorName}</strong> scheduled a session with <strong>${opts.studentName}</strong>.`)}${p(
-      `When: <strong>${opts.when}</strong><br/>${opts.topic ? `Topic: ${opts.topic}<br/>` : ""}${
-        opts.location ? `Where: ${opts.location}` : ""
-      }`,
+    `${p(`<strong>${escapeHtml(opts.tutorName)}</strong> scheduled a session with <strong>${escapeHtml(opts.studentName)}</strong>.`)}${p(
+      `When: <strong>${escapeHtml(opts.when)}</strong><br/>${
+        opts.topic ? `Topic: ${escapeHtml(opts.topic)}<br/>` : ""
+      }${opts.location ? `Where: ${escapeHtml(opts.location)}` : ""}`,
     )}${actionButton(opts.dashboardUrl, "View my timetable")}`,
   );
   return { subject, text, html };
@@ -122,7 +140,7 @@ export function sessionCancelledEmail(opts: {
   const text = `The session scheduled for ${opts.when} was cancelled by ${opts.cancelledByName}.\n\nCheck your timetable: ${opts.dashboardUrl}`;
   const html = wrap(
     `A session was cancelled`,
-    `${p(`<strong>${opts.cancelledByName}</strong> cancelled the session scheduled for <strong>${opts.when}</strong>.`)}${actionButton(
+    `${p(`<strong>${escapeHtml(opts.cancelledByName)}</strong> cancelled the session scheduled for <strong>${escapeHtml(opts.when)}</strong>.`)}${actionButton(
       opts.dashboardUrl,
       "View my timetable",
     )}`,
@@ -149,7 +167,7 @@ export function attendanceConfirmedEmail(opts: {
   const html = wrap(
     `Attendance ticked`,
     `${p(
-      `<strong>${opts.confirmedBy}</strong> confirmed attendance for the session with <strong>${opts.studentName}</strong> and <strong>${opts.tutorName}</strong> (${opts.when}).`,
+      `<strong>${escapeHtml(opts.confirmedBy)}</strong> confirmed attendance for the session with <strong>${escapeHtml(opts.studentName)}</strong> and <strong>${escapeHtml(opts.tutorName)}</strong> (${escapeHtml(opts.when)}).`,
     )}${p(`Ticks so far: <strong>${ticks.join(", ") || "none"}</strong>`)}${actionButton(
       opts.adminUrl,
       "Open attendance tracker",
@@ -171,7 +189,7 @@ export function tutorApplicationEmail(opts: {
   const text = `${opts.tutorName} submitted a tutor profile and is waiting for review.\n\nReview it: ${opts.adminUrl}`;
   const html = wrap(
     `New tutor application`,
-    `${p(`<strong>${opts.tutorName}</strong> submitted a tutor profile and is waiting for your review.`)}${actionButton(
+    `${p(`<strong>${escapeHtml(opts.tutorName)}</strong> submitted a tutor profile and is waiting for your review.`)}${actionButton(
       opts.adminUrl,
       "Review applications",
     )}`,
@@ -194,8 +212,8 @@ export function tutorReviewEmail(opts: {
   const html = wrap(
     opts.approved ? "You're approved!" : "Application not approved",
     opts.approved
-      ? `${p(`Great news — your tutor profile was <strong>approved</strong>! Students can now find you and book sessions.`)}${opts.note ? p(`Note from the admin: <em>${opts.note}</em>`) : ""}${actionButton(opts.tutorUrl, "Open my tutor page")}`
-      : `${p(`Your tutor profile was <strong>not approved</strong>.`)}${opts.note ? p(`Reason: <em>${opts.note}</em>`) : ""}${p(`You can update your profile and resubmit for review.`)}${actionButton(opts.tutorUrl, "Update my profile")}`,
+      ? `${p(`Great news — your tutor profile was <strong>approved</strong>! Students can now find you and book sessions.`)}${opts.note ? p(`Note from the admin: <em>${escapeHtml(opts.note)}</em>`) : ""}${actionButton(opts.tutorUrl, "Open my tutor page")}`
+      : `${p(`Your tutor profile was <strong>not approved</strong>.`)}${opts.note ? p(`Reason: <em>${escapeHtml(opts.note)}</em>`) : ""}${p(`You can update your profile and resubmit for review.`)}${actionButton(opts.tutorUrl, "Update my profile")}`,
   );
   return { subject, text, html };
 }
@@ -213,7 +231,7 @@ export function passwordResetEmail(opts: {
   const text = `Your one-time password reset code is:\n\n  ${opts.code}\n\nIt expires in 30 minutes. Redeem it here: ${opts.resetUrl}\n\nIf you didn't request this, you can safely ignore this email.`;
   const html = wrap(
     "Password reset code",
-    `${p(`Your one-time password reset code is:`)}<p style="margin:0 0 16px;font-size:28px;font-weight:700;letter-spacing:6px;color:#610B96;">${opts.code}</p>${p(
+    `${p(`Your one-time password reset code is:`)}<p style="margin:0 0 16px;font-size:28px;font-weight:700;letter-spacing:6px;color:#610B96;">${escapeHtml(opts.code)}</p>${p(
       `It expires in 30 minutes.`,
     )}${actionButton(opts.resetUrl, "Reset my password")}`,
   );

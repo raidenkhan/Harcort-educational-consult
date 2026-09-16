@@ -150,6 +150,34 @@ mobile app.
   Actions (`.github/workflows/ci.yml`) runs lint + typecheck + test on every
   push/PR; the build job runs only when the Supabase secrets are configured
   in the repo (they're needed to prerender the landing page).
+- **Animated gradient + floating nav.** `components/ui/AnimatedGradient.tsx`
+  renders five drifting colour blobs over a purple gradient with a soft blob
+  that eases toward the cursor (skipped entirely for
+  `prefers-reduced-motion` and coarse pointers). It backs the landing hero,
+  the `/tutors` hero band and the auth pages. The landing hero fades that
+  gradient into `--color-canvas` at its bottom, and the light sections stopped
+  painting opaque white bands, so the whole page reads as one lilac surface
+  over a `BentoBackdrop` instead of a dark hero hitting a white wall.
+  `components/navigation/FloatingNav.tsx` replaced every sticky header
+  (landing, `/tutors`, app shell, forgot-password): a fixed glass pill that
+  condenses away on scroll-down and glides back on scroll-up, with
+  `focus-within` forcing it back for keyboard users. Because it is fixed it
+  takes no flow space — every page using it needs its own top offset (the app
+  shell's `main` carries `pt-20`, the public heroes `pt-28`/`pt-32`).
+- **Security pass.** Real security headers from `next.config.ts` (a
+  `default-src 'self'` CSP, `X-Frame-Options: DENY`, nosniff,
+  Referrer-Policy, Permissions-Policy, HSTS) plus `poweredByHeader: false`
+  and no production source maps. The unused browser Supabase client was
+  deleted with its `@supabase/ssr` dependency, so **no Supabase key is
+  reachable from the browser** (`NEXT_PUBLIC_SUPABASE_ANON_KEY` is gone).
+  Every attacker-controllable value in an email template now goes through
+  `escapeHtml()` and action links are forced to `http(s)`. Admin gates were
+  switched to `profileIsAdmin()` — three call sites still tested
+  `role === "admin"`, which silently locked a tutor with `is_admin` out of
+  the admin actions and admin chat. `/onboarding` joined the middleware
+  matcher. Chat actions validate with Zod (`services/chat/schemas.ts`) and
+  free-text fields gained max lengths. CI gained a `gitleaks` job over full
+  history (`.github/workflows/ci.yml`).
 
 ---
 
@@ -170,10 +198,13 @@ src/
 │  │                        preview), thread, composer; polling refresh
 │  ├─ admin/             → approval workflow (RPCs) + audit log
 │  └─ moderation/        → reports & blocks
-├─ lib/                  → supabase clients, auth primitives (password, session),
-│  │                        time formatting (Accra), cn()
+├─ lib/                  → supabase admin client + middleware helper, auth
+│  │                        primitives (password, session, throttle), email/
+│  │                        (Resend), time formatting (Accra), cn()
 ├─ components/           → ui/ primitives (Card, Button, Badge, Field(s),
-│  │                        Container, BentoBackdrop), auth/, tutor/, sessions/
+│  │                        Container, BentoBackdrop, AnimatedGradient),
+│  │                        navigation/ (FloatingNav, MobileTabBar), auth/,
+│  │                        tutor/, sessions/, chat/, admin/, support/
 └─ types/                → shared domain types mirroring the DB
 ```
 
@@ -243,7 +274,10 @@ Key security properties:
   #1C0F2B), `font-display` Space Grotesk. **No emojis** — use lucide-react
   icons. Reuse `Card`/`Badge`/`Button`/`Container`/`Field(s)`.
   Interior pages get a `BentoBackdrop` (tone `purple`|`petrol` — vibrant
-  purple vs deep-navy glows) inside a `relative overflow-hidden` wrapper.
+  purple vs deep-navy glows). It is an absolutely-positioned sibling, so
+  content that must sit on top either wraps in a `relative` element or the
+  backdrop takes `-z-10`. Hero surfaces use `AnimatedGradient`; all app chrome
+  uses `FloatingNav`.
 - **Errors:** never expose raw DB errors to users beyond `error.message` in
   form states.
 
@@ -254,8 +288,9 @@ Key security properties:
 `.env.local` (gitignored; template in `.env.example`):
 ```
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=   # REQUIRED — everything runs through this
+SUPABASE_SERVICE_ROLE_KEY=   # REQUIRED — everything runs through this.
+                             # There is no anon key: the browser never touches
+                             # the DB, so don't add NEXT_PUBLIC_SUPABASE_ANON_KEY.
 NEXT_PUBLIC_ADMIN_WHATSAPP=   # student Contact-admin WhatsApp button (digits only, e.g. 233201234567)
 RESEND_API_KEY=               # optional — email notifications (Resend, free tier)
 EMAIL_FROM=                   # optional — verified-domain sender, e.g. "Harcourt <noreply@yourdomain.com>"
@@ -307,6 +342,11 @@ The dev machine is slow — give compiles 30–60s.
   Email "rate limits" don't exist here by design.
 - Browser-automation agents (browser-use) have been unreliable in this
   environment — prefer curl + code inspection for verification.
+- **Tailwind can't see runtime-interpolated class names.** Building a class
+  with a template literal (`[background:radial-gradient(${color})]`, `bg-${x}`)
+  produces NO CSS — the scanner only reads literal strings in the source.
+  Dynamic values must go through an inline `style` prop; only keep static
+  literal utilities as classes. See `AnimatedGradient` for the pattern.
 - The institution is **Harcourt** Educational Consult (not "Harcot" — brand
   text everywhere is corrected to Harcourt). The GitHub repo
   (`Harcort-educational-consult`) and the local project folder

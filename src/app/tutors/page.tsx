@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Users } from "lucide-react";
 import { listApprovedTutors } from "@/services/tutors/queries";
 import { getCurrentProfile } from "@/services/auth/queries";
@@ -8,7 +7,9 @@ import { Container } from "@/components/ui/Container";
 import { Logo } from "@/components/ui/Logo";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
+import { AnimatedGradient } from "@/components/ui/AnimatedGradient";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
+import { FloatingNav } from "@/components/navigation/FloatingNav";
 
 /**
  * Public tutor directory — browse approved tutors with search + subject
@@ -31,67 +32,65 @@ export default async function TutorsPage() {
   ]);
 
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden pb-20 lg:pb-0">
-      <BentoBackdrop tone="purple" />
+    <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
+      <BentoBackdrop tone="purple" className="-z-10" />
 
-      {/* ── Top navigation ───────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
-        <Container className="flex h-16 items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Logo />
-            <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 lg:flex">
-              <Link href="/" className="transition hover:text-slate-900">
-                Home
-              </Link>
-              <span className="font-semibold text-slate-900">Find a tutor</span>
-            </nav>
-          </div>
-          <div className="flex items-center gap-2.5">
-            {profile ? (
-              <form action={signOutAction}>
-                <button
-                  type="submit"
-                  className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 shadow-xs transition hover:border-slate-400 hover:bg-slate-50"
-                >
-                  Sign out
-                </button>
-              </form>
-            ) : (
-              <>
-                <AuthTrigger
-                  tab="sign-in"
-                  className="h-10 rounded-md px-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                >
-                  Sign in
-                </AuthTrigger>
-                <AuthTrigger
-                  tab="sign-up"
-                  className="h-10 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white shadow-xs hover:bg-slate-800"
-                >
-                  Get started
-                </AuthTrigger>
-              </>
-            )}
-          </div>
-        </Container>
-      </header>
+      <FloatingNav
+        links={[
+          { href: "/", label: "Home" },
+          { href: "/tutors", label: "Find a tutor" },
+        ]}
+      >
+        {profile ? (
+          <form action={signOutAction}>
+            <button
+              type="submit"
+              className="h-10 rounded-full border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-50"
+            >
+              Sign out
+            </button>
+          </form>
+        ) : (
+          <>
+            <AuthTrigger
+              tab="sign-in"
+              className="inline-flex h-9 rounded-full px-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-100 sm:h-10 sm:px-3.5 sm:text-sm"
+            >
+              Sign in
+            </AuthTrigger>
+            <AuthTrigger
+              tab="sign-up"
+              className="h-9 rounded-full bg-slate-900 px-3 text-[13px] font-semibold text-white shadow-xs hover:bg-slate-800 sm:h-10 sm:px-4 sm:text-sm"
+            >
+              {/* Short label on phones so both actions fit in one row. */}
+              <span className="sm:hidden">Sign up</span>
+              <span className="hidden sm:inline">Get started</span>
+            </AuthTrigger>
+          </>
+        )}
+      </FloatingNav>
 
       {/* ── Directory ────────────────────────────────────────────── */}
       <main className="relative flex-1">
-        <Container className="py-14">
-          <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
-              Find a tutor
-            </p>
-            <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-              Browse verified tutors
-            </h1>
-            <p className="mt-3 text-slate-600">
-              Every profile below has passed our review process. Search by
-              subject or course, check credentials and rates, then reach out.
-            </p>
-          </div>
+        <section className="relative overflow-hidden">
+          <AnimatedGradient size="90%" />
+          <Container className="relative pb-16 pt-28">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold uppercase tracking-widest text-lilac-100/70">
+                Find a tutor
+              </p>
+              <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                Browse verified tutors
+              </h1>
+              <p className="mt-3 text-lilac-100/90">
+                Every profile below has passed our review process. Search by
+                subject or course, check credentials and rates, then reach out.
+              </p>
+            </div>
+          </Container>
+        </section>
 
+        <Container className="relative py-10">
           {tutors.length === 0 ? (
             <div className="mt-10 rounded-lg border border-dashed border-slate-300 bg-white/70 p-16 text-center">
               <Users className="mx-auto h-8 w-8 text-slate-300" />

@@ -2,9 +2,9 @@ import Link from "next/link";
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
 import { Container } from "@/components/ui/Container";
 import { Card } from "@/components/ui/Card";
-import { Logo } from "@/components/ui/Logo";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
+import { FloatingNav } from "@/components/navigation/FloatingNav";
 
 export const metadata = {
   title: "Forgot password",
@@ -14,22 +14,19 @@ export const metadata = {
 
 export default function ForgotPasswordPage() {
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden">
-      <BentoBackdrop tone="purple" />
+    <div className="relative flex flex-1 flex-col">
+      <BentoBackdrop tone="purple" className="-z-10" />
 
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
-        <Container className="flex h-16 items-center justify-between">
-          <Logo />
-          <Link
-            href="/sign-in"
-            className="text-sm font-semibold text-slate-700 transition hover:text-slate-900"
-          >
-            Back to sign in
-          </Link>
-        </Container>
-      </header>
+      <FloatingNav links={[{ href: "/", label: "Home" }]}>
+        <Link
+          href="/sign-in"
+          className="inline-flex h-10 items-center rounded-full px-3.5 text-sm font-semibold text-slate-700 transition duration-150 hover:bg-slate-100"
+        >
+          Back to sign in
+        </Link>
+      </FloatingNav>
 
-      <main className="relative flex flex-1 items-center py-14">
+      <main className="relative flex flex-1 items-center pb-14 pt-28">
         <Container size="narrow">
           <Card className="mx-auto w-full max-w-md">
             <div className="mb-4 flex justify-center">

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireProfile } from "@/services/auth/queries";
+import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
 import { completeOnboardingAction } from "@/services/auth/actions";
 import { RolePicker } from "@/components/auth/RolePicker";
 import { BrandMark } from "@/components/ui/BrandMark";
@@ -16,8 +16,8 @@ import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 export default async function OnboardingPage() {
   const profile = await requireProfile();
 
-  // Already onboarded, or a legacy admin that can't self-pick — move on.
-  if (profile.onboarding_completed_at || profile.role === "admin") {
+  // Already onboarded, or an admin that can't self-pick a role — move on.
+  if (profile.onboarding_completed_at || profileIsAdmin(profile)) {
     redirect("/dashboard");
   }
 

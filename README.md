@@ -30,8 +30,10 @@ src/
 │  ├─ chat/             → /chat page: conversations, message thread, composer
 │  ├─ admin/            → approval workflow (RPCs) + audit log
 │  └─ moderation/       → reports & blocks
-├─ lib/supabase/        → server / browser / admin clients, middleware helper
-├─ components/          → Tailwind UI components
+├─ lib/                 → supabase admin client + middleware helper, auth primitives,
+│                        Accra time helpers, email (Resend) module
+├─ components/          → ui/ primitives (incl. AnimatedGradient, BentoBackdrop),
+│                        navigation/ (FloatingNav, MobileTabBar), auth/, tutor/, …
 └─ types/               → shared domain types
 ```
 
@@ -50,6 +52,18 @@ src/
 - Approval is an atomic RPC (`admin_approve_tutor`) that also writes an immutable
   `admin_audit_log` entry. The DB re-verifies the acting admin's id against `profiles`.
 - Self-registration as `admin` is impossible (`register_user` downgrades it).
+- **Nothing secret reaches the browser.** There is no browser Supabase client and no
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` — every query is server-side through the service role.
+  Google/Resend credentials are server-only vars.
+- **Security headers on every response** (`next.config.ts`): a `default-src 'self'` CSP,
+  `X-Frame-Options: DENY`, `nosniff`, `strict-origin-when-cross-origin`, a
+  Permissions-Policy that switches off camera/mic/geolocation/payment, and HSTS.
+  `poweredByHeader` is off and production browser source maps are disabled.
+- **Email HTML is escaped.** Names, message bodies, session topics and admin notes are
+  attacker-controllable, so every dynamic value in a template goes through
+  `escapeHtml()` and action links are forced to `http(s)`.
+- **CI scans for leaked secrets** — a `gitleaks` job runs over full history on every
+  push (`.github/workflows/ci.yml`).
 
 ## Getting started
 
@@ -68,8 +82,8 @@ npm install
 1. Go to [supabase.com](https://supabase.com) → **New project**.
 2. Copy these from **Project Settings → API** into `.env.local`:
    - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY` (the `service_role` secret — **server only**)
+   - `SUPABASE_SERVICE_ROLE_KEY` (the `service_role` secret — **server only**;
+     the app never uses the anon key, so don't add it)
    - `NEXT_PUBLIC_ADMIN_WHATSAPP` — the admin WhatsApp number (international
      format, digits only, no `+`, e.g. `233201234567`) used for the student
      **Contact admin** button. Leave empty to hide the CTA until set.
@@ -284,16 +298,17 @@ Students make and discuss payments **only with Harcourt admins — never with
 - **CI** (`.github/workflows/ci.yml`) runs lint, typecheck and tests on every
   push to `main` and on pull requests. The `build` job is skipped until you
   add the Supabase repo secrets (Settings → Secrets and variables → Actions):
-  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
-  `SUPABASE_SERVICE_ROLE_KEY` — the build prerenders the landing page, which
-  reads the tutor list.
+  `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` — the build
+  prerenders the landing page, which reads the tutor list. A fourth,
+  dependency-free `secret-scan` job runs `gitleaks` across full history.
 
 ## Roadmap
 
 - **Phase 0 ✅** — foundation: auth + roles, schema, RLS, admin approval loop
 - **Phase 1 ✅** — KNUST engineering catalog, tutor profile pages, sessions/timetable with attendance ticks, soft-delete cancellations, admin attendance tracker, bento design refresh
 - **Phase 1.5** — ✅ Google sign-in (0009); session reminders, calendar view, moderation UI remain
-- **Phase 1.5b** — ✅ Vitest unit tests + GitHub Actions CI (lint/typecheck/test; build once Supabase secrets are set)
+- **Phase 1.5b** — ✅ Vitest unit tests + GitHub Actions CI (lint/typecheck/test + gitleaks secret scan; build once Supabase secrets are set)
+- **Phase 1.6** — ✅ Animated gradient hero (landing, tutor directory, auth pages), floating glass navigation everywhere, one continuous page surface; security pass — CSP + hardened headers, no Supabase key in the browser, escaped email HTML, Zod on every action, `/onboarding` guarded
 - **Phase 2** — realtime chat upgrade (page is live with polling; swap to Supabase Realtime subscriptions), unread counts
 - **Phase 3** — payments (Stripe), bookings, reviews — chat goes behind the paywall
 - **Phase 4** — mobile app (React Native / Expo) consuming the same backend

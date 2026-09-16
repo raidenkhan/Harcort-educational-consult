@@ -87,6 +87,13 @@
   --animate-modal-in: modal-in 260ms var(--ease-out);
   --animate-marquee: marquee 32s linear infinite;
 
+  /* Animated gradient backdrop (components/ui/AnimatedGradient.tsx) */
+  --animate-gradient-first: move-vertical 30s ease infinite;
+  --animate-gradient-second: move-in-circle 20s reverse infinite;
+  --animate-gradient-third: move-in-circle 40s linear infinite;
+  --animate-gradient-fourth: move-horizontal 40s ease infinite;
+  --animate-gradient-fifth: move-in-circle 20s ease infinite;
+
   @keyframes fade-in {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -102,6 +109,26 @@
   @keyframes marquee {
     to { transform: translateX(-50%); }
   }
+  @keyframes move-vertical {
+    0% { transform: translateY(-50%); }
+    50% { transform: translateY(50%); }
+    100% { transform: translateY(-50%); }
+  }
+  @keyframes move-horizontal {
+    0% { transform: translateX(-50%) translateY(-10%); }
+    50% { transform: translateX(50%) translateY(10%); }
+    100% { transform: translateX(-50%) translateY(-10%); }
+  }
+  @keyframes move-in-circle {
+    0% { transform: rotate(0deg); }
+    50% { transform: rotate(180deg); }
+    100% { transform: rotate(360deg); }
+  }
+}
+
+html {
+  /* In-page anchor links (the landing nav) glide rather than jump. */
+  scroll-behavior: smooth;
 }
 
 body {
@@ -113,6 +140,9 @@ body {
 
 /* Respect users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   *,
   ::before,
   ::after {

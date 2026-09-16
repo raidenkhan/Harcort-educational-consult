@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   attendanceConfirmedEmail,
+  escapeHtml,
   newMessageEmail,
   passwordResetEmail,
   sessionCancelledEmail,
@@ -108,5 +109,52 @@ describe("email templates", () => {
     expect(msg.text).toContain("12345678");
     expect(msg.text).toContain("30 minutes");
     expect(msg.html).toContain("12345678");
+  });
+});
+
+describe("email HTML escaping", () => {
+  it("escapes the five HTML-significant characters", () => {
+    expect(escapeHtml(`&<>"'`)).toBe("&amp;&lt;&gt;&quot;&#39;");
+  });
+
+  it("escapes markup smuggled through a display name and message body", () => {
+    const msg = newMessageEmail({
+      senderName: '<img src=x onerror="alert(1)">',
+      preview: "hello <script>alert(1)</script>",
+      chatUrl: "https://app.example.com/chat?c=abc",
+    });
+    expect(msg.html).not.toContain("<img");
+    expect(msg.html).not.toContain("<script>");
+    expect(msg.html).toContain("&lt;img");
+    expect(msg.html).toContain("&lt;script&gt;");
+  });
+
+  it("escapes an admin note and a session topic", () => {
+    const review = tutorReviewEmail({
+      approved: false,
+      note: '<b onclick="x">no</b>',
+      tutorUrl: "https://app.example.com/tutor",
+    });
+    expect(review.html).not.toContain("<b onclick");
+    expect(review.html).toContain("&lt;b onclick");
+
+    const scheduled = sessionScheduledEmail({
+      tutorName: "Ama",
+      studentName: "Kojo",
+      when: "Mon 14 Aug · 14:00–15:00",
+      topic: "<script>steal()</script>",
+      location: null,
+      dashboardUrl: "https://app.example.com/dashboard",
+    });
+    expect(scheduled.html).not.toContain("<script>");
+  });
+
+  it("drops non-http(s) action links", () => {
+    const msg = tutorApplicationEmail({
+      tutorName: "A",
+      adminUrl: "javascript:alert(1)",
+    });
+    expect(msg.html).not.toContain("javascript:");
+    expect(msg.html).toContain('href="#"');
   });
 });

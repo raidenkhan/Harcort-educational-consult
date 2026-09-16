@@ -20,7 +20,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/tutor") ||
-    pathname.startsWith("/chat");
+    pathname.startsWith("/chat") ||
+    pathname.startsWith("/onboarding");
 
   // Not signed in → keep off protected routes. Send them to the landing page
   // with ?auth=sign-in so the auth modal opens automatically.

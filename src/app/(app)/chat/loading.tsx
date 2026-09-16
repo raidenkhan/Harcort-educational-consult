@@ -1,6 +1,6 @@
 import { Container } from "@/components/ui/Container";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
-import { Skeleton, SkeletonCard } from "@/components/ui/Skeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 /** Chat page skeleton — conversation list + message thread area. */
 export default function ChatLoading() {

@@ -3,8 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyNewMessage } from "@/lib/email/notify";
-import { requireProfile } from "@/services/auth/queries";
+import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
 import { isConversationMember } from "./queries";
+import {
+  sendMessageSchema,
+  startAdminConversationSchema,
+  startConversationSchema,
+} from "./schemas";
 import type { Conversation } from "@/types";
 
 /**
@@ -20,8 +25,6 @@ export type ConversationFormState = {
   error?: string;
 };
 
-const MAX_MESSAGE_LENGTH = 2000;
-
 /** Student starts (or re-enters) a conversation with a tutor. */
 export async function startConversation(
   _prev: ConversationFormState,
@@ -32,8 +35,13 @@ export async function startConversation(
     return { error: "Only student accounts can start a conversation." };
   }
 
-  const tutorProfileId = String(formData.get("tutorProfileId") ?? "");
-  if (!tutorProfileId) return { error: "Missing tutor." };
+  const parsed = startConversationSchema.safeParse({
+    tutorProfileId: formData.get("tutorProfileId"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Select a tutor." };
+  }
+  const tutorProfileId = parsed.data.tutorProfileId;
 
   const supabase = createAdminClient();
 
@@ -82,13 +90,14 @@ export async function sendMessage(
 ): Promise<ConversationFormState> {
   const profile = await requireProfile();
 
-  const conversationId = String(formData.get("conversationId") ?? "");
-  const body = String(formData.get("body") ?? "").trim();
-  if (!conversationId) return { error: "Missing conversation." };
-  if (!body) return { error: "Type a message first." };
-  if (body.length > MAX_MESSAGE_LENGTH) {
-    return { error: `Messages are limited to ${MAX_MESSAGE_LENGTH} characters.` };
+  const parsed = sendMessageSchema.safeParse({
+    conversationId: formData.get("conversationId"),
+    body: formData.get("body"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Type a message first." };
   }
+  const { conversationId, body } = parsed.data;
 
   const supabase = createAdminClient();
 
@@ -147,15 +156,20 @@ export async function startAdminConversation(
   formData: FormData,
 ): Promise<ConversationFormState> {
   const profile = await requireProfile();
-  if (profile.role !== "admin") {
+  // Admin is a privilege (profiles.is_admin, migration 0008) — a tutor who is
+  // also an admin must still be able to start admin threads.
+  if (!profileIsAdmin(profile)) {
     return { error: "Only admins can start conversations here." };
   }
 
-  const targetType = String(formData.get("targetType") ?? "");
-  const targetId = String(formData.get("targetId") ?? "");
-  if (!targetType || !targetId) {
-    return { error: "Choose someone to message." };
+  const parsed = startAdminConversationSchema.safeParse({
+    targetType: formData.get("targetType"),
+    targetId: formData.get("targetId"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Choose someone to message." };
   }
+  const { targetType, targetId } = parsed.data;
 
   const supabase = createAdminClient();
   const insert: { admin_id: string; student_id?: string; tutor_profile_id?: string } = {

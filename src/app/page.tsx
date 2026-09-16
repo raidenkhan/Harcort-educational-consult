@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Search, ShieldCheck, MessagesSquare, type LucideIcon } from "lucide-react";
 import { listApprovedTutors } from "@/services/tutors/queries";
@@ -8,9 +7,12 @@ import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { Container } from "@/components/ui/Container";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { AnimatedGradient } from "@/components/ui/AnimatedGradient";
 import { Logo } from "@/components/ui/Logo";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
+import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
+import { FloatingNav } from "@/components/navigation/FloatingNav";
 
 /**
  * Public landing page — targets Ghanaian students, KNUST engineering first.
@@ -43,71 +45,80 @@ export default async function Home() {
   ];
 
   return (
-    <div className="flex flex-1 flex-col">
-      {/* ── Top navigation ─────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
-        <Container className="flex h-16 items-center justify-between">
-          <Logo />
-          <nav className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
-            <Link href="#how" className="transition hover:text-slate-900">
-              How it works
-            </Link>
-            <Link href="#subjects" className="transition hover:text-slate-900">
-              Subjects
-            </Link>
-            <Link href="/tutors" className="transition hover:text-slate-900">
-              Find a tutor
-            </Link>
-          </nav>
-          <div className="flex items-center gap-2.5">
+    <div className="relative flex flex-1 flex-col">
+      {/* Continuous page surface — the hero gradient dissolves into this lilac
+          canvas and the same blurred glow treatment carries on down the page,
+          so the light sections read as one piece with the hero rather than a
+          white wall after a dark band. */}
+      <BentoBackdrop tone="purple" variant="smooth" className="-z-10" />
+
+      <FloatingNav
+        links={[
+          { href: "#how", label: "How it works" },
+          { href: "#subjects", label: "Subjects" },
+          { href: "/tutors", label: "Find a tutor" },
+        ]}
+      >
+        {currentProfile ? (
+          <Link
+            href="/dashboard"
+            className="inline-flex h-10 items-center rounded-full bg-slate-900 px-4 text-sm font-semibold text-white shadow-xs transition duration-150 hover:bg-slate-800 active:scale-[0.97]"
+          >
+            Dashboard
+          </Link>
+        ) : (
+          <>
             <AuthTrigger
               tab="sign-in"
-              className="h-10 rounded-md px-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              className="inline-flex h-9 rounded-full px-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-100 sm:h-10 sm:px-3.5 sm:text-sm"
             >
               Sign in
             </AuthTrigger>
             <AuthTrigger
               tab="sign-up"
-              className="h-10 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white shadow-xs hover:bg-slate-800"
+              className="h-9 rounded-full bg-slate-900 px-3 text-[13px] font-semibold text-white shadow-xs hover:bg-slate-800 sm:h-10 sm:px-4 sm:text-sm"
             >
-              Get started
+              {/* Short label on phones so both actions fit in one row. */}
+              <span className="sm:hidden">Sign up</span>
+              <span className="hidden sm:inline">Get started</span>
             </AuthTrigger>
-          </div>
-        </Container>
-      </header>
+          </>
+        )}
+      </FloatingNav>
 
       {/* ── Hero (gradient backdrop) ───────────────────────────────── */}
-      <section className="relative overflow-hidden">
-        <Image
-          src="/gradback.jpg"
-          alt=""
-          fill
-          priority
-          sizes="100vw"
-          className="scale-105 object-cover blur-[2px]"
-        />
-        <div aria-hidden="true" className="absolute inset-0 bg-white/30" />
-        <Container className="relative py-24 sm:py-28">
+      <section className="relative">
+        {/* The gradient sits in its own clipping wrapper and fades out at the
+            bottom, so it dissolves into the page instead of ending at a hard
+            edge. The extra bottom padding keeps the fade over empty space. */}
+        <div className="absolute inset-0 overflow-hidden">
+          <AnimatedGradient />
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 bottom-0 h-28 [background-image:linear-gradient(to_bottom,transparent,var(--color-canvas))]"
+          />
+        </div>
+        <Container className="relative pb-28 pt-32 sm:pb-32 sm:pt-40">
           <div className="mx-auto max-w-3xl text-center">
             <span
-              className="inline-flex animate-fade-up items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-200/70 backdrop-blur"
+              className="inline-flex animate-fade-up items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-lilac-100 ring-1 ring-inset ring-white/20 backdrop-blur"
               style={{ animationDelay: "0ms" }}
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               Built for Ghanaian students · KNUST engineering first
             </span>
             <h1
-              className="mt-6 animate-fade-up font-display text-4xl font-bold leading-[1.1] tracking-tight text-slate-900 sm:text-6xl"
+              className="mt-6 animate-fade-up font-display text-4xl font-bold leading-[1.1] tracking-tight text-white sm:text-6xl"
               style={{ animationDelay: "60ms" }}
             >
               The right tutor for{" "}
-              <span className="bg-gradient-to-r from-brand-600 to-petrol-700 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-lilac-100 to-lilac-300 bg-clip-text text-transparent">
                 every course
               </span>
               .
             </h1>
             <p
-              className="mx-auto mt-6 max-w-xl animate-fade-up text-lg leading-relaxed text-slate-700"
+              className="mx-auto mt-6 max-w-xl animate-fade-up text-lg leading-relaxed text-lilac-100/90"
               style={{ animationDelay: "120ms" }}
             >
               Harcourt connects students with approved, qualified tutors for the
@@ -121,13 +132,13 @@ export default async function Home() {
             >
               <Link
                 href="/tutors"
-                className="inline-flex h-12 items-center justify-center rounded-md bg-slate-900 px-7 text-sm font-semibold text-white shadow-lift transition duration-150 hover:bg-slate-800 active:scale-[0.97]"
+                className="inline-flex h-12 items-center justify-center rounded-md bg-white px-7 text-sm font-semibold text-petrol-900 shadow-lift transition duration-150 hover:bg-lilac-100 active:scale-[0.97]"
               >
                 Find a tutor
               </Link>
               <AuthTrigger
                 tab="sign-up"
-                className="h-12 rounded-md border border-slate-300 bg-white px-7 text-sm font-semibold text-slate-800 shadow-sm hover:border-slate-400 hover:bg-slate-50"
+                className="h-12 rounded-md border border-white/30 bg-white/10 px-7 text-sm font-semibold text-white shadow-sm backdrop-blur transition hover:border-white/50 hover:bg-white/20"
               >
                 Become a tutor
               </AuthTrigger>
@@ -136,7 +147,7 @@ export default async function Home() {
 
           {/* Trust bar */}
           <dl
-            className="mx-auto mt-16 grid max-w-3xl animate-fade-up grid-cols-3 divide-x divide-slate-200 rounded-lg border border-slate-200 bg-white/80 shadow-card backdrop-blur"
+            className="mx-auto mt-12 grid max-w-3xl animate-fade-up grid-cols-3 divide-x divide-white/15 rounded-lg border border-white/15 bg-white/10 shadow-card backdrop-blur sm:mt-16"
             style={{ animationDelay: "260ms" }}
           >
             {[
@@ -145,10 +156,10 @@ export default async function Home() {
               { label: "Profiles verified", value: "100%" },
             ].map((stat) => (
               <div key={stat.label} className="px-4 py-5 text-center sm:px-8">
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                <dt className="text-xs font-medium uppercase tracking-wide text-lilac-100/70">
                   {stat.label}
                 </dt>
-                <dd className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
+                <dd className="mt-1 text-2xl font-bold text-white sm:text-3xl">
                   {stat.value}
                 </dd>
               </div>
@@ -158,7 +169,7 @@ export default async function Home() {
       </section>
 
       {/* ── Subject marquee ────────────────────────────────────────── */}
-      <section className="border-y border-slate-200 bg-white py-5">
+      <section className="py-6">
         <Container>
           <div className="group relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
             <div className="flex w-max animate-marquee group-hover:[animation-play-state:paused]">
@@ -189,8 +200,8 @@ export default async function Home() {
       </section>
 
       {/* ── How it works ───────────────────────────────────────────── */}
-      <section id="how" className="bg-white">
-        <Container className="py-20">
+      <section id="how" className="scroll-mt-24">
+        <Container className="py-16">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
               How Harcourt works
@@ -242,8 +253,8 @@ export default async function Home() {
       </section>
 
       {/* ── Subjects ───────────────────────────────────────────────── */}
-      <section id="subjects" className="border-y border-slate-200 bg-canvas">
-        <Container className="py-20">
+      <section id="subjects" className="scroll-mt-24">
+        <Container className="py-16">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:items-end">
             <div>
               <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
@@ -272,8 +283,8 @@ export default async function Home() {
       </section>
 
       {/* ── Approved tutors ────────────────────────────────────────── */}
-      <section id="tutors" className="bg-white">
-        <Container className="py-20">
+      <section id="tutors">
+        <Container className="py-16">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:items-end">
             <div>
               <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
@@ -295,7 +306,7 @@ export default async function Home() {
           </div>
 
           {tutors.length === 0 ? (
-            <div className="mt-10 rounded-lg border border-dashed border-slate-300 bg-canvas p-14 text-center">
+            <div className="mt-10 rounded-lg border border-dashed border-slate-300 bg-white/60 p-14 text-center">
               <p className="text-slate-600">
                 No tutors yet — be the first to{" "}
                 <AuthTrigger
@@ -362,8 +373,8 @@ export default async function Home() {
       </section>
 
       {/* ── CTA band ───────────────────────────────────────────────── */}
-      <section className="border-t border-slate-200 bg-white">
-        <Container className="flex flex-col items-center justify-between gap-8 py-16 text-center sm:flex-row sm:text-left">
+      <section className="pb-6">
+        <Container className="flex flex-col items-center justify-between gap-8 py-14 text-center sm:flex-row sm:text-left">
           <div>
             <h2 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
               Ready to learn without limits?

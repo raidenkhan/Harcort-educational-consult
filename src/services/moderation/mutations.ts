@@ -11,9 +11,13 @@ import { z } from "zod";
  */
 
 const reportSchema = z.object({
-  targetType: z.string().min(1),
-  targetId: z.string().min(1),
-  reason: z.string().trim().min(5, "Please describe the issue (min 5 characters)"),
+  targetType: z.string().trim().min(1).max(40, "Unknown report type"),
+  targetId: z.string().uuid("Unknown report target"),
+  reason: z
+    .string()
+    .trim()
+    .min(5, "Please describe the issue (min 5 characters)")
+    .max(1000, "Please keep the description under 1000 characters"),
 });
 
 export type ReportFormState = { error?: string; message?: string };

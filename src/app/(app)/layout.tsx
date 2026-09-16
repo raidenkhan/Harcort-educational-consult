@@ -1,12 +1,10 @@
 import { Suspense, cache } from "react";
-import Link from "next/link";
 import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
-import { Container } from "@/components/ui/Container";
 import { Badge } from "@/components/ui/Badge";
-import { Logo } from "@/components/ui/Logo";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
+import { FloatingNav } from "@/components/navigation/FloatingNav";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
@@ -26,21 +24,23 @@ const roleTone = {
 /* ------------------------------------------------------------------ */
 
 function HeaderSkeleton() {
+  // Mirrors FloatingNav's geometry so streaming in the real header can't
+  // shift the page.
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
-      <Container className="flex h-16 items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <Skeleton className="h-8 w-8 rounded" />
-          <Skeleton className="h-5 w-28" />
+    <div className="fixed inset-x-0 top-3 z-40 flex justify-center px-3 sm:px-6">
+      <div className="flex h-14 w-full max-w-6xl items-center justify-between gap-2 rounded-full border border-slate-200/80 bg-white/85 pl-3 pr-1.5 shadow-sm backdrop-blur-xl sm:gap-3 sm:pl-3.5 sm:pr-2">
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          <Skeleton className="h-9 w-9 rounded" />
+          <Skeleton className="h-4 w-16 sm:h-5 sm:w-28" />
         </div>
-        <div className="hidden items-center gap-6 lg:flex">
+        <div className="hidden items-center gap-6 md:flex">
           <Skeleton className="h-4 w-16" />
           <Skeleton className="h-4 w-16" />
           <Skeleton className="h-4 w-16" />
         </div>
-        <Skeleton className="h-8 w-16 rounded-md" />
-      </Container>
-    </header>
+        <Skeleton className="h-9 w-20 rounded-full" />
+      </div>
+    </div>
   );
 }
 
@@ -86,42 +86,23 @@ async function AppHeader() {
   ];
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
-      <Container className="flex h-16 items-center justify-between">
-        <div className="flex items-center gap-8">
-          <Logo />
-          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 lg:flex">
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="transition hover:text-slate-900"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {profile && (
-            <span className="hidden items-center gap-2 text-sm text-slate-600 lg:flex">
-              {profile.full_name}
-              {profileIsAdmin(profile) && <VerifiedBadge />}
-              <Badge tone={roleTone[profile.role]}>{profile.role}</Badge>
-            </span>
-          )}
-          <form action={signOutAction}>
-            <button
-              type="submit"
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-xs transition hover:border-slate-400 hover:bg-slate-50"
-            >
-              Sign out
-            </button>
-          </form>
-        </div>
-      </Container>
-    </header>
+    <FloatingNav links={links}>
+      {profile && (
+        <span className="hidden items-center gap-2 text-sm text-slate-600 lg:flex">
+          {profile.full_name}
+          {profileIsAdmin(profile) && <VerifiedBadge />}
+          <Badge tone={roleTone[profile.role]}>{profile.role}</Badge>
+        </span>
+      )}
+      <form action={signOutAction}>
+        <button
+          type="submit"
+          className="h-9 rounded-full border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-50 sm:h-10 sm:px-3.5 sm:text-sm"
+        >
+          Sign out
+        </button>
+      </form>
+    </FloatingNav>
   );
 }
 
@@ -147,8 +128,9 @@ export default function AppLayout({
         <AppHeader />
       </Suspense>
 
-      {/* Page content streams independently — loading.tsx handles the skeleton */}
-      <main className="flex-1 pb-20 lg:pb-0">{children}</main>
+      {/* Page content streams independently — loading.tsx handles the skeleton.
+          pt-20 clears the floating nav, which no longer takes flow space. */}
+      <main className="flex-1 pb-20 pt-20 lg:pb-0">{children}</main>
 
       {/* Tab bar streams in independently */}
       <Suspense fallback={<TabBarSkeleton />}>
