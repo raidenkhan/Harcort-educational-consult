@@ -176,8 +176,11 @@ mobile app.
   cards keep their contrast. `BentoBackdrop variant="grid"` renders it, so
   every interior page inherits it; pages whose top is covered by a hero
   gradient (landing, `/tutors`) set `variant="smooth"` and place bands
-  deliberately below the hero — the landing uses three, the beam on the first
-  one only so there is a single light source.
+  deliberately below the hero — the landing uses three, the  beam on the first one only so there is a single light source. The landing
+  bands **decay** — `strength` 1 / 0.55 / 0.3 from top to bottom — so the
+  horizon recedes with the page's depth instead of repeating at full strength;
+  `PerspectiveGrid`'s `strength` prop scales both the line alpha and the beam
+  opacity (inline styles — see the Tailwind gotcha below).
 - **Security pass.** Real security headers from `next.config.ts` (a
   `default-src 'self'` CSP, `X-Frame-Options: DENY`, nosniff,
   Referrer-Policy, Permissions-Policy, HSTS) plus `poweredByHeader: false`

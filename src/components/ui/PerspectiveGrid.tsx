@@ -7,7 +7,10 @@ import { cn } from "@/lib/cn";
  * This is the "dark mode tech" backdrop idea from the design brief, re-tuned
  * for the light lilac canvas the rest of the app uses: the grid lines are brand
  * ink at low alpha (not white), so sections keep their dark text and white
- * cards. Drop it as the first child of a `relative` block and it fills the top
+ * cards. `strength` scales the line and beam intensity (0–1); bands further
+ * down a long page take progressively lower values so the horizon recedes
+ * rather than repeating at full strength. Drop it as the first child of a
+ * `relative` block and it fills the top
  * of that block, behind the content (pass `-z-10` when the parent is not a
  * stacking context).
  *
@@ -31,17 +34,24 @@ import { cn } from "@/lib/cn";
 export function PerspectiveGrid({
   tone = "petrol",
   beam = true,
+  strength = 1,
   className,
 }: {
   tone?: "purple" | "petrol";
   /** The purple radial light beam above the horizon. One per page reads best. */
   beam?: boolean;
+  /**
+   * Overall intensity of the lines AND the beam (0 = invisible, 1 = default).
+   * Bands lower on a long page take progressively lower values so the horizon
+   * recedes instead of repeating at full strength all the way down.
+   */
+  strength?: number;
   className?: string;
 }) {
   const line =
     tone === "purple"
-      ? "rgba(91, 14, 137, 0.11)" // brand-600 ink
-      : "rgba(28, 15, 43, 0.11)"; // petrol-900 ink
+      ? `rgba(91, 14, 137, ${(0.11 * strength).toFixed(3)})` // brand-600 ink
+      : `rgba(28, 15, 43, ${(0.11 * strength).toFixed(3)})`; // petrol-900 ink
 
   const mask =
     "linear-gradient(to bottom, rgba(0,0,0,1) 0px, rgba(0,0,0,0.55) 150px, rgba(0,0,0,0) 310px)";
@@ -54,9 +64,14 @@ export function PerspectiveGrid({
         className,
       )}
     >
-      {/* Radial light beam from the top centre. */}
+      {/* Radial light beam from the top centre. The Tailwind class stays at
+          full strength and the element's own opacity scales the whole thing,
+          so the blur radius and footprint don't change with `strength`. */}
       {beam && (
-        <div className="absolute -top-24 left-1/2 h-[300px] w-[620px] -translate-x-1/2 rounded-full bg-brand-600/10 blur-[120px]" />
+        <div
+          className="absolute -top-24 left-1/2 h-[300px] w-[620px] -translate-x-1/2 rounded-full bg-brand-600/10 blur-[120px]"
+          style={{ opacity: strength }}
+        />
       )}
 
       {/* The receding grid plane. */}

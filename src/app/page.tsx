@@ -203,8 +203,8 @@ export default async function Home() {
 
       {/* ── How it works ───────────────────────────────────────────── */}
       {/* Below the hero the page runs on the perspective grid horizon — the
-          first band carries the purple beam, the ones further down continue
-          the texture without a second light source competing with it. */}
+          first band carries the purple beam, and the bands decay as the page
+          deepens so the horizon recedes instead of repeating at full strength. */}
       <section id="how" className="relative scroll-mt-24">
         <PerspectiveGrid tone="purple" className="-z-10" />
         <Container className="py-16">
@@ -260,7 +260,7 @@ export default async function Home() {
 
       {/* ── Subjects ───────────────────────────────────────────────── */}
       <section id="subjects" className="relative scroll-mt-24">
-        <PerspectiveGrid tone="purple" beam={false} className="-z-10" />
+        <PerspectiveGrid tone="purple" beam={false} strength={0.55} className="-z-10" />
         <Container className="py-16">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:items-end">
             <div>
@@ -291,7 +291,7 @@ export default async function Home() {
 
       {/* ── Approved tutors ────────────────────────────────────────── */}
       <section id="tutors" className="relative">
-        <PerspectiveGrid tone="purple" beam={false} className="-z-10" />
+        <PerspectiveGrid tone="purple" beam={false} strength={0.3} className="-z-10" />
         <Container className="py-16">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:items-end">
             <div>
