@@ -32,7 +32,8 @@ src/
 │  └─ moderation/       → reports & blocks
 ├─ lib/                 → supabase admin client + middleware helper, auth primitives,
 │                        Accra time helpers, email (Resend) module
-├─ components/          → ui/ primitives (incl. AnimatedGradient, BentoBackdrop),
+├─ components/          → ui/ primitives (incl. AnimatedGradient, BentoBackdrop,
+│                        PerspectiveGrid),
 │                        navigation/ (FloatingNav, MobileTabBar), auth/, tutor/, …
 └─ types/               → shared domain types
 ```

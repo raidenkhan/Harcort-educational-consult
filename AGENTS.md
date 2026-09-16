@@ -154,16 +154,30 @@ mobile app.
   renders five drifting colour blobs over a purple gradient with a soft blob
   that eases toward the cursor (skipped entirely for
   `prefers-reduced-motion` and coarse pointers). It backs the landing hero,
-  the `/tutors` hero band and the auth pages. The landing hero fades that
-  gradient into `--color-canvas` at its bottom, and the light sections stopped
-  painting opaque white bands, so the whole page reads as one lilac surface
-  over a `BentoBackdrop` instead of a dark hero hitting a white wall.
+  the `/tutors` hero band and the auth pages. The landing hero is exactly one
+  screen tall (`min-h-screen`, plus `supports-[height:100svh]:min-h-[100svh]`
+  so mobile browser chrome sliding in and out can't resize it), so the first
+  scroll reveals the marquee band instead of half a hero.
   `components/navigation/FloatingNav.tsx` replaced every sticky header
   (landing, `/tutors`, app shell, forgot-password): a fixed glass pill that
   condenses away on scroll-down and glides back on scroll-up, with
   `focus-within` forcing it back for keyboard users. Because it is fixed it
   takes no flow space — every page using it needs its own top offset (the app
   shell's `main` carries `pt-20`, the public heroes `pt-28`/`pt-32`).
+- **Perspective grid horizon + the sheet seam.** The fade-to-canvas that used
+  to sit under the landing hero smeared the gradient into the marquee band and
+  left the subject chips sitting on a wash. It is gone. The hero now ends on
+  the gradient, and the marquee band is an opaque canvas surface with a rounded
+  top (`relative -mt-6 rounded-t-[1.75rem] bg-canvas`, larger at `sm`) pulled
+  up over it — the light page starts there, and `/tutors` uses the same seam on
+  its directory section. `components/ui/PerspectiveGrid.tsx` supplies the 3D
+  horizon (rotated CSS plane + purple top beam), retuned for the light canvas:
+  ink-toned lines instead of the brief's white-on-dark, so body text and white
+  cards keep their contrast. `BentoBackdrop variant="grid"` renders it, so
+  every interior page inherits it; pages whose top is covered by a hero
+  gradient (landing, `/tutors`) set `variant="smooth"` and place bands
+  deliberately below the hero — the landing uses three, the beam on the first
+  one only so there is a single light source.
 - **Security pass.** Real security headers from `next.config.ts` (a
   `default-src 'self'` CSP, `X-Frame-Options: DENY`, nosniff,
   Referrer-Policy, Permissions-Policy, HSTS) plus `poweredByHeader: false`
@@ -274,10 +288,12 @@ Key security properties:
   #1C0F2B), `font-display` Space Grotesk. **No emojis** — use lucide-react
   icons. Reuse `Card`/`Badge`/`Button`/`Container`/`Field(s)`.
   Interior pages get a `BentoBackdrop` (tone `purple`|`petrol` — vibrant
-  purple vs deep-navy glows). It is an absolutely-positioned sibling, so
-  content that must sit on top either wraps in a `relative` element or the
-  backdrop takes `-z-10`. Hero surfaces use `AnimatedGradient`; all app chrome
-  uses `FloatingNav`.
+  purple vs deep-navy glows; `variant="grid"` adds the `PerspectiveGrid`
+  horizon, `variant="smooth"` is the glows alone). It is an
+  absolutely-positioned sibling, so content that must sit on top either wraps
+  in a `relative` element or the backdrop takes `-z-10`. If the wrapper is
+  **opaque** it also needs `isolate` — see the gotcha below. Hero surfaces use
+  `AnimatedGradient`; all app chrome uses `FloatingNav`.
 - **Errors:** never expose raw DB errors to users beyond `error.message` in
   form states.
 
@@ -342,6 +358,20 @@ The dev machine is slow — give compiles 30–60s.
   Email "rate limits" don't exist here by design.
 - Browser-automation agents (browser-use) have been unreliable in this
   environment — prefer curl + code inspection for verification.
+- **`PerspectiveGrid` geometry is load-bearing.** `perspective(500px)
+  rotateX(60deg) translateY(-100px) scale(2)` drives the plane through the
+  perspective camera at ~338px of element height (`2y - 100 = 500 / sin60`);
+  past that the projection inverts and the lines smear. So the band stays
+  420–520px tall and its mask uses **px** stops that reach zero at 310px,
+  before that limit. Do not stretch the plane to cover a taller region, and do
+  not convert the mask to percentages — the visible depth would shift at every
+  breakpoint.
+- **An opaque sheet needs `isolate` for `-z-10` children.** A negative
+  z-index layer paints behind an ancestor's background unless that ancestor is
+  itself a stacking context. The rounded sheets (landing marquee, `/tutors`
+  directory) are opaque `bg-canvas` and host both the `BentoBackdrop` and a
+  `PerspectiveGrid`, so they carry `isolate`; drop it and both layers silently
+  disappear behind the sheet.
 - **Tailwind can't see runtime-interpolated class names.** Building a class
   with a template literal (`[background:radial-gradient(${color})]`, `bg-${x}`)
   produces NO CSS — the scanner only reads literal strings in the source.

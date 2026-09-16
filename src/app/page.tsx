@@ -12,6 +12,7 @@ import { Logo } from "@/components/ui/Logo";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
+import { PerspectiveGrid } from "@/components/ui/PerspectiveGrid";
 import { FloatingNav } from "@/components/navigation/FloatingNav";
 
 /**
@@ -46,10 +47,8 @@ export default async function Home() {
 
   return (
     <div className="relative flex flex-1 flex-col">
-      {/* Continuous page surface — the hero gradient dissolves into this lilac
-          canvas and the same blurred glow treatment carries on down the page,
-          so the light sections read as one piece with the hero rather than a
-          white wall after a dark band. */}
+      {/* Continuous page surface — the brand wash and blurred glows run under
+          the whole page; the grid bands in the sections sit on top of it. */}
       <BentoBackdrop tone="purple" variant="smooth" className="-z-10" />
 
       <FloatingNav
@@ -87,18 +86,13 @@ export default async function Home() {
       </FloatingNav>
 
       {/* ── Hero (gradient backdrop) ───────────────────────────────── */}
-      <section className="relative">
-        {/* The gradient sits in its own clipping wrapper and fades out at the
-            bottom, so it dissolves into the page instead of ending at a hard
-            edge. The extra bottom padding keeps the fade over empty space. */}
+      <section className="relative flex min-h-screen flex-col justify-center supports-[height:100svh]:min-h-[100svh]">
+        {/* The gradient fills its own clipping wrapper and simply stops at the
+            section edge — no fade-down. See the sheet below for why. */}
         <div className="absolute inset-0 overflow-hidden">
           <AnimatedGradient />
-          <div
-            aria-hidden="true"
-            className="absolute inset-x-0 bottom-0 h-28 [background-image:linear-gradient(to_bottom,transparent,var(--color-canvas))]"
-          />
         </div>
-        <Container className="relative pb-28 pt-32 sm:pb-32 sm:pt-40">
+        <Container className="relative py-20 sm:py-28">
           <div className="mx-auto max-w-3xl text-center">
             <span
               className="inline-flex animate-fade-up items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-lilac-100 ring-1 ring-inset ring-white/20 backdrop-blur"
@@ -169,14 +163,23 @@ export default async function Home() {
       </section>
 
       {/* ── Subject marquee ────────────────────────────────────────── */}
-      <section className="py-6">
+      {/* ── Subject marquee (the sheet's edge) ─────────────────────── */}
+      {/* The marquee band is where the light page begins, so it carries the
+          sheet edge: an opaque canvas surface with a rounded top pulled up
+          over the hero. That seam is what reads cleanly — the long fade to
+          canvas it replaces smeared the hero's dark violet into this band and
+          made the boundary look muddy. It also puts the subject chips on solid
+          canvas, so they stand out instead of dissolving into a gradient.
+          Everything below shares the same canvas colour, so the page still
+          reads as one surface. */}
+      <section className="relative -mt-6 rounded-t-[1.75rem] bg-canvas py-8 sm:rounded-t-[2.5rem]">
         <Container>
           <div className="group relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
             <div className="flex w-max animate-marquee group-hover:[animation-play-state:paused]">
               {marqueeItems.map((item, i) => (
                 <span
                   key={`a-${i}`}
-                  className="mx-3 flex shrink-0 items-center gap-2.5 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-xs"
+                  className="mx-3 flex shrink-0 items-center gap-2.5 rounded-md border border-slate-300/70 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-card"
                 >
                   {item}
                   <span className="text-brand-600">✦</span>
@@ -187,20 +190,23 @@ export default async function Home() {
                 {marqueeItems.map((item, i) => (
                   <span
                     key={`b-${i}`}
-                    className="mx-3 flex shrink-0 items-center gap-2.5 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-xs"
+                    className="mx-3 flex shrink-0 items-center gap-2.5 rounded-md border border-slate-300/70 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-card"
                   >
                     {item}
                     <span className="text-brand-600">✦</span>
                   </span>
                 ))}
               </div>
-            </div>
-          </div>
+            </div>          </div>
         </Container>
       </section>
 
       {/* ── How it works ───────────────────────────────────────────── */}
-      <section id="how" className="scroll-mt-24">
+      {/* Below the hero the page runs on the perspective grid horizon — the
+          first band carries the purple beam, the ones further down continue
+          the texture without a second light source competing with it. */}
+      <section id="how" className="relative scroll-mt-24">
+        <PerspectiveGrid tone="purple" className="-z-10" />
         <Container className="py-16">
           <div className="mx-auto max-w-2xl text-center">
             <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
@@ -253,7 +259,8 @@ export default async function Home() {
       </section>
 
       {/* ── Subjects ───────────────────────────────────────────────── */}
-      <section id="subjects" className="scroll-mt-24">
+      <section id="subjects" className="relative scroll-mt-24">
+        <PerspectiveGrid tone="purple" beam={false} className="-z-10" />
         <Container className="py-16">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:items-end">
             <div>
@@ -283,7 +290,8 @@ export default async function Home() {
       </section>
 
       {/* ── Approved tutors ────────────────────────────────────────── */}
-      <section id="tutors">
+      <section id="tutors" className="relative">
+        <PerspectiveGrid tone="purple" beam={false} className="-z-10" />
         <Container className="py-16">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:items-end">
             <div>

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/cn";
+import { PerspectiveGrid } from "./PerspectiveGrid";
 
 /**
  * Decorative page backdrop (dashboard, tutor, admin, /tutors, …).
@@ -7,10 +8,12 @@ import { cn } from "@/lib/cn";
  * child of a `relative overflow-hidden` page wrapper and it sits behind the
  * content.
  *
- * `variant="grid"` (default): faint blueprint crosshatch lines, strongest near
- * the top and fading away before the content area — pure lines, no tiles, no
- * dots, no outlines. `variant="smooth"`: no grid at all, just the brand
- * gradient wash and blurred glow blobs.
+ * `variant="grid"` (default): the 3D perspective grid horizon fading into the
+ * canvas (see `PerspectiveGrid`), strongest behind the top of the page and
+ * gone before the main content area. `variant="smooth"`: no grid at all, just
+ * the brand gradient wash and blurred glow blobs — use it on pages that place
+ * their own `PerspectiveGrid` deliberately (pages with a hero gradient on top,
+ * where the top band would be hidden behind the hero).
  */
 export function BentoBackdrop({
   tone = "petrol",
@@ -26,12 +29,10 @@ export function BentoBackdrop({
       ? {
           glow: "bg-brand-300/20",
           glowAlt: "bg-lilac-200/40",
-          grid: "[background-image:linear-gradient(to_right,rgba(91,14,137,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(91,14,137,0.05)_1px,transparent_1px)]",
         }
       : {
           glow: "bg-petrol-300/20",
           glowAlt: "bg-lilac-100/50",
-          grid: "[background-image:linear-gradient(to_right,rgba(28,15,43,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(28,15,43,0.06)_1px,transparent_1px)]",
         };
 
   return (
@@ -72,15 +73,8 @@ export function BentoBackdrop({
         )}
       />
 
-      {/* Blueprint crosshatch lines — faint, fading out before the content */}
-      {variant === "grid" && (
-        <div
-          className={cn(
-            "absolute inset-0 [background-size:44px_44px] [mask-image:radial-gradient(ellipse_90%_70%_at_50%_0%,black_20%,transparent_75%)]",
-            palette.grid,
-          )}
-        />
-      )}
+      {/* Perspective grid horizon — receding lines fading into the canvas */}
+      {variant === "grid" && <PerspectiveGrid tone={tone} />}
     </div>
   );
 }

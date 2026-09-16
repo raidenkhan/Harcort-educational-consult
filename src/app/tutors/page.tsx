@@ -7,6 +7,7 @@ import { Container } from "@/components/ui/Container";
 import { Logo } from "@/components/ui/Logo";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
+import { PerspectiveGrid } from "@/components/ui/PerspectiveGrid";
 import { AnimatedGradient } from "@/components/ui/AnimatedGradient";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { FloatingNav } from "@/components/navigation/FloatingNav";
@@ -33,8 +34,6 @@ export default async function TutorsPage() {
 
   return (
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
-      <BentoBackdrop tone="purple" className="-z-10" />
-
       <FloatingNav
         links={[
           { href: "/", label: "Home" },
@@ -90,24 +89,33 @@ export default async function TutorsPage() {
           </Container>
         </section>
 
-        <Container className="relative py-10">
-          {tutors.length === 0 ? (
-            <div className="mt-10 rounded-lg border border-dashed border-slate-300 bg-white/70 p-16 text-center">
-              <Users className="mx-auto h-8 w-8 text-slate-300" />
-              <p className="mt-3 text-sm text-slate-500">
-                No tutors yet — be the first to sign up as a tutor.
-              </p>
-              <AuthTrigger
-                tab="sign-up"
-                className="mt-4 text-sm font-semibold text-slate-900 hover:text-slate-700"
-              >
-                Become a tutor →
-              </AuthTrigger>
-            </div>
-          ) : (
-            <TutorExplorer tutors={tutors} signedIn={Boolean(profile)} />
-          )}
-        </Container>
+        {/* The directory rises over the hero as a rounded opaque sheet — the
+            same seam as the landing page — and runs on the perspective grid
+            horizon. `isolate` gives the sheet its own stacking context so the
+            backdrop and the grid band (-z-10) paint above the sheet's own
+            background instead of being hidden behind it. */}
+        <section className="relative isolate -mt-6 rounded-t-[1.75rem] bg-canvas sm:rounded-t-[2.5rem]">
+          <BentoBackdrop tone="purple" variant="smooth" className="-z-10" />
+          <PerspectiveGrid tone="purple" className="-z-10" />
+          <Container className="relative py-10">
+            {tutors.length === 0 ? (
+              <div className="mt-10 rounded-lg border border-dashed border-slate-300 bg-white/70 p-16 text-center">
+                <Users className="mx-auto h-8 w-8 text-slate-300" />
+                <p className="mt-3 text-sm text-slate-500">
+                  No tutors yet — be the first to sign up as a tutor.
+                </p>
+                <AuthTrigger
+                  tab="sign-up"
+                  className="mt-4 text-sm font-semibold text-slate-900 hover:text-slate-700"
+                >
+                  Become a tutor →
+                </AuthTrigger>
+              </div>
+            ) : (
+              <TutorExplorer tutors={tutors} signedIn={Boolean(profile)} />
+            )}
+          </Container>
+        </section>
       </main>
 
       {/* Mobile tab bar keeps the app feel when browsing the directory. */}
