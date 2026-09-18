@@ -47,6 +47,17 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
+  // YouTube thumbnails for the Harcourt University lesson cards on the
+  // landing page (served straight from i.ytimg.com — no proxy needed).
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "i.ytimg.com",
+        pathname: "/vi/**",
+      },
+    ],
+  },
   // Hide the stack we run on and never ship browser source maps to production.
   poweredByHeader: false,
   productionBrowserSourceMaps: false,

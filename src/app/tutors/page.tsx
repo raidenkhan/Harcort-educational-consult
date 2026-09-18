@@ -1,5 +1,6 @@
 import { Users } from "lucide-react";
 import { listApprovedTutors } from "@/services/tutors/queries";
+import { SITE_NAME } from "@/lib/site";
 import { getCurrentProfile } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
 import { TutorExplorer } from "@/components/tutors/TutorExplorer";
@@ -22,6 +23,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Find a tutor",
+  alternates: { canonical: "/tutors" },
   description:
     "Browse verified tutors for KNUST engineering and beyond — search by subject, course, or qualification, compare rates, and reach out.",
 };
@@ -32,8 +34,32 @@ export default async function TutorsPage() {
     getCurrentProfile(),
   ]);
 
+  /** ItemList of the currently-approved tutors — helps search engines and
+      AI answer engines understand the directory's live contents. */
+  const tutorJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: `Approved tutors — ${SITE_NAME}`,
+    numberOfItems: tutors.length,
+    itemListOrder: "https://schema.org/ItemListOrderDescending",
+    itemListElement: tutors.map(({ tutorProfile, profile }, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      item: {
+        "@type": "Person",
+        name: profile.full_name || "Harcourt tutor",
+        jobTitle: "Tutor",
+        description: tutorProfile.bio ?? undefined,
+      },
+    })),
+  };
+
   return (
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(tutorJsonLd) }}
+      />
       <FloatingNav
         links={[
           { href: "/", label: "Home" },
