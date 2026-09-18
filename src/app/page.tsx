@@ -30,6 +30,7 @@ import { Reveal } from "@/components/home/Reveal";
 import { Parallax } from "@/components/home/Parallax";
 import { BounceDeck } from "@/components/home/BounceDeck";
 import { HarcourtUniversity, LESSONS } from "@/components/home/HarcourtUniversity";
+import FloatingLines from "@/components/home/FloatingLines";
 
 /**
  * Public landing page — targets Ghanaian students, KNUST engineering first.
@@ -214,13 +215,43 @@ export default async function Home() {
       <section className="relative flex min-h-screen flex-col justify-center supports-[height:100svh]:min-h-[100svh]">
         {/* The gradient fills its own clipping wrapper and simply stops at the
             section edge — no fade-down. See the sheet below for why. */}
-        <div className="absolute inset-0 overflow-hidden">
-          {/* The gradient drifts slightly slower than the page — parallax
-              depth on a decorative layer, never on copy. The -inset-y bleed
-              keeps the drift from exposing the section edge. */}
-          <Parallax className="absolute inset-x-0 -inset-y-20" speed={0.1}>
-            <AnimatedGradient />
+        <div className="absolute inset-x-0 -top-28 -bottom-28 overflow-hidden">
+          {/* TRIAL: FloatingLines runs the whole hero screen — full-bleed
+              behind everything. The gradient sits on top as a soft wash and
+              ink scrims keep the copy readable. One Parallax wrapper carries
+              the entire stack, so the backdrop lags the scroll (parallax). */}
+          <Parallax className="absolute inset-0" speed={0.16}>
+            <FloatingLines
+              linesGradient={[
+                "#610b96",
+                "#39065c",
+                "#af88e3",
+                "#b473da",
+              ]}
+              lineCount={[8, 12, 16]}
+              lineDistance={[8, 6, 4]}
+              animationSpeed={1}
+              interactive
+              bendRadius={5}
+              bendStrength={-0.5}
+              mixBlendMode="screen"
+            />
+            <div className="absolute inset-0 opacity-35">
+              <AnimatedGradient />
+            </div>
+            <div className="absolute inset-0 bg-gradient-to-b from-petrol-950/55 via-transparent to-petrol-950/45" />
           </Parallax>
+          {/* Readability scrim — pinned to the section, NOT inside the
+              parallax stack, so the dim over the copy never shifts relative
+              to the text while the waves drift behind it. Dark ink centre
+              fades to transparent at the edges so the lines stay vivid. */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(ellipse 62% 58% at 50% 52%, rgba(21,10,32,0.62) 0%, rgba(21,10,32,0.28) 55%, transparent 78%)",
+            }}
+          />
         </div>
         <Container className="relative py-20 sm:py-28">
           <div className="mx-auto max-w-3xl text-center">
@@ -232,7 +263,7 @@ export default async function Home() {
               Built for Ghanaian students · KNUST engineering first
             </span>
             <h1
-              className="mt-6 animate-fade-up font-display text-4xl font-semibold leading-[1.08] tracking-[0.01em] text-white sm:text-6xl"
+              className="mt-6 animate-fade-up font-display text-4xl font-semibold leading-[1.08] tracking-[0.01em] text-white [text-shadow:0_2px_24px_rgba(21,10,32,0.75)] sm:text-6xl"
               style={{ animationDelay: "60ms" }}
             >
               When the course gets difficult,{" "}
@@ -242,7 +273,7 @@ export default async function Home() {
               .
             </h1>
             <p
-              className="mx-auto mt-6 max-w-xl animate-fade-up text-lg leading-relaxed text-lilac-100/90"
+              className="mx-auto mt-6 max-w-xl animate-fade-up text-lg leading-relaxed text-lilac-100/90 [text-shadow:0_1px_12px_rgba(21,10,32,0.65)]"
               style={{ animationDelay: "120ms" }}
             >
               Harcourt is academic support built around the courses students
