@@ -9,7 +9,7 @@ export function Logo({ dark = false }: { dark?: boolean }) {
       className="inline-flex items-center gap-2 sm:gap-2.5"
       aria-label="Harcourt home"
     >
-      <BrandMark size="md" />
+      <BrandMark size="md" variant={dark ? "white" : "color"} />
       <span className="flex flex-col leading-none">
         <span
           className={cn(

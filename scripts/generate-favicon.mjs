@@ -1,8 +1,14 @@
 /**
- * Generates the Harcourt favicon set from src/app/icon.svg:
- *   - src/app/favicon.ico   (legacy fallback: 16/32/48px PNG frames inside an ICO)
- *   - src/app/apple-icon.png (iOS home-screen: 180px)
- * Modern browsers use src/app/icon.svg directly (Next.js serves it automatically).
+ * Generates the Harcourt favicon set from the REAL brand emblem
+ * (public/logo-white.png, derived from public/logo.jpg by
+ * scripts/make-logo-transparent.mjs) composited centred on the
+ * brand-gradient tile from src/app/icon.svg:
+ *   - src/app/icon.png        (256px — modern browsers, served by Next.js)
+ *   - src/app/favicon.ico     (legacy fallback: 16/32/48px PNG frames in an ICO)
+ *   - src/app/apple-icon.png  (iOS home-screen: 180px)
+ *
+ * The emblem is a white silhouette on the purple gradient tile so it stays
+ * legible at 16px — the bare purple artwork would vanish in a browser tab.
  *
  * Run: npm run favicon
  */
@@ -13,14 +19,35 @@ import sharp from "sharp";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const svgPath = path.join(root, "src", "app", "icon.svg");
+const emblemPath = path.join(root, "public", "logo-white.png");
 
-/** Rasterize the SVG at an exact pixel size (vector-clean upscale). */
-async function renderPng(size) {
+/** Rasterize the gradient tile SVG at an exact pixel size. */
+async function renderTile(size) {
   const svg = (await readFile(svgPath, "utf8")).replace(
     /<svg([^>]*?)>/,
     `<svg$1 width="${size}" height="${size}">`,
   );
   return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+/** Emblem resized to a fraction of the tile, as a raw composite input. */
+async function emblemLayer(tileSize, fraction = 0.6) {
+  const target = Math.round(tileSize * fraction);
+  // Aspect-correct downscale; the emblem is 308x397 so width follows height.
+  return sharp(emblemPath)
+    .resize({ height: target })
+    .png()
+    .toBuffer();
+}
+
+/** Full icon at `size`: gradient tile + centred white emblem. */
+async function renderIcon(size) {
+  const base = await renderTile(size);
+  const emblem = await emblemLayer(size);
+  return sharp(base)
+    .composite([{ input: emblem, gravity: "centre" }])
+    .png()
+    .toBuffer();
 }
 
 /** Assemble PNG frames into a standard ICO container (Vista+ embedded-PNG format). */
@@ -50,14 +77,18 @@ function toIco(pngs, sizes) {
   return Buffer.concat([header, ...blobs]);
 }
 
+// Modern single icon (Chrome/Edge/Firefox all use it when present).
+const iconPath = path.join(root, "src", "app", "icon.png");
+await writeFile(iconPath, await renderIcon(256));
+
 const sizes = [16, 32, 48];
-const frames = await Promise.all(sizes.map(renderPng));
+const frames = await Promise.all(sizes.map(renderIcon));
 const ico = toIco(frames, sizes);
 
 const icoPath = path.join(root, "src", "app", "favicon.ico");
 await writeFile(icoPath, ico);
 const applePath = path.join(root, "src", "app", "apple-icon.png");
-await writeFile(applePath, await renderPng(180));
+await writeFile(applePath, await renderIcon(180));
 
 // Validate the container ourselves (libvips can't read ICO): parse the ICO,
 // extract each PNG frame, and decode it as a standalone PNG with sharp.
@@ -75,5 +106,7 @@ for (let i = 0; i < count; i++) {
   console.log(`  frame ${i}: ${m.width}x${m.height} PNG, ${size} bytes`);
 }
 const apple = await sharp(applePath).metadata();
+const iconMeta = await sharp(iconPath).metadata();
+console.log(`icon.png -> ${iconMeta.width}x${iconMeta.height} ${iconMeta.format}`);
 console.log(`apple-icon.png -> ${apple.width}x${apple.height} ${apple.format}`);
 console.log(`favicon.ico -> ${ico.length} bytes, ${count} frames, OK`);

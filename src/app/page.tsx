@@ -31,6 +31,7 @@ import { Parallax } from "@/components/home/Parallax";
 import { BounceDeck } from "@/components/home/BounceDeck";
 import { HarcourtUniversity, LESSONS } from "@/components/home/HarcourtUniversity";
 import FloatingLines from "@/components/home/FloatingLines";
+import { BeamCard } from "@/components/home/BeamCard";
 
 /**
  * Public landing page — targets Ghanaian students, KNUST engineering first.
@@ -309,6 +310,14 @@ export default async function Home() {
             className="mx-auto mt-12 max-w-3xl animate-fade-up sm:mt-16"
             style={{ animationDelay: "260ms" }}
           >
+            <BeamCard
+              mode="always"
+              theme="dark"
+              colorVariant="colorful"
+              hue={275}
+              strength={0.5}
+              borderRadius={12}
+            >
             <dl className="grid grid-cols-3 divide-x divide-white/15 rounded-lg border border-white/15 bg-white/10 shadow-card backdrop-blur">
               {[
                 { label: "Approved tutors", value: String(tutors.length) },
@@ -328,6 +337,7 @@ export default async function Home() {
                 </div>
               ))}
             </dl>
+            </BeamCard>
             <p className="mt-3 text-center text-xs text-lilac-100/60">
               Live platform data — every listed tutor is admin-reviewed before
               going public.
@@ -391,6 +401,21 @@ export default async function Home() {
                 Some courses are difficult. Getting help shouldn&apos;t be.
               </h2>
             </Reveal>
+          </div>
+          {/* The subtext alone gets the treatment: a translucent glass panel
+              with a breathing purple halo — the headline stays bare above
+              it, so the panel reads as the "ground" the statement stands
+              on. Harcourt purple via hue=275 (see BeamCard). */}
+          <BeamCard
+            mode="always"
+            size="pulse-outside"
+            colorVariant="colorful"
+            hue={275}
+            theme="light"
+            strength={0.45}
+            borderRadius={2}
+          >
+          <div className="mx-auto max-w-2xl rounded-[2px] border border-slate-200/80 bg-white/60 p-8 text-center backdrop-blur-sm sm:p-10">
             {/* Body copy gets the blur-focus variant — it reads as the
                 section "coming into focus" after the headline lands. */}
             <Reveal variant="blur" delay={120}>
@@ -407,6 +432,7 @@ export default async function Home() {
               </p>
             </Reveal>
           </div>
+          </BeamCard>
         </Container>
       </section>
 
@@ -488,6 +514,13 @@ export default async function Home() {
           </div>
           <div className="mt-12 grid gap-6 lg:grid-cols-2">
             <Reveal variant="up">
+              <BeamCard
+                mode="hover"
+                colorVariant="colorful"
+                hue={275}
+                theme="light"
+                strength={0.5}
+              >
               <FlatCard className="h-full p-8">
                 <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
                   From Harcourt University — free lessons
@@ -506,8 +539,16 @@ export default async function Home() {
                   ))}
                 </div>
               </FlatCard>
+              </BeamCard>
             </Reveal>
             <Reveal variant="up" delay={80}>
+              <BeamCard
+                mode="hover"
+                colorVariant="colorful"
+                hue={275}
+                theme="light"
+                strength={0.5}
+              >
               <FlatCard className="h-full p-8">
                 <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
                   From tutors on the platform
@@ -526,6 +567,7 @@ export default async function Home() {
                   ))}
                 </div>
               </FlatCard>
+              </BeamCard>
             </Reveal>
           </div>
         </Container>
@@ -560,6 +602,14 @@ export default async function Home() {
 
           {tutors.length === 0 ? (
             <Reveal variant="blur">
+              <BeamCard
+                mode="always"
+                size="pulse-inner"
+                colorVariant="colorful"
+                hue={275}
+                theme="light"
+                strength={0.35}
+              >
               <div className="mt-12 rounded-[2px] border border-dashed border-slate-300 bg-slate-50/60 p-14 text-center">
                 <p className="text-slate-600">
                   Our first tutor profiles are going through review right now.
@@ -575,6 +625,7 @@ export default async function Home() {
                   .
                 </p>
               </div>
+              </BeamCard>
             </Reveal>
           ) : (
             <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
