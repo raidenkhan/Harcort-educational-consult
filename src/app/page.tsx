@@ -6,7 +6,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import { listApprovedTutors } from "@/services/tutors/queries";
+import { safeListApprovedTutors } from "@/services/tutors/queries";
 import { listCourses } from "@/services/courses/queries";
 import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
@@ -115,7 +115,7 @@ function FlatCard({
 
 export default async function Home() {
   const [tutors, courses, currentProfile] = await Promise.all([
-    listApprovedTutors(),
+    safeListApprovedTutors(),
     listCourses(),
     getCurrentProfile(),
   ]);

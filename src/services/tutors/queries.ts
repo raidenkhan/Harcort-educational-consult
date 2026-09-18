@@ -41,12 +41,22 @@ export const listApprovedTutors = unstable_cache(
   async (): Promise<TutorListing[]> => {
     const supabase = createAdminClient();
 
-    const { data } = await supabase
+    // error MUST be checked: on a transient failure (cold start, network
+    // blip, stale service key) `data` is null and returning [] here would
+    // let unstable_cache cache the empty array — production then shows
+    // "0 approved tutors" for up to 5 minutes while the DB has tutors.
+    // Throwing keeps the failure out of the cache so the next request
+    // refetches (and surfaces the problem instead of publishing a lie).
+    const { data, error } = await supabase
       .from("tutor_profiles")
       .select("*, profiles(*), tutor_services(*, courses(*))")
       .eq("verification_status", "approved")
       .neq("profiles.role", "student")
       .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error(`listApprovedTutors: ${error.message}`);
+    }
 
     return (data ?? []).map((row: TutorProfileRow) => {
       const services = (row.tutor_services ?? []) as ServiceRow[];
@@ -79,6 +89,21 @@ export const listApprovedTutors = unstable_cache(
   ["approved-tutors"],
   { revalidate: 300, tags: ["tutors"] },
 );
+
+/**
+ * Non-throwing variant for public pages: a transient DB failure degrades
+ * ONE request (logged, empty list) instead of 500ing the marketing page —
+ * and because the cached fn throws on error, the empty result is never
+ * cached, so the very next request refetches.
+ */
+export async function safeListApprovedTutors(): Promise<TutorListing[]> {
+  try {
+    return await listApprovedTutors();
+  } catch (error) {
+    console.error("[tutors] listApprovedTutors failed:", error);
+    return [];
+  }
+}
 
 export async function getOwnTutorProfile(): Promise<{
   profile: TutorProfile | null;

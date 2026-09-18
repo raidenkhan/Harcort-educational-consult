@@ -1,5 +1,5 @@
 import { Users } from "lucide-react";
-import { listApprovedTutors } from "@/services/tutors/queries";
+import { safeListApprovedTutors } from "@/services/tutors/queries";
 import { SITE_NAME } from "@/lib/site";
 import { getCurrentProfile } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
@@ -30,7 +30,7 @@ export const metadata = {
 
 export default async function TutorsPage() {
   const [tutors, profile] = await Promise.all([
-    listApprovedTutors(),
+    safeListApprovedTutors(),
     getCurrentProfile(),
   ]);
 
