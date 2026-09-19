@@ -86,6 +86,7 @@
   --animate-fade-up: fade-up 600ms var(--ease-out) both;
   --animate-modal-in: modal-in 260ms var(--ease-out);
   --animate-marquee: marquee 32s linear infinite;
+  --animate-play-pulse: play-pulse 2.8s var(--ease-out) infinite;
 
   /* Animated gradient backdrop (components/ui/AnimatedGradient.tsx) */
   --animate-gradient-first: move-vertical 30s ease infinite;
@@ -108,6 +109,14 @@
   }
   @keyframes marquee {
     to { transform: translateX(-50%); }
+  }
+  /* Testimonial play affordance: a squared "sonar" ring that expands off the
+     play chip. It draws the eye to the one thing on the band that wants a
+     click without resorting to a bouncing arrow; the global
+     prefers-reduced-motion override at the bottom of this file neutralises it. */
+  @keyframes play-pulse {
+    0% { transform: scale(1); opacity: 0.6; }
+    70%, 100% { transform: scale(1.9); opacity: 0; }
   }
   /* PerspectiveGrid shimmer. grid-pan drifts background-position by exactly
      one 56px tile per loop (the background repeats at 56px, so the loop is

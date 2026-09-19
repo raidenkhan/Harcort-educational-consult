@@ -32,6 +32,7 @@ import { BounceDeck } from "@/components/home/BounceDeck";
 import { HarcourtUniversity, LESSONS } from "@/components/home/HarcourtUniversity";
 import FloatingLines from "@/components/home/FloatingLines";
 import { BeamCard } from "@/components/home/BeamCard";
+import { VideoTestimonial } from "@/components/home/VideoTestimonial";
 
 /**
  * Public landing page — targets Ghanaian students, KNUST engineering first.
@@ -49,6 +50,31 @@ export const dynamic = "force-dynamic";
  * Business-history figure — update by hand when the channel grows.
  */
 const FREE_LESSONS_PUBLISHED = "30+";
+
+/**
+ * Student testimonial video.
+ *
+ * Hosted on the video platform (unlisted) rather than in /public: the hosts
+ * serve an adaptive-bitrate stream, so a viewer on a weak mobile connection
+ * gets a lower-quality rendition instead of a stalling buffer — a single
+ * fixed-bitrate MP4 either fits the connection or it doesn't. It also keeps
+ * a ~45MB master out of the repo and off every deploy.
+ *
+ * Paste the id out of the share URL (youtube.com/watch?v=<id>) and the band
+ * renders directly below the tutor list. While `id` is empty the whole
+ * section is skipped, so nothing half-built ever goes live.
+ *
+ * `name` / `detail` are optional attribution — leave them blank rather than
+ * inventing one; the band simply omits the line.
+ */
+const TESTIMONIAL = {
+  // https://youtu.be/ULll1Nglehw — unlisted, so it never shows on the channel
+  // or in YouTube search, but embeds fine. Verified serving 144p/360p/720p,
+  // which is the adaptive ladder that keeps weak connections playing.
+  id: "ULll1Nglehw",
+  name: "",
+  detail: "",
+};
 
 /**
  * Structured data (schema.org JSON-LD) — tells search engines and AI
@@ -688,6 +714,84 @@ export default async function Home() {
           )}
         </Container>
       </section>
+
+      {/* ── Student testimonial (ink stage) ───────────────────────── */}
+      {/* The one dark band in the light body. Letter's convention is a dark
+          stage for the single subject of a section — here, a real student —
+          and it puts the proof immediately before the ask. Rendered only
+          once TESTIMONIAL.id is set; see the constant at the top of the file
+          for why the video lives on a platform instead of in /public. */}
+      {TESTIMONIAL.id && (
+        <section
+          id="testimonial"
+          className="relative scroll-mt-24 border-t border-petrol-800 bg-petrol-950"
+        >
+          <Container className="py-20 sm:py-28">
+            {/* Gallery arrangement — the label plate sits beside the exhibit
+                instead of centred above it, which is what made the first pass
+                read as a generic video box. Letter's split content section:
+                copy left, media right. On small screens the copy stacks first
+                and the video follows. */}
+            <div className="grid items-center gap-12 lg:grid-cols-5 lg:gap-16">
+              <div className="lg:col-span-2">
+                <Reveal variant="left">
+                  <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-lilac-100/70">
+                    Student stories
+                  </p>
+                  <h2 className="mt-3 font-display text-3xl font-semibold tracking-[0.01em] text-white sm:text-4xl">
+                    From stuck to understood
+                  </h2>
+                  <p className="mt-4 text-base leading-relaxed text-lilac-100/80">
+                    A student on what changed once there was structured support
+                    on the course that was causing the trouble.
+                  </p>
+                </Reveal>
+
+                {/* Museum plaque — hairline rule, then name and course.
+                    Rendered only when there is something true to print. */}
+                {(TESTIMONIAL.name || TESTIMONIAL.detail) && (
+                  <Reveal variant="left" delay={80}>
+                    <div className="mt-10 border-t border-lilac-100/20 pt-5">
+                      {TESTIMONIAL.name && (
+                        <p className="font-display text-lg font-semibold text-white">
+                          {TESTIMONIAL.name}
+                        </p>
+                      )}
+                      {TESTIMONIAL.detail && (
+                        <p className="mt-1 text-[13px] uppercase tracking-[0.14em] text-lilac-100/60">
+                          {TESTIMONIAL.detail}
+                        </p>
+                      )}
+                    </div>
+                  </Reveal>
+                )}
+              </div>
+
+              {/* The exhibit — beam-lit frame so the video reads as the one
+                  lit object on a dark stage. */}
+              <Reveal variant="right" delay={100} className="lg:col-span-3">
+                <BeamCard
+                  mode="always"
+                  size="md"
+                  colorVariant="colorful"
+                  hue={275}
+                  theme="dark"
+                  strength={0.45}
+                  borderRadius={2}
+                >
+                  <VideoTestimonial
+                    provider="youtube"
+                    videoId={TESTIMONIAL.id}
+                    title="Student testimonial — Harcourt Educational Consult"
+                    label="Watch the story"
+                    duration="1:00"
+                  />
+                </BeamCard>
+              </Reveal>
+            </div>
+          </Container>
+        </section>
+      )}
 
       {/* ── CTA band (Mist) ───────────────────────────────────────── */}
       {/* Letter: filled action carries the brand accent; the low-commitment

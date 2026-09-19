@@ -21,6 +21,13 @@ const contentSecurityPolicy = [
   "font-src 'self' data:",
   "connect-src 'self'",
   "form-action 'self'",
+  // Video testimonial facade: the third-party player is requested only
+  // after the play button is pressed. `frame-src` does NOT inherit
+  // `img-src`/`script-src` — it falls back to `default-src 'self'`, so
+  // without this line the embed is blocked outright. youtube-nocookie is
+  // used for playback (no tracking cookies until play); vimeo is the
+  // alternative host.
+  "frame-src https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com",
   // OAuth is a top-level redirect, not an embed.
   "frame-ancestors 'none'",
   "base-uri 'self'",

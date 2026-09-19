@@ -41,6 +41,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Raw video/audio masters — working files, uploaded to the video platform and
+# never served or committed. A multi-MB master in /public would be published at
+# a public URL AND copied into every deploy; in git it would sit in history
+# forever, since commits are additive. Keep masters here, reference the hosted
+# player by id instead (see TESTIMONIAL in src/app/page.tsx).
+/media/
+
 # saved-page dumps (webpack chunks / saved design pages from a browser save tool)
 sn-*.js
 sn-*.css
