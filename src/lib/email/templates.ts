@@ -237,3 +237,125 @@ export function passwordResetEmail(opts: {
   );
   return { subject, text, html };
 }
+
+// ---------------------------------------------------------------------------
+// Payments (drained from notification_outbox — see lib/email/outbox.ts)
+// ---------------------------------------------------------------------------
+
+/** Audience → the page they should land on. */
+function paymentUrl(audience: string): string {
+  if (audience === "tutor") return `${process.env.APP_URL ?? ""}/tutor`;
+  if (audience === "admin") return `${process.env.APP_URL ?? ""}/admin`;
+  return `${process.env.APP_URL ?? ""}/dashboard`;
+}
+
+/** A payment landed — student, tutor, and admins are all told. */
+export function paymentReceivedEmail(opts: {
+  audience: "student" | "tutor" | "admin";
+  installmentIdx: number;
+  amountDisplay: string;
+}): EmailMessage {
+  const url = paymentUrl(opts.audience);
+  const line =
+    opts.audience === "student"
+      ? `Your payment of <strong>${escapeHtml(opts.amountDisplay)}</strong> (installment ${opts.installmentIdx} of 2) was received. Thank you.`
+      : opts.audience === "tutor"
+        ? `A payment of <strong>${escapeHtml(opts.amountDisplay)}</strong> (installment ${opts.installmentIdx} of 2) was received for one of your engagements.`
+        : `Installment ${opts.installmentIdx} of 2 paid: <strong>${escapeHtml(opts.amountDisplay)}</strong>.`;
+  const label = opts.audience === "admin" ? "Open payments" : "Open my dashboard";
+  return {
+    subject: `Payment received: ${opts.amountDisplay}`,
+    text: `Payment received: ${opts.amountDisplay} (installment ${opts.installmentIdx} of 2). ${url}`,
+    html: wrap("Payment received", `${p(line)}${actionButton(url, label)}`),
+  };
+}
+
+/** A student committed to a tutor's quoted course (installment plan opened). */
+export function paymentEngagementCreatedEmail(opts: {
+  audience: "tutor" | "admin";
+}): EmailMessage {
+  const url = paymentUrl(opts.audience);
+  return {
+    subject: "New payment agreement",
+    text: `A student opened a payment agreement with installment deadlines. ${url}`,
+    html: wrap(
+      "New payment agreement",
+      `${p(
+        opts.audience === "tutor"
+          ? `A student committed to your quoted course price. You'll be notified as each installment lands.`
+          : `A new student–tutor payment agreement was created.`,
+      )}${actionButton(url, opts.audience === "tutor" ? "Open my tutor page" : "Open the admin console")}`,
+    ),
+  };
+}
+
+/** The 50% gate passed — sessions can be scheduled/attended against money. */
+export function paymentEngagementActivatedEmail(opts: {
+  audience: "tutor" | "admin";
+}): EmailMessage {
+  const url = paymentUrl(opts.audience);
+  return {
+    subject: "Agreement active — first 50% paid",
+    text: `The first installment (50%) was paid and the agreement is now active. ${url}`,
+    html: wrap(
+      "Agreement active",
+      `${p(`The <strong>first 50%</strong> was paid — the payment agreement is now <strong>active</strong>.`)}${actionButton(url, opts.audience === "tutor" ? "Open my tutor page" : "Open the admin console")}`,
+    ),
+  };
+}
+
+/** Deadline passed without payment — everyone hears about it. */
+export function paymentOverdueEmail(opts: {
+  audience: "student" | "tutor" | "admin";
+  installmentIdx: number;
+  amountDisplay: string;
+}): EmailMessage {
+  const url = paymentUrl(opts.audience);
+  const line =
+    opts.audience === "student"
+      ? `Your installment ${opts.installmentIdx} of 2 (<strong>${escapeHtml(opts.amountDisplay)}</strong>) is <strong>overdue</strong>. Pay as soon as possible to keep your sessions going.`
+      : opts.audience === "tutor"
+        ? `Installment ${opts.installmentIdx} of 2 (<strong>${escapeHtml(opts.amountDisplay)}</strong>) is <strong>overdue</strong> on one of your engagements.`
+        : `Installment ${opts.installmentIdx} of 2 (<strong>${escapeHtml(opts.amountDisplay)}</strong>) is overdue.`;
+  return {
+    subject: `Overdue payment: ${opts.amountDisplay}`,
+    text: `Installment ${opts.installmentIdx} of 2 (${opts.amountDisplay}) is overdue. ${url}`,
+    html: wrap("Payment overdue", `${p(line)}${actionButton(url, opts.audience === "admin" ? "Open payments" : "Open my dashboard")}`),
+  };
+}
+
+/** Payout lifecycle — requested / approved / paid / held. */
+export function payoutStatusEmail(opts: {
+  status: "requested" | "approved" | "paid" | "held";
+  amountDisplay: string;
+  reason?: string | null;
+}): EmailMessage {
+  const url = paymentUrl("tutor");
+  const map = {
+    requested: {
+      subject: `Payout requested: ${opts.amountDisplay}`,
+      title: "Payout requested",
+      line: `Your payout request of <strong>${escapeHtml(opts.amountDisplay)}</strong> was submitted${opts.reason?.includes("overdue_history") || opts.reason?.includes("cancelled_sessions") ? " and is queued for review" : ""}.`,
+    },
+    approved: {
+      subject: `Payout approved: ${opts.amountDisplay}`,
+      title: "Payout approved",
+      line: `Your payout of <strong>${escapeHtml(opts.amountDisplay)}</strong> was approved and the transfer is on its way to your mobile money account.`,
+    },
+    paid: {
+      subject: `Payout sent: ${opts.amountDisplay}`,
+      title: "Payout sent",
+      line: `<strong>${escapeHtml(opts.amountDisplay)}</strong> was sent to your mobile money account.`,
+    },
+    held: {
+      subject: "Payout on hold",
+      title: "Payout on hold",
+      line: `Your payout of <strong>${escapeHtml(opts.amountDisplay)}</strong> is on hold${opts.reason ? `: <em>${escapeHtml(opts.reason)}</em>` : ""}. Contact the Harcourt team for details.`,
+    },
+  }[opts.status];
+  return {
+    subject: map.subject,
+    text: `${map.title}: ${opts.amountDisplay}. ${url}`,
+    html: wrap(map.title, `${p(map.line)}${actionButton(url, "Open my tutor page")}`),
+  };
+}

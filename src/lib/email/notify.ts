@@ -20,8 +20,9 @@ import {
  * sends run after the response via Next's `after()`.
  */
 
-/** Best-effort send; returns the error string (or null) instead of throwing. */
-async function deliver(to: string, message: EmailMessage): Promise<string | null> {
+/** Best-effort send; returns the error string (or null) instead of throwing.
+ *  Also consumed by the notification-outbox drain (lib/email/outbox.ts). */
+export async function deliver(to: string, message: EmailMessage): Promise<string | null> {
   const client = getEmailClient();
   if (!client) return "Email isn't configured (missing RESEND_API_KEY).";
   try {
