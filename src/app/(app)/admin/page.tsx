@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/Badge";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { Input } from "@/components/ui/Fields";
 import { AdminResetCode } from "@/components/admin/AdminResetCode";
+import { AdminPaymentsConsole } from "@/components/payments/AdminPaymentsConsole";
 import { cn } from "@/lib/cn";
 import { sessionWhen } from "@/lib/time";
 import type { SessionView } from "@/services/sessions/queries";
@@ -117,6 +118,14 @@ export default async function AdminPage() {
                         {tutor.full_name || "Unnamed tutor"}
                       </h3>
                       <p className="mt-1 text-sm text-slate-500">
+                        {tutor.public_code && (
+                          <span
+                            className="mr-2 font-mono text-xs text-slate-400"
+                            title="Harcourt tracking code — quote this in support conversations"
+                          >
+                            {tutor.public_code}
+                          </span>
+                        )}
                         Applied {new Date(tutor.created_at).toLocaleDateString()} ·{" "}
                         {tutor.rate_per_hour != null
                           ? `GH₵${tutor.rate_per_hour.toLocaleString()}/hr`
@@ -279,6 +288,9 @@ export default async function AdminPage() {
             </Card>
           )}
         </section>
+
+        {/* ── Payments: payout queue + agreements oversight ─────────── */}
+        <AdminPaymentsConsole />
       </Container>
     </div>
   );

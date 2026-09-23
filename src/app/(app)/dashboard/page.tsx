@@ -14,8 +14,11 @@ import { Button } from "@/components/ui/Button";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { SessionCard } from "@/components/sessions/SessionCard";
+import { TimetableViews } from "@/components/sessions/TimetableViews";
 import { TutorProfileCta } from "@/components/tutors/TutorProfileCta";
 import { PaymentGroundRules } from "@/components/support/PaymentGroundRules";
+import { StudentPaymentsCard } from "@/components/payments/StudentPaymentsCard";
+import { StudentRequestsCard } from "@/components/payments/StudentRequestsCard";
 import { RoleSwitcher } from "@/components/auth/RoleSwitcher";
 
 /** Sessions can be ticked from 15 minutes before their start time. */
@@ -76,13 +79,39 @@ export default async function DashboardPage() {
         <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
           Dashboard
         </p>
-        <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-slate-900">
-          Welcome, {profile.full_name.split(" ")[0]}.
-        </h1>
-        <p className="mt-2 max-w-xl text-slate-600">{roleHeading[profile.role]}</p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-slate-900">
+              Welcome, {profile.full_name.split(" ")[0]}.
+            </h1>
+            <p className="mt-2 max-w-xl text-slate-600">{roleHeading[profile.role]}</p>
+          </div>
+          {profile.public_code && (
+            <p
+              className="rounded-md border border-slate-200 bg-white/70 px-3 py-1.5 font-mono text-xs tracking-wide text-slate-500"
+              title="Your Harcourt tracking code — quote it whenever you contact support or an admin about payments"
+            >
+              {profile.public_code}
+            </p>
+          )}
+        </div>
 
         {/* Payment ground rules — the admin-only-payments policy, front and center. */}
         {profile.role === "student" && <PaymentGroundRules className="mt-8" />}
+
+        {/* Requests first (request-first flow), then the money view. */}
+        {profile.role === "student" && (
+          <div className="mt-10">
+            <StudentRequestsCard />
+          </div>
+        )}
+
+        {/* The money view: engagements + 50/50 installments + pay buttons. */}
+        {profile.role === "student" && (
+          <div className="mt-10">
+            <StudentPaymentsCard />
+          </div>
+        )}
 
         <div className="mt-10 grid gap-6 sm:grid-cols-2">
           {profile.role === "student" && (
@@ -222,7 +251,12 @@ export default async function DashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="mt-6 space-y-4">
+              <TimetableViews
+                sessions={studentSessions}
+                now={studentTimetable!.now}
+                counterpartLabel="tutor"
+                listView={
+                <div className="mt-6 space-y-4">
                 {upcomingSessions.map((session) => (
                   <SessionCard
                     key={session.id}
@@ -249,6 +283,8 @@ export default async function DashboardPage() {
                   </div>
                 )}
               </div>
+                }
+              />
             )}
           </section>
         )}

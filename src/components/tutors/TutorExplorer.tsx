@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Search, GraduationCap, ShieldCheck, SearchX } from "lucide-react";
 import type { TutorListing } from "@/services/tutors/queries";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
+import { RequestTutorButton } from "@/components/payments/RequestTutorButton";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
@@ -160,8 +161,17 @@ function TutorCard({
   const { tutorProfile: tp, profile, services, courses } = tutor;
   const courseNames = new Map(courses.map((c) => [c.id, c.name]));
   const offerings = services
-    .map((s) => ({ name: courseNames.get(s.course_id) ?? null, price: s.price }))
-    .filter((o): o is { name: string; price: number } => o.name !== null);
+    .map((s) => ({
+      serviceId: s.id,
+      name: courseNames.get(s.course_id) ?? null,
+      price: s.price,
+    }))
+    .filter((o): o is { serviceId: string; name: string; price: number } => o.name !== null);
+  const offeringsForRequest = offerings.map((o) => ({
+    courseId: services.find((s) => s.id === o.serviceId)?.course_id ?? "",
+    name: o.name,
+    price: o.price,
+  }));
 
   return (
     <Card hover className="flex flex-col">
@@ -208,18 +218,26 @@ function TutorCard({
       )}
 
       {offerings.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {offerings.slice(0, 4).map((o, i) => (
-            <span
-              key={`${o.name}-${i}`}
-              className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-xs"
+        <div className="mt-4 space-y-2">
+          {offerings.slice(0, 3).map((o) => (
+            <div
+              key={o.serviceId}
+              className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-xs"
             >
-              {o.name}
-              <span className="text-brand-700"> · GH₵{o.price.toLocaleString()}</span>
-            </span>
+              <span className="min-w-0 truncate text-xs font-medium text-slate-700">
+                {o.name}
+                <span className="text-brand-700"> · GH₵{o.price.toLocaleString()}</span>
+              </span>
+              <RequestTutorButton
+                tutorProfileId={tp.id}
+                offerings={offeringsForRequest}
+                signedIn={signedIn}
+                className="inline-flex h-7 shrink-0 items-center rounded-md bg-brand-600 px-2.5 text-[11px] font-semibold text-white shadow-xs transition hover:bg-brand-700 active:scale-[0.97]"
+              />
+            </div>
           ))}
-          {offerings.length > 4 && (
-            <Badge>+{offerings.length - 4} more</Badge>
+          {offerings.length > 3 && (
+            <p className="text-xs text-slate-500">+{offerings.length - 3} more courses offered</p>
           )}
         </div>
       )}

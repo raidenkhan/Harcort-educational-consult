@@ -58,3 +58,19 @@ export function chatDay(ts: number, now: number): string {
   if (chatDayKey(ts) === chatDayKey(now - 86_400_000)) return "Yesterday";
   return formatInTz(new Date(ts), { day: "numeric", month: "short" });
 }
+
+// ---------------------------------------------------------------------------
+// Payment deadlines
+// ---------------------------------------------------------------------------
+
+/** "Due 30 Sep" — Accra-day deadline label for installment rows. */
+export function dueDateLabel(date: Date): string {
+  return `Due ${formatInTz(date, { day: "numeric", month: "short" })}`;
+}
+
+/** Is the Accra-day deadline before today's Accra day? (overdue check) */
+export function isOverdue(date: Date, now: number): boolean {
+  return chatDayKey(date.getTime()) < chatDayKey(now);
+}
+
+

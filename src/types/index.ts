@@ -25,6 +25,9 @@ export interface Profile {
   /** Null until a brand-new Google account finishes the one-time role pick
    *  (0010). Email sign-ups and linked/backfilled accounts are always set. */
   onboarding_completed_at?: string | null;
+  /** Human-quotable tracking code (0012) — HC-S-… for students, HC-T-… for
+   *  tutors. Support/WhatsApp reference; never a secret. */
+  public_code?: string | null;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;

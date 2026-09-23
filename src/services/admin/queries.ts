@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export interface PendingTutorRow {
   id: string;
   full_name: string;
+  public_code: string | null;
   bio: string | null;
   rate_per_hour: number | null;
   created_at: string;
@@ -18,7 +19,7 @@ interface TutorProfileRow {
   bio: string | null;
   rate_per_hour: number | null;
   created_at: string;
-  profiles: { full_name: string } | { full_name: string }[];
+  profiles: { full_name: string; public_code: string | null } | { full_name: string; public_code: string | null }[];
 }
 
 export async function listPendingTutors(): Promise<PendingTutorRow[]> {
@@ -26,13 +27,14 @@ export async function listPendingTutors(): Promise<PendingTutorRow[]> {
 
   const { data } = await supabase
     .from("tutor_profiles")
-    .select("id, bio, rate_per_hour, created_at, profiles(full_name)")
+    .select("id, bio, rate_per_hour, created_at, profiles(full_name, public_code)")
     .eq("verification_status", "pending")
     .order("created_at", { ascending: true });
 
   return (data ?? []).map((row: TutorProfileRow) => ({
     id: row.id,
     full_name: Array.isArray(row.profiles) ? row.profiles[0]?.full_name : row.profiles?.full_name,
+    public_code: Array.isArray(row.profiles) ? row.profiles[0]?.public_code ?? null : row.profiles?.public_code ?? null,
     bio: row.bio,
     rate_per_hour: row.rate_per_hour,
     created_at: row.created_at,

@@ -9,11 +9,15 @@ import {
 import { TutorProfileForm } from "@/components/tutor/TutorProfileForm";
 import { TutorServiceForm } from "@/components/tutor/TutorServiceForm";
 import { SessionCard } from "@/components/sessions/SessionCard";
+import { TimetableViews } from "@/components/sessions/TimetableViews";
 import { ScheduleSessionModal } from "@/components/sessions/ScheduleSessionModal";
 import { Container } from "@/components/ui/Container";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
+import { TutorEarningsCard } from "@/components/payments/TutorEarningsCard";
+import { TutorRequestsInbox } from "@/components/payments/TutorRequestsInbox";
+import { TutorRoster } from "@/components/payments/TutorRoster";
 import type { TutorService } from "@/types";
 
 /** Sessions can be ticked from 15 minutes before their start time. */
@@ -176,6 +180,11 @@ export default async function TutorPage() {
           </div>
 
           <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <TimetableViews
+              sessions={sessions}
+              now={now}
+              counterpartLabel="student"
+              listView={
             <div className="space-y-4">
               {upcoming.length === 0 && past.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-14 text-center">
@@ -215,6 +224,8 @@ export default async function TutorPage() {
                 </>
               )}
             </div>
+              }
+            />
 
             <div>
               <Card className="lg:sticky lg:top-24">
@@ -245,6 +256,37 @@ export default async function TutorPage() {
               </Card>
             </div>
           </div>
+        </section>
+
+        {/* ── Tutoring requests ───────────────────────────────── */}
+        <section className="mt-16">
+          <TutorRequestsInbox />
+        </section>
+
+        {/* ── My students (roster) ───────────────────────────── */}
+        <section className="mt-16">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
+                Roster
+              </p>
+              <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-slate-900">
+                My students
+              </h2>
+              <p className="mt-1 max-w-xl text-sm text-slate-600">
+                Everyone you&apos;re working with — their payment progress,
+                the topics you&apos;ve finished, and your next meetings.
+              </p>
+            </div>
+          </div>
+          <div className="mt-8">
+            <TutorRoster />
+          </div>
+        </section>
+
+        {/* ── Earnings & payouts ──────────────────────────────────── */}
+        <section className="mt-16">
+          <TutorEarningsCard />
         </section>
       </Container>
     </div>

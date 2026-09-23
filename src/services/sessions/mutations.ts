@@ -70,17 +70,44 @@ export async function createSession(
     };
   }
 
-  // Tutors may only schedule with students who have actually contacted them.
-  const { data: conversation } = await supabase
-    .from("conversations")
+  // Tutors may only schedule with students who are formally theirs: an
+  // ACCEPTED tutor request (0012 flow) or an existing engagement (payment
+  // agreement). Chat remains open to everyone; scheduling is not.
+  const tutorProfileIdForGuard = (tutorProfile as { id: string }).id;
+  const { data: acceptedRequest } = await supabase
+    .from("tutor_requests")
     .select("id")
-    .eq("tutor_profile_id", (tutorProfile as { id: string }).id)
+    .eq("tutor_profile_id", tutorProfileIdForGuard)
     .eq("student_id", parsed.data.studentId)
+    .eq("status", "accepted")
     .maybeSingle();
 
-  if (!conversation) {
+  let scheduled = Boolean(acceptedRequest);
+  if (!scheduled) {
+    const { data: engagement } = await supabase
+      .from("engagements")
+      .select("id")
+      .eq("tutor_profile_id", tutorProfileIdForGuard)
+      .eq("student_id", parsed.data.studentId)
+      .in("status", ["pending_payment", "active", "completed"])
+      .maybeSingle();
+    scheduled = Boolean(engagement);
+  }
+  if (!scheduled) {
+    // Legacy pairs (pre-0012 conversations) still schedule.
+    const { data: conversation } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("tutor_profile_id", tutorProfileIdForGuard)
+      .eq("student_id", parsed.data.studentId)
+      .maybeSingle();
+    scheduled = Boolean(conversation);
+  }
+
+  if (!scheduled) {
     return {
-      error: "You can only schedule sessions with students who have reached out to you.",
+      error:
+        "You can only schedule with accepted students — accept their tutoring request first.",
     };
   }
 
