@@ -359,3 +359,40 @@ export function payoutStatusEmail(opts: {
     html: wrap(map.title, `${p(map.line)}${actionButton(url, "Open my tutor page")}`),
   };
 }
+
+/** Emailed to admins when a user files a report (so it never sits unseen). */
+export function reportFiledEmail(opts: {
+  reporterName: string;
+  targetType: string;
+  reasonPreview: string;
+}): EmailMessage {
+  const subject = `New report filed: ${opts.targetType}`;
+  const text = `${opts.reporterName} filed a report about a ${opts.targetType}.\n\n"${opts.reasonPreview}"\n\nReview it in the admin console.`;
+  const html = wrap(
+    "New report filed",
+    `${p(`<strong>${escapeHtml(opts.reporterName)}</strong> filed a report about a <strong>${escapeHtml(opts.targetType)}</strong>.`)}${p(`<em>"${escapeHtml(opts.reasonPreview)}"</em>`)}${actionButton(`${process.env.APP_URL ?? ""}/admin/support`, "Review reports")}`,
+  );
+  return { subject, text, html };
+}
+
+/** Emailed to the reporter when their report is resolved or dismissed. */
+export function reportResolvedEmail(opts: {
+  decision: "resolved" | "dismissed";
+  targetType: string;
+  note: string | null;
+}): EmailMessage {
+  const subject =
+    opts.decision === "resolved"
+      ? "Your report was resolved"
+      : "Update on your report";
+  const headline =
+    opts.decision === "resolved"
+      ? "We've reviewed the reported content and taken action."
+      : "We've reviewed the reported content. After looking into it, we didn't find a violation of our rules — but we appreciate you flagging it.";
+  const text = `${headline}${opts.note ? `\n\nNote from the team: ${opts.note}` : ""}\n\nThank you for helping keep Harcourt safe.`;
+  const html = wrap(
+    "Update on your report",
+    `${p(headline)}${opts.note ? p(`Note from the team: <em>${escapeHtml(opts.note)}</em>`) : ""}${p("Thank you for helping keep Harcourt safe.")}`,
+  );
+  return { subject, text, html };
+}

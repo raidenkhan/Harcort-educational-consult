@@ -1,7 +1,6 @@
 import { requireRole } from "@/services/auth/queries";
 import { AdminResetCode } from "@/components/admin/AdminResetCode";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { ReportsQueue } from "@/components/admin/ReportsQueue";
 
 /**
  * Support tab — out-of-band help tools. Password reset codes today; the
@@ -24,21 +23,7 @@ export default async function AdminSupportPage() {
         <AdminResetCode />
       </div>
 
-      <div className="mt-14">
-        <h2 className="font-display text-xl font-bold tracking-tight text-slate-900">
-          Reports moderation
-        </h2>
-        <p className="mt-1 max-w-xl text-sm text-slate-600">
-          Student and tutor reports land here for review.
-        </p>
-        <Card className="mt-6 flex items-center justify-between gap-4">
-          <p className="text-sm text-slate-500">
-            The moderation UI isn&apos;t built yet — reports currently exist in
-            the database only.
-          </p>
-          <Badge tone="neutral">Coming soon</Badge>
-        </Card>
-      </div>
+      <ReportsQueue />
     </section>
   );
 }

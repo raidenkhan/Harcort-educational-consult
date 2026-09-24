@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Check, Inbox, Loader2, MessageCircle, Send } from "lucide-react";
 import { sendMessage, type ConversationFormState } from "@/services/chat/mutations";
+import { ReportMessageButton } from "@/components/chat/ReportMessageButton";
 import type { ConversationListItem } from "@/services/chat/queries";
 import type { Message } from "@/types";
 import { Badge } from "@/components/ui/Badge";
@@ -64,7 +65,7 @@ function buildRows(messages: Message[], now: number): Row[] {
   return rows;
 }
 
-/** One message bubble. Pure render of a single message — no state. */
+/** One message bubble. Pure render of a single message — no state except the report flag. */
 function MessageRow({
   message,
   myId,
@@ -77,7 +78,7 @@ function MessageRow({
 }) {
   const mine = message.sender_id === myId;
   return (
-    <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
+    <div className={cn("group flex", mine ? "justify-end" : "justify-start")}>
       <div
         className={cn(
           "max-w-[78%] rounded-lg px-3.5 py-2 shadow-xs",
@@ -89,7 +90,11 @@ function MessageRow({
         <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
           {message.body}
         </p>
-        <p className="mt-1 flex items-center justify-end gap-1 text-right text-[11px] text-slate-400">
+        <p className="mt-1 flex items-center justify-end gap-1.5 text-right text-[11px] text-slate-400">
+          {/* Never report your own message or an admin's. */}
+          {!mine && !fromAdmin && (
+            <ReportMessageButton messageId={message.id} className="rounded p-0.5 text-slate-300 opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100" />
+          )}
           {mine && <Check className="h-3 w-3" />}
           {fromAdmin && <VerifiedBadge className="h-3.5 w-3.5" />}
           {chatTime(new Date(message.created_at))}
