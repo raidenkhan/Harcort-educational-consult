@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -8,13 +9,24 @@ import { cn } from "@/lib/cn";
  * The app's one dialog primitive — every popup goes through this so the
  * a11y + behaviour can never drift between call sites:
  *
- *  - body scroll locks while open (the page behind can't scroll — this was
- *    the cause of the "glitching" overlay: the FloatingNav + gradient
- *    backdrop re-rendered on every scroll frame behind the dialog)
+ *  - PORTAL to document.body. Load-bearing: cards in this app use hover
+ *    transforms (`hover:-translate-y-0.5`), and a CSS transform on any
+ *    ancestor makes `position: fixed` relative to that ancestor instead of
+ *    the viewport — the overlay would resize between card-bounds and
+ *    viewport-bounds as the cursor moved in and out of the card. The
+ *    flicker on the /tutors request dialog was exactly this.
+ *  - body scroll locks while open, with the scrollbar width compensated as
+ *    padding so locking doesn't shift the whole page sideways (very visible
+ *    on Windows where the scrollbar takes real width).
  *  - Escape closes via a document listener (works even if focus is elsewhere,
  *    e.g. right after opening, before the user tabs in)
  *  - focus moves into the panel on open, restored on close
  *  - backdrop click closes; clicks inside the panel never bubble to it
+ *
+ * The backdrop is a plain dim, deliberately NOT backdrop-blur: a full-screen
+ * blur re-repaints every frame while anything animated sits beneath it
+ * (AnimatedGradient hero on /tutors), and the dim + panel shadow carries the
+ * separation fine.
  *
  * Server-render friendly: callers render `{open && <Modal>…</Modal>}` so the
  * overlay only exists while open.
@@ -42,7 +54,14 @@ export function Modal({
     if (!open) return;
 
     const prevOverflow = document.body.style.overflow;
+    const prevPaddingRight = document.body.style.paddingRight;
     const prevFocus = document.activeElement as HTMLElement | null;
+
+    // Compensate the scrollbar so the page doesn't jump sideways on lock.
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
 
     panelRef.current?.focus();
     document.body.style.overflow = "hidden";
@@ -55,13 +74,22 @@ export function Modal({
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
+      document.body.style.paddingRight = prevPaddingRight;
       prevFocus?.focus?.();
     };
-  }, [open, onClose]);
+    // NOTE: onClose must be stable across renders for this effect to be
+    // cheap; callers pass a setState arrow which React treats as new every
+    // render, but the effect body is idempotent so re-runs are harmless.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
-  if (!open) return null;
+  // typeof-document guard: open state is client-only in practice, but a
+  // portal into document.body must never run during SSR.
+  if (!open || typeof document === "undefined") return null;
 
-  return (
+  // The portal is what keeps the overlay viewport-anchored: it lifts the
+  // dialog out of any transformed (hover-lifted) ancestor card.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
@@ -69,9 +97,9 @@ export function Modal({
       aria-label={title}
     >
       {/* Backdrop is a separate layer so clicks on it close, clicks inside
-          the panel never reach it. */}
+          the panel never reach it. Plain dim — see the blur note above. */}
       <div
-        className="absolute inset-0 animate-fade-in bg-slate-950/50 backdrop-blur-sm"
+        className="absolute inset-0 animate-fade-in bg-slate-950/50"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -102,6 +130,7 @@ export function Modal({
 
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
