@@ -716,7 +716,8 @@ begin
     status, flag_reason, recipient_code, released_by
   ) values (
     p_engagement_id, v_engagement.tutor_profile_id, v_share, v_fee,
-    case when v_flagged then 'pending_review' else 'approved' end,
+    case when v_flagged then 'pending_review'::public.payout_status
+         else 'approved'::public.payout_status end,
     case when v_flagged then v_flags::text else null end,
     v_recipient,
     case when v_flagged and v_actor_role = 'admin' then actor_id else null end

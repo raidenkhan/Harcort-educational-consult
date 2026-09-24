@@ -255,7 +255,10 @@ begin
   end if;
 
   update public.tutor_requests
-    set status = case when p_accept then 'accepted' else 'declined' end,
+    set status = case when p_accept
+                      then 'accepted'::public.tutor_request_status
+                      else 'declined'::public.tutor_request_status
+                 end,
         responded_at = now(),
         updated_at = now()
     where id = p_request_id;
