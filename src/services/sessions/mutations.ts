@@ -137,7 +137,7 @@ export async function createSession(
     location: parsed.data.location ?? null,
   });
 
-  revalidatePath("/tutor");
+  revalidatePath("/tutor", "layout");
   revalidatePath("/dashboard");
   return { message: "Session scheduled. It now shows on both your and the student's timetable." };
 }
@@ -243,7 +243,7 @@ export async function confirmSessionAttendance(
     studentTick: Boolean(sessionRow.student_confirmed_at) || profile.role === "student",
   });
 
-  revalidatePath("/tutor");
+  revalidatePath("/tutor", "layout");
   revalidatePath("/dashboard");
   revalidatePath("/admin");
   return { message: "Attendance confirmed." };
@@ -332,7 +332,7 @@ export async function cancelSession(
     }
   }
 
-  revalidatePath("/tutor");
+  revalidatePath("/tutor", "layout");
   revalidatePath("/dashboard");
   revalidatePath("/admin");
   return { message: "Session cancelled." };

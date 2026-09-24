@@ -101,7 +101,7 @@ export async function respondTutorRequest(
   if (error) return { error: friendlyError(rpcError(error)) };
 
   scheduleOutboxDrain();
-  revalidatePath("/tutor");
+  revalidatePath("/tutor", "layout");
   revalidatePath("/dashboard");
   return {
     message: parsed.data.accept

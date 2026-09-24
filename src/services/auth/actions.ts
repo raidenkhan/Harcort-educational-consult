@@ -177,7 +177,7 @@ export async function switchRoleAction(
   revalidateTag("tutors", "max");
   revalidatePath("/dashboard");
   revalidatePath("/");
-  revalidatePath("/tutor");
+  revalidatePath("/tutor", "layout");
   revalidatePath("/admin");
 
   return {
@@ -221,7 +221,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
   revalidateTag("tutors", "max");
   revalidatePath("/dashboard");
   revalidatePath("/");
-  revalidatePath("/tutor");
+  revalidatePath("/tutor", "layout");
   revalidatePath("/onboarding");
 
   redirect("/dashboard");

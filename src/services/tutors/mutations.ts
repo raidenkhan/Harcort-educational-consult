@@ -69,7 +69,7 @@ export async function submitTutorProfile(
 
   // Bio/rate render on the (cached) landing page — bust the tag.
   revalidateTag("tutors", "max");
-  revalidatePath("/tutor");
+  revalidatePath("/tutor", "layout");
   revalidatePath("/dashboard");
   revalidatePath("/");
   return { message: "Profile saved. An admin will review it shortly." };
@@ -112,7 +112,7 @@ export async function addTutorService(
 
   // Courses/prices render on the (cached) landing page — bust the tag.
   revalidateTag("tutors", "max");
-  revalidatePath("/tutor");
+  revalidatePath("/tutor", "layout");
   revalidatePath("/");
   return { message: "Course added to your services." };
 }

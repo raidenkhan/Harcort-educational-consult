@@ -382,7 +382,7 @@ export async function savePayoutAccount(
       { onConflict: "tutor_profile_id" },
     );
     if (error) return { error: `Could not save the account: ${error.message}` };
-    revalidatePath("/tutor");
+    revalidatePath("/tutor", "layout");
     return {
       message: "Saved. Payout verification will complete once payments go live.",
     };
@@ -420,7 +420,7 @@ export async function savePayoutAccount(
   );
   if (error) return { error: `Could not save the account: ${error.message}` };
 
-  revalidatePath("/tutor");
+  revalidatePath("/tutor", "layout");
   return { message: "Mobile money account saved. It will be verified before your first payout." };
 }
 
@@ -451,7 +451,7 @@ export async function requestPayout(
   if (error) return { error: friendlyError(rpcError(error)) };
 
   scheduleOutboxDrain();
-  revalidatePath("/tutor");
+  revalidatePath("/tutor", "layout");
   revalidatePath("/admin");
   return {
     message:
@@ -584,6 +584,6 @@ export async function adminExecutePayout(
 
   scheduleOutboxDrain();
   revalidatePath("/admin");
-  revalidatePath("/tutor");
+  revalidatePath("/tutor", "layout");
   return { message: "Transfer sent." };
 }
