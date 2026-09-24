@@ -245,7 +245,7 @@ export async function confirmSessionAttendance(
 
   revalidatePath("/tutor", "layout");
   revalidatePath("/dashboard");
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return { message: "Attendance confirmed." };
 }
 
@@ -334,6 +334,6 @@ export async function cancelSession(
 
   revalidatePath("/tutor", "layout");
   revalidatePath("/dashboard");
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return { message: "Session cancelled." };
 }

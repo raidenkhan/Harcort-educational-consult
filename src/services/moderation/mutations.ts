@@ -48,6 +48,6 @@ export async function fileReport(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return { message: "Report submitted. Thank you for helping keep Harcourt safe." };
 }

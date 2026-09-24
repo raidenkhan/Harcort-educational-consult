@@ -92,7 +92,7 @@ export async function createEngagement(
 
   scheduleOutboxDrain();
   revalidatePath("/dashboard");
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return {
     message:
       "Agreement created — pay the first installment (50%) to activate your sessions.",
@@ -452,7 +452,7 @@ export async function requestPayout(
 
   scheduleOutboxDrain();
   revalidatePath("/tutor", "layout");
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return {
     message:
       "Payout requested. Clean completions release automatically; flagged ones go to the admin queue.",
@@ -483,7 +483,7 @@ export async function adminReleasePayout(
   if (error) return { error: friendlyError(rpcError(error)) };
 
   scheduleOutboxDrain();
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return { message: "Payout approved — the transfer can proceed." };
 }
 
@@ -510,7 +510,7 @@ export async function adminHoldPayout(
   if (error) return { error: friendlyError(rpcError(error)) };
 
   scheduleOutboxDrain();
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return { message: "Payout held." };
 }
 
@@ -583,7 +583,7 @@ export async function adminExecutePayout(
   if (error) return { error: friendlyError(rpcError(error)) };
 
   scheduleOutboxDrain();
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   revalidatePath("/tutor", "layout");
   return { message: "Transfer sent." };
 }

@@ -39,7 +39,7 @@ export async function approveTutor(formData: FormData): Promise<void> {
 
   // Bust the cached approved-tutor list on the landing page.
   revalidateTag("tutors", "max");
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   revalidatePath("/");
 }
 
@@ -69,7 +69,7 @@ export async function rejectTutor(formData: FormData): Promise<void> {
 
   // Bust the cached approved-tutor list on the landing page.
   revalidateTag("tutors", "max");
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   revalidatePath("/");
 }
 

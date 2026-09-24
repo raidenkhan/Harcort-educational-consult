@@ -178,7 +178,7 @@ export async function switchRoleAction(
   revalidatePath("/dashboard");
   revalidatePath("/");
   revalidatePath("/tutor", "layout");
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
 
   return {
     message:
