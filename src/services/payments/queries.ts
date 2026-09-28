@@ -15,7 +15,11 @@ import type { Profile } from "@/types";
  */
 
 export type InstallmentStatus = "pending" | "paid" | "overdue" | "waived";
-export type PayoutStatus = "pending_review" | "approved" | "paid" | "held" | "failed";
+export type PayoutStatus = "pending_review" | "approved" | "transferring" | "paid" | "held" | "failed";
+export interface TransferRequeryRow {
+  payoutId: string;
+  transferCode: string;
+}
 
 export interface InstallmentView {
   id: string;
@@ -55,6 +59,8 @@ export interface PayoutView {
   platformFee: bigint;
   status: PayoutStatus;
   flagReason: string | null;
+  /** Paystack transfer code once a transfer has been initiated (0015). */
+  transferCode: string | null;
   paidAt: string | null;
   createdAt: string;
 }
@@ -256,7 +262,7 @@ export async function listTutorPayouts(profile: Profile): Promise<PayoutView[]> 
   const { data, error } = await supabase
     .from("payouts")
     .select(
-      `id, engagement_id, amount, platform_fee, status, flag_reason, paid_at, created_at,
+      `id, engagement_id, amount, platform_fee, status, flag_reason, transfer_code, paid_at, created_at,
        engagements!payouts_engagement_id_fkey(
          courses(name),
          profiles!engagements_student_id_fkey(full_name, public_code)
@@ -275,6 +281,7 @@ export async function listTutorPayouts(profile: Profile): Promise<PayoutView[]> 
       platform_fee: unknown;
       status: string;
       flag_reason: string | null;
+      transfer_code: string | null;
       paid_at: string | null;
       created_at: string;
       engagements?: {
@@ -294,6 +301,7 @@ export async function listTutorPayouts(profile: Profile): Promise<PayoutView[]> 
       platformFee: toBigint(row.platform_fee),
       status: row.status as PayoutStatus,
       flagReason: row.flag_reason,
+      transferCode: row.transfer_code,
       paidAt: row.paid_at,
       createdAt: row.created_at,
     };
@@ -328,7 +336,7 @@ export async function listAllPayouts(): Promise<PayoutView[]> {
   const { data, error } = await supabase
     .from("payouts")
     .select(
-      `id, engagement_id, amount, platform_fee, status, flag_reason, paid_at, created_at,
+      `id, engagement_id, amount, platform_fee, status, flag_reason, transfer_code, paid_at, created_at,
        engagements(
          courses(name),
          profiles!engagements_student_id_fkey(full_name, public_code)
@@ -345,6 +353,7 @@ export async function listAllPayouts(): Promise<PayoutView[]> {
     platform_fee: unknown;
     status: string;
     flag_reason: string | null;
+    transfer_code: string | null;
     paid_at: string | null;
     created_at: string;
     engagements?: {
@@ -365,6 +374,7 @@ export async function listAllPayouts(): Promise<PayoutView[]> {
     platformFee: toBigint(row.platform_fee),
     status: row.status as PayoutStatus,
     flagReason: row.flag_reason,
+    transferCode: row.transfer_code,
     paidAt: row.paid_at,
     createdAt: row.created_at,
   }));
@@ -373,9 +383,55 @@ export async function listAllPayouts(): Promise<PayoutView[]> {
   const rank: Record<PayoutStatus, number> = {
     pending_review: 0,
     approved: 1,
-    held: 2,
-    paid: 3,
-    failed: 4,
+    transferring: 2,
+    held: 3,
+    paid: 4,
+    failed: 5,
   };
   return views.sort((a, b) => rank[a.status] - rank[b.status]);
+}
+
+/**
+ * Every tutor's saved MoMo payout account (admin console, 0015) with the
+ * tutor identity for display, unverified first.
+ */
+export async function listPayoutAccountsForAdmin(): Promise<
+  Array<{
+    tutorProfileId: string;
+    tutorName: string;
+    provider: "mtn" | "telecel" | "airteltigo";
+    phone: string;
+    accountName: string | null;
+    verified: boolean;
+  }>
+> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("tutor_payout_accounts")
+    .select(
+      `tutor_profile_id, provider, phone, account_name, verified_at,
+       tutor_profiles(profiles(full_name))`,
+    )
+    .order("verified_at", { ascending: true, nullsFirst: true });
+  if (error) throw new Error(`listPayoutAccountsForAdmin: ${error.message}`);
+
+  return (data ?? []).map((raw) => {
+    const row = raw as {
+      tutor_profile_id: string;
+      provider: "mtn" | "telecel" | "airteltigo";
+      phone: string;
+      account_name: string | null;
+      verified_at: string | null;
+      tutor_profiles?: { profiles?: { full_name: string } | { full_name: string }[] | null } | null;
+    };
+    return {
+      tutorProfileId: row.tutor_profile_id,
+      tutorName: one(one(row.tutor_profiles)?.profiles)?.full_name ?? "Tutor",
+      provider: row.provider,
+      phone: row.phone,
+      accountName: row.account_name,
+      verified: Boolean(row.verified_at),
+    };
+  });
 }

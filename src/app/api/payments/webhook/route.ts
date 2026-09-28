@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { verifyTransaction, verifyWebhookSignature } from "@/services/payments/paystack";
+import {
+  verifyTransaction,
+  verifyTransfer,
+  verifyWebhookSignature,
+} from "@/services/payments/paystack";
 
 /**
  * POST /api/payments/webhook — Paystack event receiver.
@@ -42,18 +46,85 @@ export async function POST(request: NextRequest) {
   }
 
   // 3) Parse only what's needed to route the event.
-  let event: { event?: string; data?: { reference?: string } };
+  let event: {
+    event?: string;
+    data?: {
+      reference?: string;
+      transfer_code?: string;
+      status?: string;
+      reason?: string;
+    };
+  };
   try {
-    event = JSON.parse(rawBody) as { event?: string; data?: { reference?: string } };
+    event = JSON.parse(rawBody) as typeof event;
   } catch {
     return NextResponse.json({ error: "malformed body" }, { status: 400 });
   }
 
   const eventName = event.event ?? "";
   const reference = event.data?.reference ?? "";
+  const transferCode = event.data?.transfer_code ?? "";
+
+  // ── Transfer lifecycle (0015): finalize the payout from Paystack's own
+  // verdict. Verify-then-trust applies here too — the payload's status is
+  // cross-checked against /transfer/verify before the DB is touched.
+  if (eventName === "transfer.success" || eventName === "transfer.failed" || eventName === "transfer.reversed") {
+    if (!transferCode) {
+      return NextResponse.json({ received: true, ignored: "no transfer_code" });
+    }
+    const supabase = createAdminClient();
+
+    const { data: payoutRow } = await supabase
+      .from("payouts")
+      .select("id, status")
+      .eq("transfer_code", transferCode)
+    .maybeSingle();
+    const payout = payoutRow as { id: string; status: string } | null;
+
+    if (!payout) {
+      console.error(
+        `[payments] transfer webhook for unknown transfer_code ${transferCode} — reconcile manually`,
+      );
+      return NextResponse.json({ received: true, unmatched: true });
+    }
+
+    try {
+      // Verify-then-trust: re-fetch the transfer from Paystack.
+      const transfer = await verifyTransfer(transferCode);
+
+      if (transfer.status === "success") {
+        const { error } = await supabase.rpc("payment_mark_payout_paid", {
+          p_actor_id: null,
+          p_payout_id: payout.id,
+          p_transfer_code: transferCode,
+        });
+        if (error) {
+          console.error(`[payments] finalize paid refused for ${transferCode}: ${error.message}`);
+        }
+      } else if (transfer.status === "failed" || transfer.status === "reversed") {
+        const { error } = await supabase.rpc("payment_mark_payout_failed", {
+          p_actor_id: null,
+          p_payout_id: payout.id,
+          p_reason: `Paystack transfer ${transferCode} ${transfer.status}`,
+        });
+        if (error) {
+          console.error(`[payments] finalize failed refused for ${transferCode}: ${error.message}`);
+        }
+      } else {
+        // otp/pending etc. — nothing to do yet; the sweep requeries later.
+        return NextResponse.json({ received: true, transferStatus: transfer.status });
+      }
+      return NextResponse.json({ received: true, finalized: transfer.status });
+    } catch (err) {
+      // Verify unavailable — 500 so Paystack retries; both finalize RPCs are
+      // idempotent, so replays are safe.
+      console.error(`[payments] transfer verify failed for ${transferCode}`, err);
+      return NextResponse.json({ error: "verify unavailable" }, { status: 500 });
+    }
+  }
 
   if (eventName !== "charge.success" || !reference) {
-    // charge.failed / transfer.success / etc. — acked, not acted on.
+    // charge.failed / etc. — acked, not acted on.
     return NextResponse.json({ received: true, ignored: eventName || "unknown" });
   }
 

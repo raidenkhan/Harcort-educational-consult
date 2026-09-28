@@ -59,6 +59,8 @@ function buildEmail(row: OutboxRow): EmailMessage | null {
       return payoutStatusEmail({ status: "requested", amountDisplay: amount });
     case "payment.payout_approved":
       return payoutStatusEmail({ status: "approved", amountDisplay: amount });
+    case "payment.payout_transferring":
+      return payoutStatusEmail({ status: "transferring", amountDisplay: amount });
     case "payment.payout_paid":
       return payoutStatusEmail({ status: "paid", amountDisplay: amount });
     case "payment.payout_held":
@@ -67,6 +69,14 @@ function buildEmail(row: OutboxRow): EmailMessage | null {
         amountDisplay: amount,
         reason: typeof row.data.reason === "string" ? row.data.reason : null,
       });
+    case "payment.payout_failed":
+      return payoutStatusEmail({
+        status: "failed",
+        amountDisplay: amount,
+        reason: typeof row.data.reason === "string" ? row.data.reason : null,
+      });
+    case "payment.payout_account_verified":
+      return payoutStatusEmail({ status: "account_verified", amountDisplay: "" });
     default:
       return null;
   }

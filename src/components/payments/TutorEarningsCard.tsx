@@ -32,9 +32,10 @@ const PAYOUT_BADGE: Record<
 > = {
   pending_review: { label: "In review", tone: "amber" },
   approved: { label: "Approved — transfer pending", tone: "brand" },
+  transferring: { label: "Transfer in flight", tone: "neutral" },
   paid: { label: "Paid", tone: "green" },
   held: { label: "On hold", tone: "red" },
-  failed: { label: "Failed — retrying", tone: "red" },
+  failed: { label: "Failed — retry allowed", tone: "red" },
 };
 
 /** Module-level (react-hooks/purity): snapshot the clock once. */

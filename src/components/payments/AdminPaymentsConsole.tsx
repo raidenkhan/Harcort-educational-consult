@@ -3,6 +3,7 @@ import { requireRole } from "@/services/auth/queries";
 import {
   listAllEngagements,
   listAllPayouts,
+  listPayoutAccountsForAdmin,
   type EngagementView,
 } from "@/services/payments/queries";
 import { formatGhs } from "@/lib/money";
@@ -10,6 +11,7 @@ import { isOverdue } from "@/lib/time";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { AdminPayoutActions } from "./AdminPayoutActions";
+import { AdminVerifyPayoutAccountButton } from "./AdminVerifyPayoutAccountButton";
 
 /**
  * Admin payments console — the money oversight half of the admin page.
@@ -31,9 +33,10 @@ const PAYOUT_BADGE: Record<
 > = {
   pending_review: { label: "Needs review", tone: "amber" },
   approved: { label: "Approved — send transfer", tone: "brand" },
+  transferring: { label: "Transfer in flight", tone: "neutral" },
   paid: { label: "Paid", tone: "green" },
   held: { label: "On hold", tone: "red" },
-  failed: { label: "Failed", tone: "red" },
+  failed: { label: "Failed — retry allowed", tone: "red" },
 };
 
 const ENGAGEMENT_BADGE: Record<
@@ -81,9 +84,10 @@ function derive(rows: {
     const rank: Record<string, number> = {
       pending_review: 0,
       approved: 1,
-      held: 2,
-      paid: 3,
-      failed: 4,
+      transferring: 2,
+      held: 3,
+      paid: 4,
+      failed: 5,
     };
     return rank[a.status] - rank[b.status];
   });
@@ -103,9 +107,10 @@ function derive(rows: {
 export async function AdminPaymentsConsole() {
   await requireRole("admin");
 
-  const [engagements, payouts] = await Promise.all([
+  const [engagements, payouts, accounts] = await Promise.all([
     listAllEngagements(),
     listAllPayouts(),
+    listPayoutAccountsForAdmin(),
   ]);
   const d = derive({ engagements, payouts });
 
@@ -128,8 +133,8 @@ export async function AdminPaymentsConsole() {
           </h2>
           <p className="mt-1 max-w-xl text-sm text-slate-600">
             Clean completions auto-approve; flagged ones wait here for your
-            judgment. Sending the transfer marks the payout paid and notifies
-            the tutor.
+            judgment. Sending the transfer puts the payout in flight — it
+            finalizes (paid or failed) when Paystack confirms.
           </p>
         </div>
         <div className="flex gap-2">
@@ -200,6 +205,44 @@ export async function AdminPaymentsConsole() {
                 </li>
               );
             })}
+          </ul>
+        )}
+      </div>
+
+      {/* Payout accounts — verify before tutors can request payouts (0015) */}
+      <div className="mt-10">
+        <h3 className="text-lg font-semibold text-slate-900">Tutor payout accounts</h3>
+        <p className="mt-1 max-w-xl text-sm text-slate-500">
+          A tutor can only request a payout once their mobile money account is
+          verified. Confirm the details (a small test ping transfer is the
+          safest check), then verify.
+        </p>
+        {accounts.length === 0 ? (
+          <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white/70 p-10 text-center text-sm text-slate-500">
+            No payout accounts saved yet — tutors add theirs on the Earnings
+            page.
+          </div>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {accounts.map((account) => (
+              <li key={account.tutorProfileId}>
+                <Card className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {account.tutorName}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {account.provider.toUpperCase()} · {account.phone}
+                      {account.accountName ? ` · ${account.accountName}` : ""}
+                    </p>
+                  </div>
+                  <AdminVerifyPayoutAccountButton
+                    tutorProfileId={account.tutorProfileId}
+                    verified={account.verified}
+                  />
+                </Card>
+              </li>
+            ))}
           </ul>
         )}
       </div>

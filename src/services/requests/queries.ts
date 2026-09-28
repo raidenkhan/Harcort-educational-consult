@@ -24,12 +24,21 @@ export interface TutorRequestView {
   studentId?: string;
   studentName?: string;
   studentPublicCode?: string;
+  /** The tutor's bookable service (course offer) for this request — used by
+   *  the accepted-request "Pay 50%" CTA to create the agreement (0012 flow:
+   *  request-first, pay-after-acceptance). Resolved from the tutor's active
+   *  tutor_services; null when the tutor hasn't quoted this course yet. */
+  tutorServiceId?: string;
 }
 
 const REQUEST_SELECT = `
   id, status, message, course_id, created_at, responded_at,
   courses(name),
-  tutor_profiles!tutor_requests_tutor_profile_id_fkey(id, profiles(full_name)),
+  tutor_profiles!tutor_requests_tutor_profile_id_fkey(
+    id,
+    profiles(full_name),
+    tutor_services(id, course_id, price)
+  ),
   profiles!tutor_requests_student_id_fkey(id, full_name, public_code)
 `;
 
@@ -51,6 +60,9 @@ function toView(raw: unknown): TutorRequestView {
     tutor_profiles?: {
       id: string;
       profiles?: { full_name: string } | null;
+      tutor_services?:
+        | Array<{ id: string; course_id: string; price: unknown }>
+        | null;
     } | null;
     profiles?: {
       id: string;
@@ -63,12 +75,21 @@ function toView(raw: unknown): TutorRequestView {
   const student = one(row.profiles);
   const course = one(row.courses);
 
+  // Exact course match only — the CTA creates a REAL money agreement, so we
+  // never silently substitute a different (e.g. cheapest) offer. No match →
+  // null → the card shows "price not published yet" instead of a pay button.
+  const services = tp?.tutor_services ?? [];
+  const matched = row.course_id
+    ? (services.find((s) => s.course_id === row.course_id) ?? null)
+    : null;
+
   return {
     id: row.id,
     status: row.status as RequestStatus,
     message: row.message ?? "",
     courseId: row.course_id,
     courseName: course?.name ?? null,
+    tutorServiceId: matched?.id,
     createdAt: row.created_at,
     respondedAt: row.responded_at,
     tutorProfileId: tp?.id,

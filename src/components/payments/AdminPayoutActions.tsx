@@ -15,18 +15,25 @@ import { Input } from "@/components/ui/Fields";
  * Admin action set for one payout row, keyed by status:
  *   pending_review → Release (to approved) · Hold (reason required)
  *   approved       → Execute transfer     · Hold
+ *   transferring   → no actions (in flight — the webhook or sweep finalizes)
  *   held           → Release              · Hold (update reason)
  *   paid/failed    → no actions (history)
  *
- * All three go through the 0011 RPCs — the DB re-verifies admin privilege
- * and status legality, so these buttons can't do anything illegal.
+ * All three go through the 0011/0015 RPCs — the DB re-verifies admin
+ * privilege and status legality, so these buttons can't do anything illegal.
  */
 export function AdminPayoutActions({
   payoutId,
   status,
 }: {
   payoutId: string;
-  status: "pending_review" | "approved" | "held" | "paid" | "failed";
+  status:
+    | "pending_review"
+    | "approved"
+    | "transferring"
+    | "held"
+    | "paid"
+    | "failed";
 }) {
   const [releaseState, releaseAction, releasePending] = useActionState<PaymentFormState, FormData>(
     adminReleasePayout,
@@ -41,7 +48,7 @@ export function AdminPayoutActions({
     {},
   );
 
-  if (status === "paid" || status === "failed") return null;
+  if (status === "paid" || status === "failed" || status === "transferring") return null;
 
   const error = releaseState.error ?? holdState.error ?? execState.error;
   const message = releaseState.message ?? holdState.message ?? execState.message;

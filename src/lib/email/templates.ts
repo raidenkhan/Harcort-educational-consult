@@ -324,9 +324,9 @@ export function paymentOverdueEmail(opts: {
   };
 }
 
-/** Payout lifecycle — requested / approved / paid / held. */
+/** Payout lifecycle — requested / approved / transferring / paid / held / failed. */
 export function payoutStatusEmail(opts: {
-  status: "requested" | "approved" | "paid" | "held";
+  status: "requested" | "approved" | "transferring" | "paid" | "held" | "failed" | "account_verified";
   amountDisplay: string;
   reason?: string | null;
 }): EmailMessage {
@@ -342,6 +342,11 @@ export function payoutStatusEmail(opts: {
       title: "Payout approved",
       line: `Your payout of <strong>${escapeHtml(opts.amountDisplay)}</strong> was approved and the transfer is on its way to your mobile money account.`,
     },
+    transferring: {
+      subject: `Payout transfer started: ${opts.amountDisplay}`,
+      title: "Transfer started",
+      line: `Your payout of <strong>${escapeHtml(opts.amountDisplay)}</strong> has been sent to Paystack — the mobile money transfer is in flight and lands shortly.`,
+    },
     paid: {
       subject: `Payout sent: ${opts.amountDisplay}`,
       title: "Payout sent",
@@ -352,10 +357,23 @@ export function payoutStatusEmail(opts: {
       title: "Payout on hold",
       line: `Your payout of <strong>${escapeHtml(opts.amountDisplay)}</strong> is on hold${opts.reason ? `: <em>${escapeHtml(opts.reason)}</em>` : ""}. Contact the Harcourt team for details.`,
     },
+    failed: {
+      subject: `Payout transfer failed: ${opts.amountDisplay}`,
+      title: "Transfer failed",
+      line: `The mobile money transfer of <strong>${escapeHtml(opts.amountDisplay)}</strong> did not go through${opts.reason ? `: <em>${escapeHtml(opts.reason)}</em>` : ""}. The team has been notified and will retry — contact support if unsure.`,
+    },
+    account_verified: {
+      subject: "Payout account verified",
+      title: "Payout account verified",
+      line: "Your mobile money account was verified — you can request payouts once your sessions are complete and every installment is paid.",
+    },
   }[opts.status];
+  const summary = opts.amountDisplay
+    ? `${map.title}: ${opts.amountDisplay}.`
+    : `${map.title}.`;
   return {
     subject: map.subject,
-    text: `${map.title}: ${opts.amountDisplay}. ${url}`,
+    text: `${summary} ${url}`,
     html: wrap(map.title, `${p(map.line)}${actionButton(url, "Open my tutor page")}`),
   };
 }

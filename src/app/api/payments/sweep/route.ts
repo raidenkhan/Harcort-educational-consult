@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { drainPaymentOutbox } from "@/lib/email/outbox";
+import { requeryAndFinalizeTransfers } from "@/services/payments/transfers";
 
 /**
  * GET /api/payments/sweep — cron entry point for payment deadlines.
@@ -29,8 +30,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "sweep failed" }, { status: 500 });
   }
 
+  // Self-heal missed transfer webhooks: requery Paystack for payouts stuck
+  // 'transferring' and finalize paid/failed. Best-effort — a requery failure
+  // is logged inside the helper and retried on the next run.
+  let transfers: { checked: number; finalized: number } | null = null;
+  try {
+    transfers = await requeryAndFinalizeTransfers(2);
+  } catch (err) {
+    console.error("[payments] transfer requery failed", err);
+  }
+
   // Same run drains any queued notifications (overdue emails included).
   await drainPaymentOutbox();
 
-  return NextResponse.json({ ok: true, flipped });
+  return NextResponse.json({ ok: true, flipped, transfers });
 }

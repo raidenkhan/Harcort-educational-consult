@@ -135,6 +135,9 @@ export function initiateTransfer(opts: {
   amountPesewas: number;
   recipientCode: string;
   reason: string;
+  /** Our own idempotency/reference code (HRC-PAY-…) — also the key the
+   *  requery uses against /transfer/verify (code or reference both work). */
+  reference: string;
 }): Promise<PaystackTransfer> {
   return paystackFetch("/transfer", {
     method: "POST",
@@ -144,8 +147,16 @@ export function initiateTransfer(opts: {
       recipient: opts.recipientCode,
       reason: opts.reason,
       currency: "GHS",
+      reference: opts.reference,
     },
   });
+}
+
+/** Fetch one transfer's live status (reconciliation requery). */
+export function verifyTransfer(transferCode: string): Promise<PaystackTransfer> {
+  return paystackFetch<PaystackTransfer>(
+    `/transfer/verify/${encodeURIComponent(transferCode)}`,
+  );
 }
 
 // ---------------------------------------------------------------------------

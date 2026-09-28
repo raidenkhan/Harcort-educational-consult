@@ -33,7 +33,7 @@ export type PaymentFormState = { error?: string; message?: string; checkoutUrl?:
 /** PostgREST RPC errors carry the Postgres message we raised. */
 function rpcError(err: { message?: string } | Error | null): string {
   const message = err instanceof Error ? err.message : (err?.message ?? "Payment action failed");
-  return message.replace(/^.*?(?=(forbidden|amount_mismatch|currency_mismatch|installment_not_payable|installment_not_found|engagement_exists|engagement_not_found|engagement_cancelled|sessions_incomplete|payments_outstanding|payout_account_unverified|payout_exists|payout_not_found|payout_not_approvable|payout_not_holdable|payout_not_releasable|reason_required|not_completable|service_not_found|service_not_available))/, "").replace(/\s+/g, " ").trim();
+  return message.replace(/^.*?(?=(forbidden|amount_mismatch|currency_mismatch|installment_not_payable|installment_not_found|engagement_exists|engagement_not_found|engagement_cancelled|sessions_incomplete|payments_outstanding|payout_account_unverified|payout_account_not_found|payout_exists|payout_not_found|payout_not_approvable|payout_not_cancellable|payout_not_holdable|payout_not_releasable|reason_required|not_completable|service_not_found|service_not_available))/, "").replace(/\s+/g, " ").trim();
 }
 
 /** Human-friendly copy for the Postgres guard messages. */
@@ -47,6 +47,12 @@ function friendlyError(error: string): string {
   if (error.startsWith("forbidden")) return "You're not allowed to do that.";
   if (error.startsWith("payout_account_unverified")) {
     return "Add and verify your mobile money account before requesting a payout.";
+  }
+  if (error.startsWith("payout_account_not_found")) {
+    return "That tutor hasn't saved a payout account yet.";
+  }
+  if (error.startsWith("payout_not_cancellable")) {
+    return "That payout can no longer be marked failed (wrong state).";
   }
   if (error.startsWith("payments_outstanding")) {
     return "Some installments are still unpaid — collect every payment first.";
@@ -516,9 +522,12 @@ export async function adminHoldPayout(
 
 /**
  * Execute an approved payout via Paystack. Called by the admin from the
- * payout queue (or by the automatic path once transfer automation is wired).
- * The payout must be in 'approved'; payment_mark_payout_paid is the only
- * route to 'paid'.
+ * payout queue. The payout must be in 'approved'.
+ *
+ * Reconciliation contract: initiating the transfer does NOT mean the tutor
+ * has been paid — MoMo transfers are async. The transfer_code is recorded
+ * and the payout moves approved → 'transferring'; the webhook
+ * (transfer.success / transfer.failed) or the sweep's requery finalizes it.
  */
 export async function adminExecutePayout(
   _prev: PaymentFormState,
@@ -559,31 +568,77 @@ export async function adminExecutePayout(
   }
 
   const transferCode = `HRC-PAY-${randomUUID().slice(0, 12).toUpperCase()}`;
+  let paystackTransferCode = transferCode;
   try {
     const { initiateTransfer } = await import("./paystack");
     const transfer = await initiateTransfer({
       amountPesewas: Number(p.amount),
       recipientCode: p.recipient_code,
       reason: `Harcourt tutor payout ${transferCode}`,
+      reference: transferCode,
     });
     if (transfer.status === "failed") {
       return { error: "Paystack rejected the transfer — check the dashboard." };
     }
+    // Store PAYSTACK's transfer_code (TRF_…), not our reference: the webhook's
+    // transfer.* events are keyed by it, so reconciliation looks the payout
+    // up by this column.
+    if (transfer.transfer_code) paystackTransferCode = transfer.transfer_code;
   } catch (err) {
     return {
       error: `Transfer failed: ${err instanceof Error ? err.message : "unknown error"}`,
     };
   }
 
-  const { error } = await supabase.rpc("payment_mark_payout_paid", {
+  // Record the in-flight transfer: approved → 'transferring'. The webhook or
+  // the sweep's requery finalizes paid/failed — never trust the init response
+  // as proof of payment.
+  const { error } = await supabase.rpc("payment_record_transfer", {
     p_actor_id: profile.id,
     p_payout_id: payoutId,
-    p_transfer_code: transferCode,
+    p_transfer_code: paystackTransferCode,
   });
   if (error) return { error: friendlyError(rpcError(error)) };
 
   scheduleOutboxDrain();
   revalidatePath("/admin", "layout");
   revalidatePath("/tutor", "layout");
-  return { message: "Transfer sent." };
+  return { message: "Transfer initiated — it finalizes when Paystack confirms." };
+}
+
+// ---------------------------------------------------------------------------
+// Admin payout-account verification (0015)
+// ---------------------------------------------------------------------------
+
+/**
+ * Admin verifies a tutor's saved MoMo payout account (sets verified_at).
+ * The v1 ₵1 ping-transfer check is a manual/admin step — until the account
+ * is verified, request_payout refuses with payout_account_unverified. The
+ * RPC re-checks admin privilege, is idempotent, and writes the audit log.
+ */
+export async function adminSetPayoutAccountVerified(
+  _prev: PaymentFormState,
+  formData: FormData,
+): Promise<PaymentFormState> {
+  const profile = await requireProfile();
+  if (!profileIsAdmin(profile)) {
+    return { error: "forbidden: admin only" };
+  }
+
+  const tutorProfileId = String(formData.get("tutorProfileId") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(tutorProfileId)) {
+    return { error: "Invalid tutor." };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.rpc("admin_verify_payout_account", {
+    actor_id: profile.id,
+    p_tutor_profile_id: tutorProfileId,
+  });
+  if (error) return { error: friendlyError(rpcError(error)) };
+
+  scheduleOutboxDrain();
+  revalidatePath("/admin", "layout");
+  revalidatePath("/tutor", "layout");
+  return { message: "Payout account verified — the tutor can now request payouts." };
 }

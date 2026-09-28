@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { WithdrawRequestButton } from "./WithdrawRequestButton";
 import { PayInstallmentButton } from "./PayInstallmentButton";
+import { CommitToCourseButton } from "./CommitToCourseButton";
 import { listStudentEngagements } from "@/services/payments/queries";
 import { formatGhs } from "@/lib/money";
 
@@ -141,12 +142,31 @@ export async function StudentRequestsCard() {
                       amountDisplay={formatGhs(request.payable.amount)}
                     />
                   </div>
+                ) : engagements.some(
+                      (e) =>
+                        e.tutorName === request.tutorName && e.status !== "cancelled",
+                    ) ? (
+                  <p className="text-sm text-emerald-800">
+                    Accepted. This agreement is already paid or in progress — see
+                    My payments.
+                  </p>
+                ) : request.tutorServiceId ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-emerald-800">
+                      Accepted! Set up your 50/50 payment plan to activate your
+                      sessions.
+                    </p>
+                    <CommitToCourseButton
+                      tutorServiceId={request.tutorServiceId}
+                      label="Set up & pay 50%"
+                      signedIn={Boolean(profile.id)}
+                    />
+                  </div>
                 ) : (
                   <p className="text-sm text-emerald-800">
-                    Accepted.{" "}
-                    {engagements.some((e) => e.tutorName === request.tutorName)
-                      ? "This agreement is already paid or in progress — see My payments."
-                      : "Your payment link will appear here once your agreement is set up."}
+                    Accepted. Your tutor hasn&apos;t published a price for this
+                    course yet — we&apos;ll email you when your payment button
+                    unlocks.
                   </p>
                 )}
               </div>
