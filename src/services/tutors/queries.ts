@@ -1,7 +1,12 @@
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentProfile } from "@/services/auth/queries";
-import type { Course, Profile, TutorProfile, TutorService } from "@/types";
+import {
+  toTutorListings,
+  type TutorListing,
+  type TutorProfileRow,
+} from "@/services/tutors/listing";
+import type { TutorProfile, TutorService } from "@/types";
 
 /**
  * Tutor queries.
@@ -9,21 +14,10 @@ import type { Course, Profile, TutorProfile, TutorService } from "@/types";
  * explicitly (public read = only approved tutors; private read = own rows).
  */
 
-export interface TutorListing {
-  tutorProfile: TutorProfile;
-  profile: Profile;
-  services: TutorService[];
-  courses: Course[];
-}
-
-interface TutorProfileRow extends TutorProfile {
-  profiles: Profile | Profile[];
-  tutor_services: TutorService[] | null;
-}
-
-interface ServiceRow extends TutorService {
-  courses: Course;
-}
+// TutorListing moved to the pure module (listing.ts) so its mapper can be
+// unit-tested without Supabase. Re-exported for existing consumers
+// (components/tutors/TutorExplorer.tsx).
+export type { TutorListing };
 
 /**
  * Approved tutors for the public landing page.
@@ -36,6 +30,14 @@ interface ServiceRow extends TutorService {
  * student keeps their approved tutor_profile row but stops being listed;
  * switching back re-lists them). role='tutor' and legacy role='admin' (an
  * admin who also tutors) both pass the filter.
+ *
+ * The `!inner` join makes PostgREST DROP rows whose profiles embed fails the
+ * role filter. This matters: a plain `profiles(*)` embed keeps such rows but
+ * returns their embed as null, and the old mapper then produced
+ * `profile: null` entries that crashed rendering with
+ * "Cannot read properties of null (reading 'full_name')" — a production 500
+ * on `/` and `/tutors` (see 2026-09-28 incident). `toTutorListings` also
+ * skips any such row as defense in depth.
  */
 export const listApprovedTutors = unstable_cache(
   async (): Promise<TutorListing[]> => {
@@ -49,7 +51,7 @@ export const listApprovedTutors = unstable_cache(
     // refetches (and surfaces the problem instead of publishing a lie).
     const { data, error } = await supabase
       .from("tutor_profiles")
-      .select("*, profiles(*), tutor_services(*, courses(*))")
+      .select("*, profiles!inner(*), tutor_services(*, courses(*))")
       .eq("verification_status", "approved")
       .neq("profiles.role", "student")
       .order("created_at", { ascending: false });
@@ -58,33 +60,7 @@ export const listApprovedTutors = unstable_cache(
       throw new Error(`listApprovedTutors: ${error.message}`);
     }
 
-    return (data ?? []).map((row: TutorProfileRow) => {
-      const services = (row.tutor_services ?? []) as ServiceRow[];
-      return {
-        tutorProfile: {
-          id: row.id,
-          profile_id: row.profile_id,
-          bio: row.bio,
-          qualifications: row.qualifications,
-          rate_per_hour: row.rate_per_hour,
-          verification_status: row.verification_status,
-          admin_notes: row.admin_notes,
-          reviewed_at: row.reviewed_at,
-          created_at: row.created_at,
-          updated_at: row.updated_at,
-        },
-        profile: Array.isArray(row.profiles) ? row.profiles[0] : row.profiles,
-        services: services.map((s) => ({
-          id: s.id,
-          tutor_profile_id: s.tutor_profile_id,
-          course_id: s.course_id,
-          price: s.price,
-          description: s.description,
-          created_at: s.created_at,
-        })),
-        courses: services.map((s) => s.courses).filter(Boolean),
-      };
-    });
+    return toTutorListings((data ?? []) as TutorProfileRow[]);
   },
   ["approved-tutors"],
   { revalidate: 300, tags: ["tutors"] },
