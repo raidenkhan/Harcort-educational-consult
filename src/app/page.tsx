@@ -30,7 +30,7 @@ import { Reveal } from "@/components/home/Reveal";
 import { Parallax } from "@/components/home/Parallax";
 import { BounceDeck } from "@/components/home/BounceDeck";
 import { HarcourtUniversity, LESSONS } from "@/components/home/HarcourtUniversity";
-import FloatingLines from "@/components/home/FloatingLines";
+import FloatingLinesLazy from "@/components/home/FloatingLinesLazy";
 import { BeamCard } from "@/components/home/BeamCard";
 import { VideoTestimonial } from "@/components/home/VideoTestimonial";
 
@@ -248,7 +248,7 @@ export default async function Home() {
               ink scrims keep the copy readable. One Parallax wrapper carries
               the entire stack, so the backdrop lags the scroll (parallax). */}
           <Parallax className="absolute inset-0" speed={0.16}>
-            <FloatingLines
+            <FloatingLinesLazy
               linesGradient={[
                 "#610b96",
                 "#39065c",

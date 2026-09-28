@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { gsap } from "gsap";
 import { cn } from "@/lib/cn";
 
 /**
@@ -49,6 +48,38 @@ export function BounceDeck({
   const playedRef = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
+    let cleanup: (() => void) | undefined;
+
+    // gsap is deferred: the library (~68KB chunk) is fetched asynchronously
+    // AFTER hydration instead of blocking first paint (verified: the chunk is
+    // absent from the initial HTML). Cards stay hidden (opacity-0) until the
+    // scroll-into-view bounce, so the brief fetch window is never visible.
+    void import("gsap").then(({ gsap }) => {
+      if (cancelled) return;
+      cleanup = mountDeckAnimation(gsap);
+    });
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+
+    function mountDeckAnimation(gsapLib: {
+      fromTo: (
+        targets: HTMLDivElement | HTMLDivElement[],
+        fromVars: object,
+        toVars: object,
+      ) => unknown;
+      set: (
+        targets: HTMLDivElement | HTMLDivElement[],
+        vars: object,
+      ) => unknown;
+      to: (
+        targets: HTMLDivElement | HTMLDivElement[],
+        vars: object,
+      ) => unknown;
+      matchMedia: () => { add(q: string, fn: () => () => void): void; revert(): void };
+    }) {
     const container = containerRef.current;
     if (!container) return;
 
@@ -79,7 +110,7 @@ export function BounceDeck({
           return;
         playedRef.current = true;
         observer.disconnect();
-        gsap.fromTo(
+        gsapLib.fromTo(
           els,
           { scale: 0, autoAlpha: 0 },
           {
@@ -99,10 +130,10 @@ export function BounceDeck({
     // Fan + hover-push exist only on desktop-width layouts. The bounce
     // tween composes with the fan: gsap parses the set transform into
     // rotation/x components and animates scale on top of them.
-    const mm = gsap.matchMedia();
+    const mm = gsapLib.matchMedia();
     mm.add("(min-width: 1024px)", () => {
       els.forEach((el, i) => {
-        gsap.set(el, { transform: fanTransform(i) });
+        gsapLib.set(el, { transform: fanTransform(i) });
       });
 
       const straighten = /rotate\([^)]*\)/;
@@ -112,8 +143,8 @@ export function BounceDeck({
             i === hovered
               ? fanTransform(i).replace(straighten, "rotate(0deg)")
               : fanTransform(i, i < hovered ? -PUSH_PX : PUSH_PX);
-          gsap.to(el, {
-            transform: target,
+          gsapLib.to(el,
+            { transform: target,
             duration: 0.4,
             delay: i === hovered ? 0 : Math.abs(hovered - i) * 0.04,
             ease: PUSH_EASE,
@@ -123,8 +154,8 @@ export function BounceDeck({
       };
       const onLeave = () => {
         els.forEach((el, i) => {
-          gsap.to(el, {
-            transform: fanTransform(i),
+          gsapLib.to(el,
+            { transform: fanTransform(i),
             duration: 0.4,
             ease: PUSH_EASE,
             overwrite: "auto",
@@ -148,6 +179,7 @@ export function BounceDeck({
       observer.disconnect();
       mm.revert();
     };
+    }
   }, [stagger]);
 
   return (
