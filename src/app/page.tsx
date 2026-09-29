@@ -4,6 +4,7 @@ import {
   BookOpenCheck,
   LifeBuoy,
   Wrench,
+  ArrowUpRight,
   type LucideIcon,
 } from "lucide-react";
 import { safeListApprovedTutors } from "@/services/tutors/queries";
@@ -29,10 +30,12 @@ import { FloatingNav } from "@/components/navigation/FloatingNav";
 import { Reveal } from "@/components/home/Reveal";
 import { Parallax } from "@/components/home/Parallax";
 import { BounceDeck } from "@/components/home/BounceDeck";
-import { HarcourtUniversity, LESSONS } from "@/components/home/HarcourtUniversity";
+import { LESSONS, LESSON_CHANNELS } from "@/components/home/HarcourtUniversity";
 import FloatingLinesLazy from "@/components/home/FloatingLinesLazy";
 import { BeamCard } from "@/components/home/BeamCard";
-import { VideoTestimonial } from "@/components/home/VideoTestimonial";
+import { LessonSlider } from "@/components/home/LessonSlider";
+import { TestimonialSlider } from "@/components/home/TestimonialSlider";
+import { TESTIMONIAL_VIDEOS } from "@/components/home/testimonialVideos";
 
 /**
  * Public landing page — targets Ghanaian students, KNUST engineering first.
@@ -52,29 +55,11 @@ export const dynamic = "force-dynamic";
 const FREE_LESSONS_PUBLISHED = "30+";
 
 /**
- * Student testimonial video.
- *
- * Hosted on the video platform (unlisted) rather than in /public: the hosts
- * serve an adaptive-bitrate stream, so a viewer on a weak mobile connection
- * gets a lower-quality rendition instead of a stalling buffer — a single
- * fixed-bitrate MP4 either fits the connection or it doesn't. It also keeps
- * a ~45MB master out of the repo and off every deploy.
- *
- * Paste the id out of the share URL (youtube.com/watch?v=<id>) and the band
- * renders directly below the tutor list. While `id` is empty the whole
- * section is skipped, so nothing half-built ever goes live.
- *
- * `name` / `detail` are optional attribution — leave them blank rather than
- * inventing one; the band simply omits the line.
+ * Student testimonial videos — real stories, hosted on YouTube (unlisted
+ * where noted). Rendered by TestimonialSlider; see that file for the
+ * why-click-to-play reasoning and how to add more.
  */
-const TESTIMONIAL = {
-  // https://youtu.be/ULll1Nglehw — unlisted, so it never shows on the channel
-  // or in YouTube search, but embeds fine. Verified serving 144p/360p/720p,
-  // which is the adaptive ladder that keeps weak connections playing.
-  id: "ULll1Nglehw",
-  name: "",
-  detail: "",
-};
+const HAS_TESTIMONIALS = TESTIMONIAL_VIDEOS.length > 0;
 
 /**
  * Structured data (schema.org JSON-LD) — tells search engines and AI
@@ -411,6 +396,64 @@ export default async function Home() {
         </Container>
       </section>
 
+      {/* ── Free lessons (Proof, immediately after the marquee) ───── */}
+      {/* The videos ARE the product demo: a student scrolling from the hero
+          meets real, full-length teaching before any pitch. One slider keeps
+          the band compact — the first screen of lessons is the section. */}
+      <section id="learn" className="relative scroll-mt-24 border-t border-slate-200 bg-white">
+        <Container className="py-16 sm:py-20">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <Reveal>
+              <div className="max-w-2xl">
+                <p className="text-sm font-semibold uppercase tracking-widest text-brand-600">
+                  Harcourt University
+                </p>
+                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+                  Free lessons on the courses that trip students up
+                </h2>
+              </div>
+            </Reveal>
+            <Reveal variant="right" delay={80}>
+              <div className="flex shrink-0 flex-col gap-2">
+                {LESSON_CHANNELS.map((channel) => (
+                  <a
+                    key={channel.name}
+                    href={channel.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900 transition-colors hover:text-brand-600"
+                  >
+                    {channel.name === "Harcourt University" ? (
+                      "Visit the channel"
+                    ) : (
+                      <>Visit {channel.name}</>
+                    )}
+                    <ArrowUpRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </a>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+
+          <Reveal delay={120} className="mt-10">
+            <LessonSlider />
+          </Reveal>
+
+          <p className="mt-6 text-center text-sm text-slate-500">
+            Full problems, worked step by step — free for anyone on{" "}
+            <a
+              href="https://www.youtube.com/@harcourt-university"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-brand-600 hover:text-brand-700"
+            >
+              YouTube
+            </a>
+            .
+          </p>
+        </Container>
+      </section>
+
       {/* ── The problem (Paper White) ─────────────────────────────── */}
       {/* Letter rhythm: alternating white / mist surfaces create the
           gallery-walk pacing. The old PerspectiveGrid line bands fought the
@@ -510,10 +553,6 @@ export default async function Home() {
         </Container>
       </section>
 
-      {/* ── Harcourt University (Paper White) ──────────────────────── */}
-      <section className="relative border-t border-slate-200 bg-white">
-        <HarcourtUniversity />
-      </section>
 
       {/* ── Subjects (Mist gallery wall) ───────────────────────────── */}
       {/* Two honest sources, clearly labelled: what the free lesson library
@@ -715,13 +754,13 @@ export default async function Home() {
         </Container>
       </section>
 
-      {/* ── Student testimonial (ink stage) ───────────────────────── */}
+      {/* ── Student stories (ink stage) ───────────────────────────── */}
       {/* The one dark band in the light body. Letter's convention is a dark
-          stage for the single subject of a section — here, a real student —
-          and it puts the proof immediately before the ask. Rendered only
-          once TESTIMONIAL.id is set; see the constant at the top of the file
-          for why the video lives on a platform instead of in /public. */}
-      {TESTIMONIAL.id && (
+          stage for the single subject of a section — here, real students —
+          and it puts the proof immediately before the ask. Auto-advancing
+          slider; vertical Shorts render in a centred portrait column. See
+          TestimonialSlider for why the players are click-to-play. */}
+      {HAS_TESTIMONIALS && (
         <section
           id="testimonial"
           className="relative scroll-mt-24 border-t border-petrol-800 bg-petrol-950"
@@ -742,29 +781,10 @@ export default async function Home() {
                     From stuck to understood
                   </h2>
                   <p className="mt-4 text-base leading-relaxed text-lilac-100/80">
-                    A student on what changed once there was structured support
-                    on the course that was causing the trouble.
+                    Real students on what changed once there was structured
+                    support on the course that was causing the trouble.
                   </p>
                 </Reveal>
-
-                {/* Museum plaque — hairline rule, then name and course.
-                    Rendered only when there is something true to print. */}
-                {(TESTIMONIAL.name || TESTIMONIAL.detail) && (
-                  <Reveal variant="left" delay={80}>
-                    <div className="mt-10 border-t border-lilac-100/20 pt-5">
-                      {TESTIMONIAL.name && (
-                        <p className="font-display text-lg font-semibold text-white">
-                          {TESTIMONIAL.name}
-                        </p>
-                      )}
-                      {TESTIMONIAL.detail && (
-                        <p className="mt-1 text-[13px] uppercase tracking-[0.14em] text-lilac-100/60">
-                          {TESTIMONIAL.detail}
-                        </p>
-                      )}
-                    </div>
-                  </Reveal>
-                )}
               </div>
 
               {/* The exhibit — beam-lit frame so the video reads as the one
@@ -779,13 +799,7 @@ export default async function Home() {
                   strength={0.45}
                   borderRadius={2}
                 >
-                  <VideoTestimonial
-                    provider="youtube"
-                    videoId={TESTIMONIAL.id}
-                    title="Student testimonial — Harcourt Educational Consult"
-                    label="Watch the story"
-                    duration="1:00"
-                  />
+                  <TestimonialSlider />
                 </BeamCard>
               </Reveal>
             </div>
