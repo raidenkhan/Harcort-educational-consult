@@ -35,6 +35,7 @@ import FloatingLinesLazy from "@/components/home/FloatingLinesLazy";
 import { BeamCard } from "@/components/home/BeamCard";
 import { LessonSlider } from "@/components/home/LessonSlider";
 import { TestimonialSlider } from "@/components/home/TestimonialSlider";
+import { CourseCatalog } from "@/components/home/CourseCatalog";
 import { TESTIMONIAL_VIDEOS } from "@/components/home/testimonialVideos";
 
 /**
@@ -93,10 +94,6 @@ const JSON_LD = {
     },
   ],
 };
-
-/** Subjects currently taught in the Harcourt University lesson library —
- *  derived from the exported lesson list so the two never drift apart. */
-const LESSON_SUBJECTS = Array.from(new Set(LESSONS.map((l) => l.topic)));
 
 /* ── Letter-system primitives (landing-local) ─────────────────────
    The Letter style reference is deliberately shadowless: depth comes
@@ -194,7 +191,7 @@ export default async function Home() {
       <FloatingNav
         links={[
           { href: "/tutors", label: "Find a Tutor" },
-          { href: "#subjects", label: "Subjects" },
+          { href: "#courses", label: "Courses" },
           { href: "#learn", label: "Harcourt University" },
         ]}
       >
@@ -396,10 +393,51 @@ export default async function Home() {
         </Container>
       </section>
 
-      {/* ── Free lessons (Proof, immediately after the marquee) ───── */}
-      {/* The videos ARE the product demo: a student scrolling from the hero
-          meets real, full-length teaching before any pitch. One slider keeps
-          the band compact — the first screen of lessons is the section. */}
+      {/* ── Browse by course (Mist gallery wall) ──────────────────── */}
+      {/* The taxonomy the whole site hangs off, and the first band after the
+          hero: students pick their field (the `subject` column — effectively
+          the faculty/department) and the page narrows to that field's
+          courses. The full tutorial library follows in the next band, and
+          each field also surfaces its own lessons. The first engineering
+          field is selected on load. */}
+      <section id="courses" className="relative scroll-mt-24 border-t border-slate-200 bg-slate-100">
+        <Container className="py-20 sm:py-28">
+          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:items-end">
+            <Reveal variant="left">
+              <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
+                Browse by course
+              </p>
+              <h2 className="mt-3 font-display text-3xl font-semibold tracking-[0.01em] text-slate-900 sm:text-4xl">
+                Start from your course
+              </h2>
+            </Reveal>
+            <Reveal variant="right" delay={100}>
+              <p className="max-w-sm text-sm leading-relaxed text-slate-600">
+                Course materials, free lessons and tutors — organized by the
+                field you actually study in, so you never have to wade through
+                somebody else&apos;s syllabus.
+              </p>
+            </Reveal>
+          </div>
+
+          <CourseCatalog
+            className="mt-10"
+            courses={courses.map((course) => ({
+              id: course.id,
+              subject: course.subject,
+              name: course.name,
+              description: course.description,
+            }))}
+            lessons={LESSONS}
+          />
+        </Container>
+      </section>
+
+      {/* ── Free lessons (Proof, right after the course picker) ───── */}
+      {/* The videos ARE the product demo: a student who has just found their
+          course sees real, full-length teaching before any pitch. One slider
+          keeps the band compact — the first screen of lessons is the
+          section. */}
       <section id="learn" className="relative scroll-mt-24 border-t border-slate-200 bg-white">
         <Container className="py-16 sm:py-20">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -553,90 +591,6 @@ export default async function Home() {
         </Container>
       </section>
 
-
-      {/* ── Subjects (Mist gallery wall) ───────────────────────────── */}
-      {/* Two honest sources, clearly labelled: what the free lesson library
-          currently teaches, and what tutors are actually offering on the
-          platform right now. */}
-      <section id="subjects" className="relative scroll-mt-24 border-t border-slate-200 bg-slate-100">
-        <Container className="py-20 sm:py-28">
-          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:items-end">
-            <Reveal variant="left">
-              <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                Subject coverage
-              </p>
-              <h2 className="mt-3 font-display text-3xl font-semibold tracking-[0.01em] text-slate-900 sm:text-4xl">
-                Two sources, one goal
-              </h2>
-            </Reveal>
-            <Reveal variant="right" delay={100}>
-              <p className="max-w-sm text-sm leading-relaxed text-slate-600">
-                The subjects our free lesson library teaches, and the subjects
-                tutors on the platform are offering right now — each listed
-                exactly as it exists today.
-              </p>
-            </Reveal>
-          </div>
-          <div className="mt-12 grid gap-6 lg:grid-cols-2">
-            <Reveal variant="up">
-              <BeamCard
-                mode="hover"
-                colorVariant="colorful"
-                hue={275}
-                theme="light"
-                strength={0.5}
-              >
-              <FlatCard className="h-full p-8">
-                <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                  From Harcourt University — free lessons
-                </p>
-                <p className="mt-2 text-sm text-slate-600">
-                  What the YouTube lesson library currently teaches.
-                </p>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {LESSON_SUBJECTS.map((subject) => (
-                    <span
-                      key={subject}
-                      className="rounded-[2px] border border-petrol-100 bg-petrol-50 px-3 py-1.5 text-[13px] font-medium text-petrol-900"
-                    >
-                      {subject}
-                    </span>
-                  ))}
-                </div>
-              </FlatCard>
-              </BeamCard>
-            </Reveal>
-            <Reveal variant="up" delay={80}>
-              <BeamCard
-                mode="hover"
-                colorVariant="colorful"
-                hue={275}
-                theme="light"
-                strength={0.5}
-              >
-              <FlatCard className="h-full p-8">
-                <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                  From tutors on the platform
-                </p>
-                <p className="mt-2 text-sm text-slate-600">
-                  Subjects being taught right now by approved tutors.
-                </p>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {subjects.map((subject) => (
-                    <span
-                      key={subject}
-                      className="rounded-[2px] border border-brand-100 bg-brand-50 px-3 py-1.5 text-[13px] font-medium text-brand-900"
-                    >
-                      {subject}
-                    </span>
-                  ))}
-                </div>
-              </FlatCard>
-              </BeamCard>
-            </Reveal>
-          </div>
-        </Container>
-      </section>
 
       {/* ── Approved tutors (Paper White) ──────────────────────────── */}
       <section id="tutors" className="relative border-t border-slate-200 bg-white">

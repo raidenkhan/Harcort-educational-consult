@@ -41,6 +41,42 @@ export interface Course {
   created_at: string;
 }
 
+/**
+ * A downloadable course resource (0017). `category` and `file_format` are
+ * free text validated against app-level allowlists — see
+ * services/courses/schemas.ts for why they are not DB enums.
+ */
+export interface CourseMaterial {
+  id: string;
+  course_id: string;
+  title: string;
+  category: string;
+  file_format: string;
+  /** External link (Drive, institutional repo) — no storage bucket is used. */
+  file_url: string;
+  description: string | null;
+  /** 1 | 2 (0018); null = term not assigned yet. Content groups by term. */
+  semester: number | null;
+  created_at: string;
+}
+
+/** A tutorial video attached to a course (0017). YouTube-only for now. */
+export interface CourseVideo {
+  id: string;
+  course_id: string;
+  provider: string;
+  /** Provider video id (11-character YouTube id). */
+  video_id: string;
+  title: string;
+  topic: string | null;
+  duration: string | null;
+  description: string | null;
+  sort_order: number;
+  /** 1 | 2 (0018); null = term not assigned yet. Content groups by term. */
+  semester: number | null;
+  created_at: string;
+}
+
 export interface TutorProfile {
   id: string;
   profile_id: string;

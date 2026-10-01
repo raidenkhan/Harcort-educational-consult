@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CalendarCheck, Wallet, LifeBuoy } from "lucide-react";
+import {
+  LayoutDashboard,
+  CalendarCheck,
+  LibraryBig,
+  Wallet,
+  LifeBuoy,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -13,6 +19,7 @@ import { cn } from "@/lib/cn";
 const TABS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/attendance", label: "Attendance", icon: CalendarCheck },
+  { href: "/admin/courses", label: "Courses", icon: LibraryBig },
   { href: "/admin/payments", label: "Payments", icon: Wallet },
   { href: "/admin/support", label: "Support", icon: LifeBuoy },
 ];
