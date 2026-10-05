@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireProfile } from "@/services/auth/queries";
 import { profileIsAdmin } from "@/lib/auth/admin";
@@ -8,6 +8,7 @@ import {
   courseAssetIdSchema,
   createMaterialSchema,
   createVideoSchema,
+  setCourseYearSchema,
 } from "./schemas";
 
 /**
@@ -213,4 +214,45 @@ export async function deleteCourseVideo(formData: FormData): Promise<void> {
     title: video.title,
   });
   revalidateCourse(video.course_id);
+}
+
+// ---------------------------------------------------------------------------
+// Course year tier (0020)
+// ---------------------------------------------------------------------------
+
+/**
+ * Set the year a course is taught in (or clear it back to "all years").
+ * Changing the year moves the course in the catalog and the student's
+ * dashboard, so invalidate the cached taxonomy plus every page that reads it.
+ */
+export async function setCourseYear(formData: FormData): Promise<void> {
+  const profile = await requireProfile();
+  if (!profileIsAdmin(profile)) throw new Error("Forbidden");
+
+  const raw = String(formData.get("year") ?? "").trim();
+  const parsed = setCourseYearSchema.safeParse({
+    courseId: formData.get("courseId"),
+    year: raw ? Number(raw) : null,
+  });
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Invalid year");
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("courses")
+    .update({ year: parsed.data.year })
+    .eq("id", parsed.data.courseId);
+  if (error) throw new Error(error.message);
+
+  await writeAudit(profile.id, "course_year_set", parsed.data.courseId, {
+    year: parsed.data.year,
+  });
+
+  revalidateTag("courses", "max");
+  revalidatePath("/admin/courses");
+  revalidatePath("/courses");
+  revalidatePath(`/courses/${parsed.data.courseId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/");
 }

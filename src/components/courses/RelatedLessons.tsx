@@ -44,7 +44,7 @@ export function RelatedLessons({
           >
             <span className="relative block aspect-video overflow-hidden bg-petrol-950">
               <Image
-                src={`https://i.ytimg.com/vi/${lesson.id}/hq720.jpg`}
+                src={`https://i.ytimg.com/vi/${lesson.id}/hqdefault.jpg`}
                 alt=""
                 fill
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"

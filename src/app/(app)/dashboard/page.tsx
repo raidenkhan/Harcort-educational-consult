@@ -2,6 +2,8 @@ import Link from "next/link";
 import { CalendarClock } from "lucide-react";
 import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
 import { getOwnTutorProfile } from "@/services/tutors/queries";
+import { listCourses } from "@/services/courses/queries";
+import { sortFields, groupCoursesByYear } from "@/components/home/courseTaxonomy";
 import {
   listSessionsForStudent,
   listSessionsForTutor,
@@ -20,6 +22,8 @@ import { PaymentGroundRules } from "@/components/support/PaymentGroundRules";
 import { StudentPaymentsCard } from "@/components/payments/StudentPaymentsCard";
 import { StudentRequestsCard } from "@/components/payments/StudentRequestsCard";
 import { RoleSwitcher } from "@/components/auth/RoleSwitcher";
+import { StudyPrefsPicker } from "@/components/auth/StudyPrefsPicker";
+import { accraDate } from "@/lib/time";
 
 /** Sessions can be ticked from 15 minutes before their start time. */
 const GRACE_MS = 15 * 60 * 1000;
@@ -53,11 +57,27 @@ const STATUS_BADGE: Record<
 export default async function DashboardPage() {
   const profile = await requireProfile();
 
-  const [tutor, studentSessions, tutorSessions] = await Promise.all([
+  const [tutor, studentSessions, tutorSessions, courses] = await Promise.all([
     profile.role === "tutor" ? getOwnTutorProfile() : Promise.resolve(null),
     profile.role === "student" ? listSessionsForStudent() : Promise.resolve([]),
     profile.role === "tutor" ? listSessionsForTutor() : Promise.resolve([]),
+    profile.role === "student" ? listCourses() : Promise.resolve([]),
   ]);
+
+  const programSubjects = sortFields(
+    Array.from(new Set(courses.map((c) => c.subject))),
+  );
+  const programCourses = profile.program
+    ? courses.filter((c) => c.subject === profile.program)
+    : [];
+  // Year tier: once a student picks a year, hide other years' courses and
+  // keep the year-less (general) ones; no year yet shows the whole program.
+  const yearCourses = profile.program
+    ? programCourses.filter(
+        (c) => profile.year == null || c.year == null || c.year === profile.year,
+      )
+    : [];
+  const yearBuckets = groupCoursesByYear(yearCourses);
 
   const studentTimetable =
     profile.role === "student" ? splitStudentTimetable(studentSessions) : null;
@@ -95,6 +115,93 @@ export default async function DashboardPage() {
             </p>
           )}
         </div>
+
+        {/* Your program — per-program personalization (board flow: Program →
+            Year → Course → Materials → Tutors). Students pick what they study
+            and the year they're in; the dashboard leads with that program's
+            courses, and each course page carries its materials + tutors. */}
+        {profile.role === "student" && (
+          <section id="program" className="mt-10 scroll-mt-28">
+            <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
+              Your program
+            </p>
+            <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-slate-900">
+              Courses for your program
+            </h2>
+            <p className="mt-1 max-w-xl text-sm text-slate-600">
+              Pick your program and year and we&apos;ll list its courses first —
+              every course page has the materials and the tutors who teach it.
+            </p>
+            <div className="mt-4 max-w-2xl">
+              <StudyPrefsPicker
+                key={`${profile.program ?? "none"}-${profile.year ?? "any"}`}
+                programs={programSubjects}
+                currentProgram={profile.program ?? null}
+                currentYear={profile.year ?? null}
+              />
+            </div>
+
+            {profile.program && (
+              <div className="mt-8">
+                <div className="flex flex-wrap items-baseline gap-3 border-b border-slate-200 pb-2">
+                  <h3 className="font-display text-lg font-semibold text-slate-900">
+                    {profile.program}
+                  </h3>
+                  {profile.year != null && (
+                    <span className="text-sm font-medium text-slate-500">
+                      · Year {profile.year}
+                    </span>
+                  )}
+                  <span className="ml-auto text-xs font-medium uppercase tracking-widest text-slate-400">
+                    {yearCourses.length}{" "}
+                    {yearCourses.length === 1 ? "course" : "courses"}
+                  </span>
+                </div>
+                {yearCourses.length === 0 ? (
+                  <p className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm text-slate-500">
+                    No courses listed for {profile.program}
+                    {profile.year != null ? ` Year ${profile.year}` : ""} yet —
+                    check back soon, or browse all courses.
+                  </p>
+                ) : (
+                  <div className="mt-4 space-y-8">
+                    {yearBuckets.map((bucket) => (
+                      <div key={bucket.label}>
+                        {yearBuckets.length > 1 && (
+                          <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                            {bucket.label}
+                          </h4>
+                        )}
+                        <ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                          {bucket.items.map((course) => (
+                            <li key={course.id} className="h-full">
+                              <Link
+                                href={`/courses/${course.id}`}
+                                className="group flex h-full flex-col rounded-lg border border-slate-200 bg-white p-5 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lift focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                              >
+                                <span className="font-display text-base font-semibold leading-snug text-slate-900">
+                                  {course.name}
+                                </span>
+                                {course.description && (
+                                  <span className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-slate-600">
+                                    {course.description}
+                                  </span>
+                                )}
+                                <span className="mt-auto pt-3 text-sm font-semibold text-brand-600 transition-colors group-hover:text-brand-700">
+                                  Materials &amp; tutors →
+                                </span>
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Payment ground rules — the admin-only-payments policy, front and center. */}
         {profile.role === "student" && <PaymentGroundRules className="mt-8" />}
@@ -170,7 +277,7 @@ export default async function DashboardPage() {
                 Schedule sessions with your students and tick attendance when
                 you meet.
               </p>
-              <Link href="/tutor#timetable" className="mt-4 block">
+              <Link href="/tutor/timetable" className="mt-4 block">
                 <Button className="w-full sm:w-auto">
                   <CalendarClock className="h-4 w-4" />
                   Open timetable
@@ -215,7 +322,7 @@ export default async function DashboardPage() {
               <div className="flex items-center justify-between">
                 <dt className="text-slate-500">Member since</dt>
                 <dd className="font-medium text-slate-900">
-                  {new Date(profile.created_at).toLocaleDateString()}
+                  {accraDate(new Date(profile.created_at))}
                 </dd>
               </div>
             </dl>

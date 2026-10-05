@@ -54,29 +54,20 @@ const PLAYER_SRC: Record<VideoProvider, (id: string) => string> = {
 };
 
 /**
- * Poster image candidates, best first.
- *
- * YouTube only materialises the larger sizes when it has them: a 720p upload
- * with a default frame serves `sddefault` and nothing above it, while
- * `maxresdefault`/`hq720` 404 (they return a 120×90 grey placeholder, which
- * the optimizer surfaces as a failed image). Rather than guess, the component
- * walks this list on error — see `onError` below. Setting a custom thumbnail
- * in YouTube Studio makes the large sizes exist, which both sharpens the
- * poster and skips the failed requests.
- *
- * The default frames are 4:3 with letterbox bars; the container is 16:9 and
- * the image is `object-cover`, which crops exactly those bars off.
+ * Poster image. YouTube only materialises the larger sizes (`maxresdefault`,
+ * `hq720`, `sddefault`) for HD uploads; on everything else they 404, and each
+ * 404 round-trips through the /_next/image proxy before `onError` fires.
+ * `hqdefault.jpg` exists for every public video, so a single guaranteed size
+ * beats walking a list that fails. The default frame is 4:3 with letterbox
+ * bars; the container is 16:9 and the image is `object-cover`, which crops
+ * exactly those bars off. `onError` still drops the poster if the video was
+ * taken down.
  *
  * Vimeo exposes no equivalent public URL, so a Vimeo testimonial must pass
  * `poster` explicitly (a frame dropped into /public is fine).
  */
 const POSTER_CANDIDATES: Record<VideoProvider, (id: string) => string[]> = {
-  youtube: (id) => [
-    `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
-    `https://i.ytimg.com/vi/${id}/hq720.jpg`,
-    `https://i.ytimg.com/vi/${id}/sddefault.jpg`,
-    `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
-  ],
+  youtube: (id) => [`https://i.ytimg.com/vi/${id}/hqdefault.jpg`],
   vimeo: () => [],
 };
 

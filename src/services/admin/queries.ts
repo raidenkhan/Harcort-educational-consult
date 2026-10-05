@@ -51,3 +51,23 @@ export async function listApprovedTutorsForAdmin(): Promise<number> {
 
   return count ?? 0;
 }
+
+/**
+ * Platform KPI counts (board tracking): distinct students who booked a
+ * session, and the total scheduled sessions. One query, both numbers.
+ */
+export async function listPlatformStats(): Promise<{
+  studentsTutored: number;
+  sessionsScheduled: number;
+}> {
+  const supabase = createAdminClient();
+
+  const { data } = await supabase
+    .from("tutoring_sessions")
+    .select("student_id")
+    .eq("status", "scheduled");
+
+  const rows = (data ?? []) as { student_id: string }[];
+  const students = new Set(rows.map((r) => r.student_id).filter(Boolean));
+  return { studentsTutored: students.size, sessionsScheduled: rows.length };
+}

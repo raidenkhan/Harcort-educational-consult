@@ -24,12 +24,7 @@ function TestimonialFrame({ video }: { video: TestimonialVideo }) {
   const [posterIndex, setPosterIndex] = useState(0);
   const { onPlayingChange } = useCarouselHold();
 
-  const candidates = [
-    `https://i.ytimg.com/vi/${video.videoId}/maxresdefault.jpg`,
-    `https://i.ytimg.com/vi/${video.videoId}/hq720.jpg`,
-    `https://i.ytimg.com/vi/${video.videoId}/sddefault.jpg`,
-    `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`,
-  ];
+  const candidates = [`https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`];
   const posterSrc = candidates[posterIndex];
 
   return (

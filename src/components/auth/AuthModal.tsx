@@ -160,7 +160,7 @@ export function AuthModalProvider({ children }: { children: React.ReactNode }) {
                   type="button"
                   onClick={() => setTab(t.id)}
                   className={cn(
-                    "rounded-md px-4 py-1.5 text-sm font-semibold transition duration-150 active:scale-[0.97]",
+                    "rounded-md px-4 py-1.5 text-sm font-semibold transition duration-150 active:scale-[0.96]",
                     activeTab === t.id
                       ? "bg-white text-slate-900 shadow-xs"
                       : "text-slate-500 hover:text-slate-700",
@@ -174,7 +174,7 @@ export function AuthModalProvider({ children }: { children: React.ReactNode }) {
               type="button"
               onClick={close}
               aria-label="Close"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition duration-150 hover:bg-slate-100 hover:text-slate-700 active:scale-[0.95]"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition duration-150 hover:bg-slate-100 hover:text-slate-700 active:scale-[0.96]"
             >
               <svg
                 viewBox="0 0 24 24"

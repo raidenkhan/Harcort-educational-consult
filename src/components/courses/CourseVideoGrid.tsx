@@ -52,7 +52,7 @@ function VideoCard({ video }: { video: CourseVideoItem }) {
             className="group absolute inset-0 h-full w-full cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-white disabled:cursor-default"
           >
             <Image
-              src={`https://i.ytimg.com/vi/${video.video_id}/hq720.jpg`}
+              src={`https://i.ytimg.com/vi/${video.video_id}/hqdefault.jpg`}
               alt=""
               fill
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"

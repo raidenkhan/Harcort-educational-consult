@@ -3,6 +3,7 @@ import { listReportsForAdmin } from "@/services/moderation/queries";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { ResolveReportActions } from "./ResolveReportActions";
+import { accraDate } from "@/lib/time";
 
 /**
  * The reports queue on /admin/support — open reports first, then recent
@@ -63,7 +64,7 @@ export async function ReportsQueue() {
                         {report.targetLabel}
                       </span>
                       <span className="text-xs text-slate-400">
-                        {new Date(report.createdAt).toLocaleDateString()}
+                        {accraDate(new Date(report.createdAt))}
                       </span>
                     </div>
 
@@ -94,7 +95,7 @@ export async function ReportsQueue() {
                       <p className="mt-2 text-xs text-slate-400">
                         {report.status}{" "}
                         {report.resolvedAt &&
-                          new Date(report.resolvedAt).toLocaleDateString()}
+                          accraDate(new Date(report.resolvedAt))}
                         {report.resolutionNote && ` — “${report.resolutionNote}”`}
                       </p>
                     )}

@@ -78,3 +78,36 @@ export function sortFields(subjects: string[]): string[] {
     .sort((a, b) => a.localeCompare(b));
   return [...known, ...extra];
 }
+
+/**
+ * The year tier (0020). KNUST engineering runs four years; a course or a
+ * student is tied to one of these, or null for "not year-specific / any
+ * year". Kept here (server-safe, already imported by the catalog + dashboard)
+ * so the picker, catalog and admin console share one definition.
+ */
+export const YEARS = [1, 2, 3, 4] as const;
+export type Year = (typeof YEARS)[number];
+
+/** "Year 1" … "Year 4"; null reads "All years". */
+export function yearLabel(year: number | null | undefined): string {
+  return year ? `Year ${year}` : "All years";
+}
+
+/**
+ * Buckets courses into Year 1 → 4, then "All years" (year-null) — only for
+ * buckets that actually have content, in that order.
+ */
+export function groupCoursesByYear<T extends { year: number | null }>(
+  courses: T[],
+): { year: number | null; label: string; items: T[] }[] {
+  const buckets: { year: number | null; items: T[] }[] = [
+    ...YEARS.map((year) => ({
+      year: year as number | null,
+      items: courses.filter((c) => c.year === year),
+    })),
+    { year: null, items: courses.filter((c) => c.year == null) },
+  ];
+  return buckets
+    .filter((b) => b.items.length > 0)
+    .map((b) => ({ year: b.year, label: yearLabel(b.year), items: b.items }));
+}

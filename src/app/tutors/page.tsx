@@ -28,10 +28,15 @@ export const metadata = {
     "Browse verified tutors for KNUST engineering and beyond — search by subject, course, or qualification, compare rates, and reach out.",
 };
 
-export default async function TutorsPage() {
-  const [tutors, profile] = await Promise.all([
+export default async function TutorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const [tutors, profile, { q }] = await Promise.all([
     safeListApprovedTutors(),
     getCurrentProfile(),
+    searchParams,
   ]);
 
   /** ItemList of the currently-approved tutors — helps search engines and
@@ -138,7 +143,11 @@ export default async function TutorsPage() {
                 </AuthTrigger>
               </div>
             ) : (
-              <TutorExplorer tutors={tutors} signedIn={Boolean(profile)} />
+              <TutorExplorer
+                tutors={tutors}
+                signedIn={Boolean(profile)}
+                initialQuery={q ?? ""}
+              />
             )}
           </Container>
         </section>

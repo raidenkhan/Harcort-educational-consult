@@ -25,7 +25,7 @@ export function AuthTrigger({
       title={title}
       onClick={() => open(tab)}
       className={cn(
-        "inline-flex items-center justify-center transition duration-150 active:scale-[0.97]",
+        "inline-flex items-center justify-center transition duration-150 active:scale-[0.96]",
         className,
       )}
     >

@@ -19,11 +19,14 @@ import { cn } from "@/lib/cn";
 export function TutorExplorer({
   tutors,
   signedIn,
+  initialQuery = "",
 }: {
   tutors: TutorListing[];
   signedIn: boolean;
+  /** Prefill from /tutors?q= (global search deep-links a tutor here). */
+  initialQuery?: string;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [subject, setSubject] = useState<string | null>(null);
 
   const subjects = useMemo(() => {
@@ -140,7 +143,7 @@ function SubjectChip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "rounded-full border px-3 py-1.5 text-xs font-semibold transition duration-150 active:scale-[0.97]",
+        "rounded-full border px-3 py-1.5 text-xs font-semibold transition duration-150 active:scale-[0.96]",
         active
           ? "border-slate-900 bg-slate-900 text-white"
           : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
@@ -232,7 +235,7 @@ function TutorCard({
                 tutorProfileId={tp.id}
                 offerings={offeringsForRequest}
                 signedIn={signedIn}
-                className="inline-flex h-7 shrink-0 items-center rounded-md bg-brand-600 px-2.5 text-[11px] font-semibold text-white shadow-xs transition hover:bg-brand-700 active:scale-[0.97]"
+                className="inline-flex h-7 shrink-0 items-center rounded-md bg-brand-600 px-2.5 text-[11px] font-semibold text-white shadow-xs transition hover:bg-brand-700 active:scale-[0.96]"
               />
             </div>
           ))}

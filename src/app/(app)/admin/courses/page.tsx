@@ -27,6 +27,7 @@ export default async function AdminCoursesPage() {
           id: course.id,
           subject: course.subject,
           name: course.name,
+          year: course.year,
         }))}
         materials={assets.materials}
         videos={assets.videos}

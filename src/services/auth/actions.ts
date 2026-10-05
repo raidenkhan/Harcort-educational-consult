@@ -12,7 +12,12 @@ import {
 } from "@/lib/auth/session";
 import { createThrottle } from "@/lib/auth/throttle";
 import { requireProfile } from "./queries";
-import { signInSchema, signUpSchema, switchRoleSchema } from "./schemas";
+import {
+  signInSchema,
+  signUpSchema,
+  switchRoleSchema,
+  setStudyPrefsSchema,
+} from "./schemas";
 
 /**
  * Auth server actions — self-hosted auth.
@@ -127,6 +132,54 @@ export async function signInAction(
 export async function signOutAction(): Promise<void> {
   await revokeSession();
   redirect("/");
+}
+
+/**
+ * A student declares their study prefs (0019 program + 0020 year) from the
+ * dashboard picker. Drives the per-program personalization: the dashboard
+ * lists that program's courses for their year (each course page carries its
+ * materials + tutors). Program is free text with a length cap; year is 1–4.
+ * A non-matching program just yields an empty course list, so there's no
+ * trust-boundary risk to guard.
+ */
+export async function setStudyPrefsAction(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const yearRaw = String(formData.get("year") ?? "").trim();
+  const parsed = setStudyPrefsSchema.safeParse({
+    program: formData.get("program"),
+    year: yearRaw ? Number(yearRaw) : undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Choose a program." };
+  }
+
+  const profile = await requireProfile();
+  if (profile.role !== "student") {
+    return { error: "Only students pick a program." };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      program: parsed.data.program,
+      year: parsed.data.year ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profile.id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard");
+  return {
+    message: parsed.data.year
+      ? `Set to ${parsed.data.program} · Year ${parsed.data.year}.`
+      : `Program set to ${parsed.data.program}.`,
+  };
 }
 
 /**

@@ -183,7 +183,7 @@ export function AutoCarousel({
             type="button"
             onClick={() => step(-1)}
             aria-label="Previous"
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:border-slate-300 hover:text-slate-900 active:scale-[0.96]"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -197,7 +197,7 @@ export function AutoCarousel({
                 aria-label={`Go to slide ${i + 1}`}
                 onClick={() => goTo(i)}
                 className={cn(
-                  "h-1.5 rounded-full transition-all duration-300",
+                  "h-1.5 rounded-full transition-[width,background-color] duration-300",
                   i === active
                     ? "w-6 bg-brand-600"
                     : "w-1.5 bg-slate-300 hover:bg-slate-400",
@@ -209,7 +209,7 @@ export function AutoCarousel({
             type="button"
             onClick={() => step(1)}
             aria-label="Next"
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:border-slate-300 hover:text-slate-900 active:scale-[0.96]"
           >
             <ChevronRight className="h-4 w-4" />
           </button>

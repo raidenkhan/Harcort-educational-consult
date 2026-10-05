@@ -53,7 +53,7 @@ export function ContactTutorButton({
         type="submit"
         disabled={pending}
         className={cn(
-          "inline-flex items-center justify-center rounded-md text-xs font-semibold text-white shadow-xs transition duration-150 hover:bg-slate-800 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60",
+          "inline-flex items-center justify-center rounded-md text-xs font-semibold text-white shadow-xs transition duration-150 hover:bg-slate-800 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-60",
           className,
         )}
       >

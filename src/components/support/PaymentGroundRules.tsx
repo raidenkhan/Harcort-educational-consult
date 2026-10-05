@@ -53,7 +53,7 @@ function WhatsAppCta({ compact = false }: { compact?: boolean }) {
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-600 font-semibold text-white shadow-xs transition duration-150 hover:bg-emerald-700 active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600",
+        "inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-emerald-600 font-semibold text-white shadow-xs transition duration-150 hover:bg-emerald-700 active:scale-[0.96] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600",
         compact ? "h-9 px-3.5 text-xs" : "h-10 px-4 text-sm",
       )}
     >

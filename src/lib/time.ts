@@ -17,6 +17,12 @@ function formatInTz(date: Date, options: Intl.DateTimeFormatOptions): string {
   }).format(date);
 }
 
+/** "14 Aug 2026" — Accra-day date for lists and metadata (never
+ *  `toLocaleDateString`, which leaks the server's timezone). */
+export function accraDate(date: Date): string {
+  return formatInTz(date, { day: "numeric", month: "short", year: "numeric" });
+}
+
 /** "Mon 14 Aug" style day label plus a "14" / "Aug" split for the tile. */
 export function sessionDateTile(date: Date): { month: string; day: string } {
   return {

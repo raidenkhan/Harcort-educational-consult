@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Logo } from "@/components/ui/Logo";
 
@@ -142,6 +143,15 @@ export function FloatingNav({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("harcourt:open-search"))}
+            aria-label="Search"
+            title="Search (Ctrl+K)"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-slate-600 transition duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.96] sm:h-10 sm:w-10"
+          >
+            <Search className="h-4 w-4" />
+          </button>
           {children}
         </div>
       </nav>

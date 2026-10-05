@@ -13,7 +13,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Reveal } from "./Reveal";
-import { LESSON_FIELDS, matchCourses, sortFields } from "./courseTaxonomy";
+import {
+  LESSON_FIELDS,
+  matchCourses,
+  sortFields,
+  groupCoursesByYear,
+} from "./courseTaxonomy";
 
 /**
  * CourseCatalog — the landing page's "Browse by course" band.
@@ -33,6 +38,8 @@ export type CatalogCourse = {
   subject: string;
   name: string;
   description: string | null;
+  /** Year tier (0020) — 1–4, null = not year-specific. */
+  year: number | null;
 };
 
 export type CatalogLesson = {
@@ -71,6 +78,7 @@ export function CourseCatalog({
   const matches = matchCourses(courses, query);
 
   const activeCourses = courses.filter((c) => c.subject === active);
+  const activeYearBuckets = groupCoursesByYear(activeCourses);
   const activeLessons = lessons
     .filter((lesson) => (LESSON_FIELDS[lesson.id] ?? []).includes(active))
     .slice(0, 3);
@@ -212,26 +220,37 @@ export function CourseCatalog({
             </span>
           </div>
 
-          <ul className="mt-4 grid gap-4 sm:grid-cols-2">
-            {activeCourses.map((course) => (
-              <li key={course.id}>
-                <Link
-                  href={`/courses/${course.id}`}
-                  className="group flex h-full flex-col rounded-[2px] border border-slate-200 bg-white p-5 transition-colors duration-200 hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-                >
-                  <span className="flex items-start justify-between gap-3 font-display text-base font-semibold tracking-[0.01em] text-slate-900">
-                    {course.name}
-                    <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-brand-600" />
-                  </span>
-                  {course.description && (
-                    <span className="mt-1.5 text-sm leading-relaxed text-slate-600">
-                      {course.description}
-                    </span>
-                  )}
-                </Link>
-              </li>
+          <div className="mt-4 space-y-8">
+            {activeYearBuckets.map((bucket) => (
+              <div key={bucket.label}>
+                {activeYearBuckets.length > 1 && (
+                  <h4 className="text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    {bucket.label}
+                  </h4>
+                )}
+                <ul className="mt-3 grid gap-4 sm:grid-cols-2">
+                  {bucket.items.map((course) => (
+                    <li key={course.id}>
+                      <Link
+                        href={`/courses/${course.id}`}
+                        className="group flex h-full flex-col rounded-[2px] border border-slate-200 bg-white p-5 transition-colors duration-200 hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                      >
+                        <span className="flex items-start justify-between gap-3 font-display text-base font-semibold tracking-[0.01em] text-slate-900">
+                          {course.name}
+                          <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-brand-600" />
+                        </span>
+                        {course.description && (
+                          <span className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                            {course.description}
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
 
         {/* A slice of the tutorial library, scoped to the selected field —
@@ -257,7 +276,7 @@ export function CourseCatalog({
                     >
                       <span className="relative block aspect-video overflow-hidden bg-petrol-950">
                         <Image
-                          src={`https://i.ytimg.com/vi/${lesson.id}/hq720.jpg`}
+                          src={`https://i.ytimg.com/vi/${lesson.id}/hqdefault.jpg`}
                           alt=""
                           fill
                           sizes="(max-width: 1024px) 100vw, 20rem"

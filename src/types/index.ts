@@ -28,6 +28,11 @@ export interface Profile {
   /** Human-quotable tracking code (0012) — HC-S-… for students, HC-T-… for
    *  tutors. Support/WhatsApp reference; never a secret. */
   public_code?: string | null;
+  /** The program a student declared (0019) — mirrors a `courses.subject`
+   *  value; null until they pick one from the dashboard. */
+  program?: string | null;
+  /** The student's current year (0020) — 1–4, null until they pick one. */
+  year?: number | null;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
@@ -38,6 +43,9 @@ export interface Course {
   subject: string;
   name: string;
   description: string | null;
+  /** The year this course is normally taken (0020) — 1–4, null = not
+   *  year-specific. */
+  year: number | null;
   created_at: string;
 }
 

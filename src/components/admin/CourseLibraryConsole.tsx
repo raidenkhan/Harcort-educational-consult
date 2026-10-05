@@ -12,10 +12,12 @@ import {
   addCourseVideo,
   deleteCourseMaterial,
   deleteCourseVideo,
+  setCourseYear,
   type CourseLibraryFormState,
 } from "@/services/courses/mutations";
 import { FILE_FORMATS, MATERIAL_CATEGORIES } from "@/services/courses/schemas";
 import { semesterLabel } from "@/services/courses/semesters";
+import { YEARS } from "@/components/home/courseTaxonomy";
 import type { CourseMaterial, CourseVideo } from "@/types";
 
 /**
@@ -33,7 +35,7 @@ import type { CourseMaterial, CourseVideo } from "@/types";
 type MaterialRow = CourseMaterial & { course_name: string; course_subject: string };
 type VideoRow = CourseVideo & { course_name: string; course_subject: string };
 
-type CourseOption = { id: string; subject: string; name: string };
+type CourseOption = { id: string; subject: string; name: string; year: number | null };
 
 function AssetForm({
   action,
@@ -89,6 +91,7 @@ export function CourseLibraryConsole({
 
   const [courseId, setCourseId] = useState(courses[0]?.id ?? "");
   const subjects = Array.from(new Set(courses.map((course) => course.subject)));
+  const selectedCourse = courses.find((course) => course.id === courseId);
 
   const courseMaterials = materials.filter((row) => row.course_id === courseId);
   const courseVideos = videos.filter((row) => row.course_id === courseId);
@@ -104,8 +107,8 @@ export function CourseLibraryConsole({
 
   return (
     <div className="mt-8 space-y-8">
-      {/* Course picker — scopes everything below. */}
-      <Card className="flex flex-col gap-1.5 sm:max-w-xl">
+      {/* Course picker — scopes everything below, plus its year tier. */}
+      <Card className="flex flex-col gap-4 sm:max-w-xl">
         <Field
           label="Course"
           htmlFor="library-course"
@@ -129,6 +132,32 @@ export function CourseLibraryConsole({
             ))}
           </Select>
         </Field>
+
+        <form action={setCourseYear} className="flex items-end gap-3">
+          <input type="hidden" name="courseId" value={courseId} />
+          <div className="w-44">
+            <Field
+              label="Year"
+              htmlFor="library-year"
+              hint="Which year this course is taught in."
+            >
+              <Select
+                key={selectedCourse?.year ?? "all"}
+                id="library-year"
+                name="year"
+                defaultValue={selectedCourse?.year?.toString() ?? ""}
+              >
+                <option value="">All years</option>
+                {YEARS.map((year) => (
+                  <option key={year} value={year}>
+                    Year {year}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <Button type="submit">Save year</Button>
+        </form>
       </Card>
 
       {/* Authoring forms */}

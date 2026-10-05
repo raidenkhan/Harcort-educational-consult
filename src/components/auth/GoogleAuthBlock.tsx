@@ -113,7 +113,7 @@ export function GoogleAuthBlock() {
       <a
         href="/api/auth/google"
         onClick={clearGoogleError}
-        className="flex w-full items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98]"
+        className="flex w-full items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-50 active:scale-[0.96]"
       >
         <GoogleG />
         Continue with Google

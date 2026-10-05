@@ -2,8 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
-  ArrowLeft,
   BookOpen,
+  ChevronRight,
   Download,
   ExternalLink,
   FileText,
@@ -115,7 +115,7 @@ export default async function CoursePage({
       <FloatingNav
         links={[
           { href: "/", label: "Home" },
-          { href: "/#courses", label: "Courses" },
+          { href: "/courses", label: "Courses" },
           { href: "/tutors", label: "Find a tutor" },
         ]}
       >
@@ -152,17 +152,31 @@ export default async function CoursePage({
         <section className="relative overflow-hidden">
           <AnimatedGradient size="90%" />
           <Container className="relative pb-16 pt-28">
-            <Link
-              href="/#courses"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-lilac-100/80 transition hover:text-white"
+            <nav
+              aria-label="Breadcrumb"
+              className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-lilac-100/80"
             >
-              <ArrowLeft className="h-4 w-4" strokeWidth={1.5} />
-              All courses
-            </Link>
+              <Link href="/" className="transition hover:text-white">
+                Home
+              </Link>
+              <ChevronRight className="h-3.5 w-3.5 text-lilac-100/50" />
+              <Link href="/courses" className="transition hover:text-white">
+                Courses
+              </Link>
+              <ChevronRight className="h-3.5 w-3.5 text-lilac-100/50" />
+              <span className="text-white">{course.subject}</span>
+            </nav>
             <div className="mt-5 max-w-3xl">
-              <span className="inline-flex items-center rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-widest text-lilac-100 ring-1 ring-inset ring-white/20 backdrop-blur">
-                {course.subject}
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-widest text-lilac-100 ring-1 ring-inset ring-white/20 backdrop-blur">
+                  {course.subject}
+                </span>
+                {course.year != null && (
+                  <span className="inline-flex items-center rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-widest text-lilac-100 ring-1 ring-inset ring-white/20 backdrop-blur">
+                    Year {course.year}
+                  </span>
+                )}
+              </div>
               <h1 className="mt-3 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
                 {course.name}
               </h1>

@@ -191,14 +191,14 @@ export default async function Home() {
       <FloatingNav
         links={[
           { href: "/tutors", label: "Find a Tutor" },
-          { href: "#courses", label: "Courses" },
+          { href: "/courses", label: "Courses" },
           { href: "#learn", label: "Harcourt University" },
         ]}
       >
         {currentProfile ? (
           <Link
             href="/dashboard"
-            className="inline-flex h-10 items-center rounded-full bg-slate-900 px-4 text-sm font-semibold text-white shadow-xs transition duration-150 hover:bg-slate-800 active:scale-[0.97]"
+            className="inline-flex h-10 items-center rounded-full bg-slate-900 px-4 text-sm font-semibold text-white shadow-xs transition duration-150 hover:bg-slate-800 active:scale-[0.96]"
           >
             Dashboard
           </Link>
@@ -297,7 +297,7 @@ export default async function Home() {
             >
               <Link
                 href="/tutors"
-                className="inline-flex h-12 items-center justify-center rounded-[2px] bg-white px-7 text-sm font-semibold text-petrol-900 transition duration-150 hover:bg-lilac-100 active:scale-[0.97]"
+                className="inline-flex h-12 items-center justify-center rounded-[2px] bg-white px-7 text-sm font-semibold text-petrol-900 transition duration-150 hover:bg-lilac-100 active:scale-[0.96]"
               >
                 Find Academic Support
               </Link>
@@ -427,6 +427,7 @@ export default async function Home() {
               subject: course.subject,
               name: course.name,
               description: course.description,
+              year: course.year,
             }))}
             lessons={LESSONS}
           />
@@ -779,7 +780,7 @@ export default async function Home() {
             <div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-6">
             <Link
               href="/tutors"
-              className="inline-flex h-12 items-center justify-center rounded-[2px] bg-brand-600 px-7 text-sm font-semibold text-white transition duration-150 hover:bg-brand-700 active:scale-[0.98]"
+              className="inline-flex h-12 items-center justify-center rounded-[2px] bg-brand-600 px-7 text-sm font-semibold text-white transition duration-150 hover:bg-brand-700 active:scale-[0.96]"
             >
               Find Academic Support
             </Link>

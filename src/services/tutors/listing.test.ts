@@ -21,6 +21,7 @@ const COURSE: Course = {
   subject: "Mechanical Engineering",
   name: "Dynamics",
   description: null,
+  year: null,
   created_at: "2026-08-01T00:00:00Z",
 };
 

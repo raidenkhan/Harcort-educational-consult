@@ -1,26 +1,31 @@
-import { Users, UserCheck } from "lucide-react";
+import { Users, UserCheck, GraduationCap, CalendarClock } from "lucide-react";
 import { requireRole } from "@/services/auth/queries";
 import {
   listApprovedTutorsForAdmin,
   listPendingTutors,
+  listPlatformStats,
 } from "@/services/admin/queries";
 import { approveTutor, rejectTutor } from "@/services/admin/mutations";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Fields";
+import { accraDate } from "@/lib/time";
 
 /** Overview tab — platform stats plus tutor application review. */
 export default async function AdminPage() {
   await requireRole("admin");
 
-  const [pending, approvedCount] = await Promise.all([
+  const [pending, approvedCount, platform] = await Promise.all([
     listPendingTutors(),
     listApprovedTutorsForAdmin(),
+    listPlatformStats(),
   ]);
 
   const stats = [
     { label: "Pending applications", value: pending.length, icon: Users, tint: "bg-amber-50 text-amber-700" },
     { label: "Approved tutors", value: approvedCount, icon: UserCheck, tint: "bg-emerald-50 text-emerald-700" },
+    { label: "Students tutored", value: platform.studentsTutored, icon: GraduationCap, tint: "bg-brand-50 text-brand-700" },
+    { label: "Sessions scheduled", value: platform.sessionsScheduled, icon: CalendarClock, tint: "bg-petrol-50 text-petrol-700" },
   ];
 
   return (
@@ -84,7 +89,7 @@ export default async function AdminPage() {
                           {tutor.public_code}
                         </span>
                       )}
-                      Applied {new Date(tutor.created_at).toLocaleDateString()} ·{" "}
+                      Applied {accraDate(new Date(tutor.created_at))} ·{" "}
                       {tutor.rate_per_hour != null
                         ? `GH₵${tutor.rate_per_hour.toLocaleString()}/hr`
                         : "No rate set"}

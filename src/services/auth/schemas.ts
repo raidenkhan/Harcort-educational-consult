@@ -26,6 +26,23 @@ export const switchRoleSchema = z.object({
   }),
 });
 
+/** A student declares their program (a `courses.subject` value) and year
+ *  (1–4, optional). */
+export const setStudyPrefsSchema = z.object({
+  program: z
+    .string()
+    .trim()
+    .min(1, "Choose a program")
+    .max(100, "Program name is too long"),
+  year: z
+    .number()
+    .int("Choose a year")
+    .refine((value) => value >= 1 && value <= 4, {
+      error: "Choose Year 1 to 4",
+    })
+    .optional(),
+});
+
 /** Admin issues a one-time reset code for a user's email. */
 export const resetRequestSchema = z.object({
   email: z.email("Enter a valid email address"),
@@ -47,4 +64,5 @@ export const resetRedeemSchema = z.object({
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SwitchRoleInput = z.infer<typeof switchRoleSchema>;
+export type SetStudyPrefsInput = z.infer<typeof setStudyPrefsSchema>;
 export type ResetRedeemInput = z.infer<typeof resetRedeemSchema>;

@@ -87,7 +87,7 @@ export function AdminResetCode() {
             <button
               type="button"
               onClick={copy}
-              className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-800 shadow-xs transition hover:bg-amber-100 active:scale-[0.97]"
+              className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-800 shadow-xs transition hover:bg-amber-100 active:scale-[0.96]"
             >
               {copied ? (
                 <Check className="h-3.5 w-3.5" />

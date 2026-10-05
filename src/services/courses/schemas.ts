@@ -103,5 +103,17 @@ export const courseAssetIdSchema = z.object({
   id: uuid("Missing asset"),
 });
 
+/** Set the year tier on a course (0020). `year` null clears it ("All years"). */
+export const setCourseYearSchema = z.object({
+  courseId: uuid("Select a course"),
+  year: z
+    .number()
+    .int("Choose a year")
+    .refine((value) => value >= 1 && value <= 4, {
+      error: "Choose Year 1 to 4",
+    })
+    .nullable(),
+});
+
 export type CreateMaterialInput = z.infer<typeof createMaterialSchema>;
 export type CreateVideoInput = z.infer<typeof createVideoSchema>;
