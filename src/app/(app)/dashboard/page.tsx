@@ -3,7 +3,7 @@ import { CalendarClock } from "lucide-react";
 import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
 import { getOwnTutorProfile } from "@/services/tutors/queries";
 import { listCourses } from "@/services/courses/queries";
-import { sortFields, groupCoursesByYear } from "@/components/home/courseTaxonomy";
+import { sortFields, groupCoursesByYear, engineeringCourses } from "@/components/home/courseTaxonomy";
 import {
   listSessionsForStudent,
   listSessionsForTutor,
@@ -57,12 +57,13 @@ const STATUS_BADGE: Record<
 export default async function DashboardPage() {
   const profile = await requireProfile();
 
-  const [tutor, studentSessions, tutorSessions, courses] = await Promise.all([
+  const [tutor, studentSessions, tutorSessions, allCourses] = await Promise.all([
     profile.role === "tutor" ? getOwnTutorProfile() : Promise.resolve(null),
     profile.role === "student" ? listSessionsForStudent() : Promise.resolve([]),
     profile.role === "tutor" ? listSessionsForTutor() : Promise.resolve([]),
     profile.role === "student" ? listCourses() : Promise.resolve([]),
   ]);
+  const courses = engineeringCourses(allCourses);
 
   const programSubjects = sortFields(
     Array.from(new Set(courses.map((c) => c.subject))),

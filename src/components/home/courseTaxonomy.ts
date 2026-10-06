@@ -9,12 +9,13 @@
  */
 
 /**
- * Curated field order — the KNUST engineering faculties first (the audience
- * the site targets), then the wider academic catalog. Any subject in the
- * database that is not listed here is appended alphabetically by
- * `sortFields`, so new taxonomy rows never silently disappear from the page.
+ * The KNUST College-of-Engineering fields — the only subjects the
+ * student-facing catalog shows (browse band, nav search, program picker).
+ * The DB may still hold wider academic subjects (English, Business…);
+ * management surfaces (admin console, tutor service form) see everything,
+ * but every student-facing read filters through `engineeringCourses`.
  */
-export const FIELD_ORDER = [
+export const ENGINEERING_FIELDS: readonly string[] = [
   "Mechanical Engineering",
   "Electrical & Electronic Engineering",
   "Computer Engineering",
@@ -22,6 +23,16 @@ export const FIELD_ORDER = [
   "Chemical & Petroleum Engineering",
   "Engineering Mathematics",
   "Engineering Sciences",
+];
+
+/**
+ * Curated field order — the KNUST engineering faculties first (the audience
+ * the site targets), then the wider academic catalog. Any subject in the
+ * database that is not listed here is appended alphabetically by
+ * `sortFields`, so new taxonomy rows never silently disappear from the page.
+ */
+export const FIELD_ORDER = [
+  ...ENGINEERING_FIELDS,
   "Computer Science",
   "Mathematics",
   "Sciences",
@@ -30,6 +41,19 @@ export const FIELD_ORDER = [
   "Languages",
   "Exam Prep",
 ];
+
+/**
+ * Narrows a course list to `ENGINEERING_FIELDS`, preserving order — the
+ * engineering-only rule for student-facing surfaces. Pure and typed off the
+ * row shape, so any `{ subject }` list (courses, search hits) can pass through.
+ */
+export function engineeringCourses<T extends { subject: string }>(
+  courses: T[],
+): T[] {
+  return courses.filter((course) =>
+    ENGINEERING_FIELDS.includes(course.subject),
+  );
+}
 
 /**
  * Which course fields each free lesson belongs to, keyed by video id. The

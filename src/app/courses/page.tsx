@@ -3,6 +3,7 @@ import { listCourses } from "@/services/courses/queries";
 import { getCurrentProfile } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
 import { CourseCatalog } from "@/components/home/CourseCatalog";
+import { engineeringCourses } from "@/components/home/courseTaxonomy";
 import { LESSONS } from "@/components/home/HarcourtUniversity";
 import { Container } from "@/components/ui/Container";
 import { Logo } from "@/components/ui/Logo";
@@ -18,8 +19,9 @@ import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
  * /courses — the course catalog, one place where every program and course is
  * listed clearly (the board's "display available courses clearly" ask). Reuses
  * the landing's CourseCatalog picker so the browse experience is identical on
- * both pages: pick a program (Mechanical, Electrical, Computer, Maths…), see
- * its courses, jump to one. Data comes from the cached listCourses.
+ * both pages: pick a program (Mechanical, Electrical, Computer, Civil…), see
+ * its courses, jump to one. Data comes from the cached listCourses, filtered
+ * to the KNUST engineering fields.
  */
 export const dynamic = "force-dynamic";
 
@@ -31,10 +33,11 @@ export const metadata = {
 };
 
 export default async function CoursesPage() {
-  const [courses, profile] = await Promise.all([
+  const [allCourses, profile] = await Promise.all([
     listCourses(),
     getCurrentProfile(),
   ]);
+  const courses = engineeringCourses(allCourses);
 
   return (
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
@@ -90,8 +93,8 @@ export default async function CoursesPage() {
               </h1>
               <p className="mt-3 text-lilac-100/90">
                 Pick your program — Mechanical, Electrical &amp; Electronic,
-                Computer Engineering, Maths and more — then jump to the course,
-                its materials, and the tutors who teach it.
+                Computer, Civil or Chemical Engineering — then jump to the
+                course, its materials, and the tutors who teach it.
               </p>
             </div>
           </Container>

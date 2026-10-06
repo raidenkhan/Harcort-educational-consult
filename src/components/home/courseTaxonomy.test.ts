@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { FIELD_ORDER, matchCourses, sortFields } from "./courseTaxonomy";
+import {
+  ENGINEERING_FIELDS,
+  FIELD_ORDER,
+  engineeringCourses,
+  matchCourses,
+  sortFields,
+} from "./courseTaxonomy";
 
 const COURSES = [
   {
@@ -71,5 +77,33 @@ describe("sortFields", () => {
 
   it("keeps every curated field name in FIELD_ORDER", () => {
     expect(sortFields(FIELD_ORDER)).toEqual(FIELD_ORDER);
+  });
+});
+
+describe("engineeringCourses", () => {
+  it("keeps only the KNUST engineering fields, in order", () => {
+    const rows = [
+      { subject: "Mechanical Engineering" },
+      { subject: "English" },
+      { subject: "Engineering Mathematics" },
+      { subject: "Business" },
+      { subject: "Civil Engineering" },
+      { subject: "Exam Prep" },
+    ];
+    expect(engineeringCourses(rows).map((r) => r.subject)).toEqual([
+      "Mechanical Engineering",
+      "Engineering Mathematics",
+      "Civil Engineering",
+    ]);
+  });
+
+  it("keeps every engineering field and drops every wider-catalog one", () => {
+    const kept = engineeringCourses(ENGINEERING_FIELDS.map((subject) => ({ subject })));
+    expect(kept).toHaveLength(ENGINEERING_FIELDS.length);
+
+    const dropped = ["Computer Science", "Mathematics", "Sciences", "English"];
+    expect(engineeringCourses(dropped.map((subject) => ({ subject })))).toEqual(
+      [],
+    );
   });
 });

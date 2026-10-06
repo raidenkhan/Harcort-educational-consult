@@ -38,6 +38,7 @@ import { BeamCard } from "@/components/home/BeamCard";
 import { LessonSlider } from "@/components/home/LessonSlider";
 import { TestimonialSlider } from "@/components/home/TestimonialSlider";
 import { CourseCatalog } from "@/components/home/CourseCatalog";
+import { engineeringCourses } from "@/components/home/courseTaxonomy";
 import { TESTIMONIAL_VIDEOS } from "@/components/home/testimonialVideos";
 
 /**
@@ -125,11 +126,12 @@ function FlatCard({
 }
 
 export default async function Home() {
-  const [tutors, courses, currentProfile] = await Promise.all([
+  const [tutors, allCourses, currentProfile] = await Promise.all([
     safeListApprovedTutors(),
     listCourses(),
     getCurrentProfile(),
   ]);
+  const courses = engineeringCourses(allCourses);
 
   const subjects = Array.from(new Set(courses.map((c) => c.subject)));
 
