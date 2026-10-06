@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import {
   GraduationCap,
   BookOpenCheck,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/site";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { FloatingNav } from "@/components/navigation/FloatingNav";
+import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
 import { Reveal } from "@/components/home/Reveal";
 import { Parallax } from "@/components/home/Parallax";
 import { BounceDeck } from "@/components/home/BounceDeck";
@@ -219,6 +221,12 @@ export default async function Home() {
           </>
         )}
       </FloatingNav>
+
+      {/* The global search index is mounted per public page, not in the root
+          layout — see GlobalSearchLoader / AGENTS notes on scoping fetches. */}
+      <Suspense>
+        <GlobalSearchLoader />
+      </Suspense>
 
       {/* ── Hero (gradient backdrop) ───────────────────────────────── */}
       <section className="relative flex min-h-screen flex-col justify-center supports-[height:100svh]:min-h-[100svh]">

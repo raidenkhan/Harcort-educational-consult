@@ -17,7 +17,7 @@ export default function ForgotPasswordPage() {
     <div className="relative flex flex-1 flex-col">
       <BentoBackdrop tone="purple" className="-z-10" />
 
-      <FloatingNav links={[{ href: "/", label: "Home" }]}>
+      <FloatingNav links={[{ href: "/", label: "Home" }]} showSearch={false}>
         <Link
           href="/sign-in"
           className="inline-flex h-10 items-center rounded-full px-3.5 text-sm font-semibold text-slate-700 transition duration-150 hover:bg-slate-100"

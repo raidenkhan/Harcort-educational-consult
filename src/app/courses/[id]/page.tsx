@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import {
   BookOpen,
   ChevronRight,
@@ -31,6 +32,7 @@ import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { PerspectiveGrid } from "@/components/ui/PerspectiveGrid";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
 import { FloatingNav } from "@/components/navigation/FloatingNav";
+import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { CourseVideoGrid } from "@/components/courses/CourseVideoGrid";
@@ -146,6 +148,10 @@ export default async function CoursePage({
           </>
         )}
       </FloatingNav>
+
+      <Suspense>
+        <GlobalSearchLoader />
+      </Suspense>
 
       <main className="relative flex-1">
         {/* ── Course header ─────────────────────────────────────────── */}

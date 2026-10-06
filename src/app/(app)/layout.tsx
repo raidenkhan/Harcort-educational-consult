@@ -86,7 +86,7 @@ async function AppHeader() {
   ];
 
   return (
-    <FloatingNav links={links}>
+    <FloatingNav links={links} showSearch={false}>
       {profile && (
         <span className="hidden items-center gap-2 text-sm text-slate-600 lg:flex">
           {profile.full_name}

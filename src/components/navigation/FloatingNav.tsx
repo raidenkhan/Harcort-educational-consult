@@ -33,12 +33,19 @@ export function FloatingNav({
   links,
   children,
   hideOnScroll = true,
+  showSearch = true,
   className,
 }: {
   links?: { href: string; label: string }[];
   /** Right-hand side: auth buttons, sign-out form, user chip, … */
   children?: React.ReactNode;
   hideOnScroll?: boolean;
+  /**
+   * Render the global search trigger. False on pages where the search
+   * index isn't mounted (the app shell, forgot-password) so the button
+   * can never fire into nothing — see GlobalSearchLoader.
+   */
+  showSearch?: boolean;
   className?: string;
 }) {
   const pathname = usePathname();
@@ -143,15 +150,19 @@ export function FloatingNav({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new Event("harcourt:open-search"))}
-            aria-label="Search"
-            title="Search (Ctrl+K)"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-slate-600 transition duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.96] sm:h-10 sm:w-10"
-          >
-            <Search className="h-4 w-4" />
-          </button>
+          {showSearch && (
+            <button
+              type="button"
+              onClick={() =>
+                window.dispatchEvent(new Event("harcourt:open-search"))
+              }
+              aria-label="Search"
+              title="Search (Ctrl+K)"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-600 transition duration-150 hover:bg-slate-100 hover:text-slate-900 active:scale-[0.96] sm:h-10 sm:w-10"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+          )}
           {children}
         </div>
       </nav>

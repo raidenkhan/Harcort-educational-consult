@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/space-grotesk";
 import { AuthModalProvider } from "@/components/auth/AuthModal";
-import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
 import {
   SITE_NAME,
   SITE_URL,
@@ -73,12 +71,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="flex min-h-full flex-col bg-canvas text-slate-800">
-        <AuthModalProvider>
-          {children}
-          <Suspense>
-            <GlobalSearchLoader />
-          </Suspense>
-        </AuthModalProvider>
+        <AuthModalProvider>{children}</AuthModalProvider>
       </body>
     </html>
   );

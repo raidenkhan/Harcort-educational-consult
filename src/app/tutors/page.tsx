@@ -1,4 +1,5 @@
 import { Users } from "lucide-react";
+import { Suspense } from "react";
 import { safeListApprovedTutors } from "@/services/tutors/queries";
 import { SITE_NAME } from "@/lib/site";
 import { getCurrentProfile } from "@/services/auth/queries";
@@ -12,6 +13,7 @@ import { PerspectiveGrid } from "@/components/ui/PerspectiveGrid";
 import { AnimatedGradient } from "@/components/ui/AnimatedGradient";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { FloatingNav } from "@/components/navigation/FloatingNav";
+import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
 
 /**
  * Public tutor directory — browse approved tutors with search + subject
@@ -99,6 +101,10 @@ export default async function TutorsPage({
           </>
         )}
       </FloatingNav>
+
+      <Suspense>
+        <GlobalSearchLoader />
+      </Suspense>
 
       {/* ── Directory ────────────────────────────────────────────── */}
       <main className="relative flex-1">

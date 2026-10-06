@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { listCourses } from "@/services/courses/queries";
 import { getCurrentProfile } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
@@ -11,6 +12,7 @@ import { PerspectiveGrid } from "@/components/ui/PerspectiveGrid";
 import { AnimatedGradient } from "@/components/ui/AnimatedGradient";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { FloatingNav } from "@/components/navigation/FloatingNav";
+import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
 
 /**
  * /courses — the course catalog, one place where every program and course is
@@ -70,6 +72,10 @@ export default async function CoursesPage() {
           </>
         )}
       </FloatingNav>
+
+      <Suspense>
+        <GlobalSearchLoader />
+      </Suspense>
 
       <main className="relative flex-1">
         <section className="relative overflow-hidden">

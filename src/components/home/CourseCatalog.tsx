@@ -4,12 +4,25 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import {
-  ArrowRight,
   ArrowUpRight,
+  Atom,
+  Briefcase,
+  Building2,
+  Calculator,
+  Code2,
+  Cog,
+  Cpu,
+  FlaskConical,
   GraduationCap,
+  Languages,
+  Microscope,
   Play,
   Search,
+  Sigma,
+  Target,
   X,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Reveal } from "./Reveal";
@@ -28,6 +41,12 @@ import {
  * mixed list. Fields (the `subject` column of `courses` — effectively the
  * faculty/department) are the top level; picking one narrows the page to that
  * field's courses and the free lessons recorded against it.
+ *
+ * The band reads as a program picker first: every field carries its own icon
+ * so the four engineering faculties stay visually distinct at a glance, the
+ * selected program gets a header, and the courses themselves are the page's
+ * hero cards. Free lessons are demoted to a single strip underneath — the
+ * full lesson library already has its own band further up the page.
  *
  * Data comes in as props from the server page (see page.tsx) — this component
  * never queries anything and never imports from a server-only module.
@@ -49,6 +68,70 @@ export type CatalogLesson = {
   topic: string;
   channel: string;
 };
+
+/**
+ * Program identity — one icon per field. Unknown subjects (anything a
+ * future taxonomy row adds) fall back to the graduation cap, so a new row
+ * never renders as a blank chip.
+ */
+const FIELD_ICONS: Record<string, LucideIcon> = {
+  "Mechanical Engineering": Cog,
+  "Electrical & Electronic Engineering": Zap,
+  "Computer Engineering": Cpu,
+  "Civil Engineering": Building2,
+  "Chemical & Petroleum Engineering": FlaskConical,
+  "Engineering Mathematics": Sigma,
+  "Engineering Sciences": Atom,
+  "Computer Science": Code2,
+  Mathematics: Calculator,
+  Sciences: Microscope,
+  Business: Briefcase,
+  English: Languages,
+  Languages: Languages,
+  "Exam Prep": Target,
+};
+
+function fieldIcon(subject: string): LucideIcon {
+  return FIELD_ICONS[subject] ?? GraduationCap;
+}
+
+/**
+ * One course card. The whole card is the link; when `eyebrow` is set the
+ * field (and year) rides above the title, since search results span fields.
+ */
+function CourseCard({
+  course,
+  eyebrow = false,
+}: {
+  course: CatalogCourse;
+  eyebrow?: boolean;
+}) {
+  return (
+    <Link
+      href={`/courses/${course.id}`}
+      className="group flex h-full flex-col rounded-[2px] border border-slate-200 bg-white p-5 transition-colors duration-200 hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+    >
+      {eyebrow && (
+        <span className="block truncate text-[11px] font-semibold uppercase tracking-widest text-brand-600">
+          {course.subject}
+          {course.year != null && ` · Year ${course.year}`}
+        </span>
+      )}
+      <span className="font-display text-base font-semibold tracking-[0.01em] text-slate-900">
+        {course.name}
+      </span>
+      {course.description && (
+        <span className="mt-1.5 text-sm leading-relaxed text-slate-600">
+          {course.description}
+        </span>
+      )}
+      <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-[13px] font-semibold text-brand-600">
+        Materials &amp; tutors
+        <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-200 [transition-timing-function:var(--ease-out)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 motion-reduce:transition-none" />
+      </span>
+    </Link>
+  );
+}
 
 export function CourseCatalog({
   courses,
@@ -79,15 +162,20 @@ export function CourseCatalog({
 
   const activeCourses = courses.filter((c) => c.subject === active);
   const activeYearBuckets = groupCoursesByYear(activeCourses);
-  const activeLessons = lessons
-    .filter((lesson) => (LESSON_FIELDS[lesson.id] ?? []).includes(active))
-    .slice(0, 3);
+  const activeLessons = lessons.filter((lesson) =>
+    (LESSON_FIELDS[lesson.id] ?? []).includes(active),
+  );
+  const featured = activeLessons[0];
+  // Read straight off the module-level map (a component reference, not a
+  // call) so react-hooks/static-components can't see a component "created
+  // during render".
+  const ActiveIcon = FIELD_ICONS[active] ?? GraduationCap;
 
   return (
     <div className={className}>
       {/* Search — jump straight to a course by name, field or description
           without knowing which field it lives under. Empty input hands the
-          view back to the field chips below. */}
+          view back to the program picker below. */}
       <Reveal>
         <div className="relative max-w-md">
           <Search
@@ -115,14 +203,16 @@ export function CourseCatalog({
         </div>
       </Reveal>
 
-      {/* Field chips — the top level of the taxonomy. */}
+      {/* Program picker — the top level of the taxonomy, one icon per
+          faculty so the engineering disciplines read as distinct options. */}
       <Reveal className="mt-3">
         <div
           role="group"
-          aria-label="Choose a course field"
+          aria-label="Choose your program"
           className="flex flex-wrap gap-2"
         >
           {fields.map((field) => {
+            const Icon = fieldIcon(field);
             const isActive = field === active;
             const count = courses.filter((c) => c.subject === field).length;
             return (
@@ -141,6 +231,7 @@ export function CourseCatalog({
                     : "border-slate-300/70 bg-white text-slate-700 hover:border-slate-400 hover:text-slate-900",
                 )}
               >
+                <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
                 {field}
                 <span
                   className={cn(
@@ -176,171 +267,136 @@ export function CourseCatalog({
             <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {matches.map((course) => (
                 <li key={course.id}>
-                  {/* The whole card is the course link — the field is shown as
-                      a badge, not a nested button (an interactive element
-                      inside a link is invalid and swallows the click). */}
-                  <Link
-                    href={`/courses/${course.id}`}
-                    className="group flex h-full flex-col rounded-[2px] border border-slate-200 bg-white p-5 transition-colors duration-200 hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-                  >
-                    <span className="text-[11px] font-semibold uppercase tracking-widest text-brand-600">
-                      {course.subject}
-                    </span>
-                    <span className="mt-1.5 flex items-start justify-between gap-3 font-display text-base font-semibold tracking-[0.01em] text-slate-900">
-                      {course.name}
-                      <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-brand-600" />
-                    </span>
-                    {course.description && (
-                      <span className="mt-1.5 text-sm leading-relaxed text-slate-600">
-                        {course.description}
-                      </span>
-                    )}
-                  </Link>
+                  <CourseCard course={course} eyebrow />
                 </li>
               ))}
             </ul>
           ) : (
             <p className="mt-4 rounded-[2px] border border-dashed border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
               No course matches &ldquo;{trimmed}&rdquo;. Try a broader term, or
-              pick a field above.
+              pick a program above.
             </p>
           )}
         </div>
       ) : (
-        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] lg:gap-12">
-        {/* Courses in the selected field. */}
-        <div>
-          <div className="flex items-baseline justify-between gap-4 border-b border-slate-200 pb-3">
-            <h3 className="font-display text-lg font-semibold tracking-[0.01em] text-slate-900">
-              {active}
-            </h3>
-            <span className="text-xs font-medium uppercase tracking-widest text-slate-400">
+        <div className="mt-8">
+          {/* Program header — names the pick and stamps it with its icon. */}
+          <div className="flex items-center gap-3.5 border-b border-slate-200 pb-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[2px] bg-petrol-900 text-white">
+              <ActiveIcon aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-600">
+                Your program
+              </p>
+              <h3 className="truncate font-display text-xl font-semibold tracking-[0.01em] text-slate-900">
+                {active}
+              </h3>
+            </div>
+            <span className="hidden text-xs font-medium uppercase tracking-widest text-slate-400 sm:block">
               {activeCourses.length}{" "}
               {activeCourses.length === 1 ? "course" : "courses"}
             </span>
           </div>
 
-          <div className="mt-4 space-y-8">
+          {/* Courses in the selected field, bucketed by year — the hero of
+              this band. Full width now that the lesson aside is gone. */}
+          <div className="mt-6 space-y-8">
             {activeYearBuckets.map((bucket) => (
               <div key={bucket.label}>
-                {activeYearBuckets.length > 1 && (
+                {(activeYearBuckets.length > 1 || bucket.year !== null) && (
                   <h4 className="text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                     {bucket.label}
                   </h4>
                 )}
-                <ul className="mt-3 grid gap-4 sm:grid-cols-2">
+                <ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {bucket.items.map((course) => (
                     <li key={course.id}>
-                      <Link
-                        href={`/courses/${course.id}`}
-                        className="group flex h-full flex-col rounded-[2px] border border-slate-200 bg-white p-5 transition-colors duration-200 hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-                      >
-                        <span className="flex items-start justify-between gap-3 font-display text-base font-semibold tracking-[0.01em] text-slate-900">
-                          {course.name}
-                          <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-brand-600" />
-                        </span>
-                        {course.description && (
-                          <span className="mt-1.5 text-sm leading-relaxed text-slate-600">
-                            {course.description}
-                          </span>
-                        )}
-                      </Link>
+                      <CourseCard course={course} />
                     </li>
                   ))}
                 </ul>
               </div>
             ))}
           </div>
-        </div>
 
-        {/* A slice of the tutorial library, scoped to the selected field —
-            the rest stays in the full library band further up the page. */}
-        <aside className="lg:pt-1">
-          <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
-            Free lessons
-          </p>
-
-          {activeLessons.length > 0 ? (
-            <>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                Watch a real {active.toLowerCase()} problem worked step by step.
+          {/* Free lessons, demoted to one quiet strip. The full library band
+              sits further up the page — this is only a taste of it. */}
+          <div className="mt-9 border-t border-slate-200 pt-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
+                Free lessons
               </p>
-              <ul className="mt-4 space-y-4">
-                {activeLessons.map((lesson) => (
-                  <li key={lesson.id}>
-                    <a
-                      href={`https://www.youtube.com/watch?v=${lesson.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group block overflow-hidden rounded-[2px] border border-slate-200 bg-white transition-colors duration-200 hover:border-slate-300"
-                    >
-                      <span className="relative block aspect-video overflow-hidden bg-petrol-950">
-                        <Image
-                          src={`https://i.ytimg.com/vi/${lesson.id}/hqdefault.jpg`}
-                          alt=""
-                          fill
-                          sizes="(max-width: 1024px) 100vw, 20rem"
-                          className="object-cover opacity-90 transition duration-300 [transition-timing-function:var(--ease-out)] group-hover:scale-[1.03] group-hover:opacity-100 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
-                        />
-                        <span className="absolute inset-0 flex items-center justify-center">
-                          <span className="flex h-10 w-10 items-center justify-center rounded-[2px] bg-white/95 text-petrol-900 transition duration-200 [transition-timing-function:var(--ease-out)] group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
-                            <Play
-                              className="h-4 w-4 translate-x-[1px]"
-                              fill="currentColor"
-                            />
-                          </span>
-                        </span>
-                        <span className="absolute bottom-2 right-2 rounded-[2px] bg-petrol-950/85 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
-                          {lesson.length}
-                        </span>
-                      </span>
-                      <span className="block p-3">
-                        <span className="block text-[11px] font-semibold uppercase tracking-widest text-brand-600">
-                          {lesson.topic}
-                        </span>
-                        <span className="mt-1 block line-clamp-2 text-sm font-semibold leading-snug text-slate-900">
-                          {lesson.title}
-                        </span>
-                      </span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
               <a
                 href="#learn"
-                className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 transition hover:text-brand-700"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 transition hover:text-brand-700"
               >
                 See the full lesson library
                 <ArrowUpRight className="h-4 w-4" />
               </a>
-            </>
-          ) : (
-            <div className="mt-3 rounded-[2px] border border-dashed border-slate-300 bg-slate-50/60 p-5">
-              <p className="text-sm leading-relaxed text-slate-600">
+            </div>
+
+            {featured ? (
+              <a
+                href={`https://www.youtube.com/watch?v=${featured.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group mt-3 flex gap-4 rounded-[2px] border border-slate-200 bg-white p-3 transition-colors duration-200 hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 sm:gap-5 sm:p-4"
+              >
+                <span className="relative block aspect-video w-32 shrink-0 overflow-hidden rounded-[2px] bg-petrol-950 sm:w-48">
+                  <Image
+                    src={`https://i.ytimg.com/vi/${featured.id}/hqdefault.jpg`}
+                    alt=""
+                    fill
+                    sizes="(max-width: 640px) 8rem, 12rem"
+                    className="object-cover opacity-90 transition duration-300 [transition-timing-function:var(--ease-out)] group-hover:scale-[1.03] group-hover:opacity-100 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-[2px] bg-white/95 text-petrol-900 transition duration-200 [transition-timing-function:var(--ease-out)] group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
+                      <Play
+                        className="h-3.5 w-3.5 translate-x-[1px]"
+                        fill="currentColor"
+                      />
+                    </span>
+                  </span>
+                  <span className="absolute bottom-1.5 right-1.5 rounded-[2px] bg-petrol-950/85 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white">
+                    {featured.length}
+                  </span>
+                </span>
+                <span className="flex min-w-0 flex-col justify-center gap-1">
+                  <span className="truncate text-[11px] font-semibold uppercase tracking-widest text-brand-600">
+                    {featured.topic}
+                  </span>
+                  <span className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900">
+                    {featured.title}
+                  </span>
+                  <span className="line-clamp-2 text-xs leading-relaxed text-slate-500">
+                    Watch a real {active.toLowerCase()} problem worked step by
+                    step.
+                  </span>
+                </span>
+              </a>
+            ) : (
+              <p className="mt-3 text-sm leading-relaxed text-slate-600">
                 No free {active.toLowerCase()} lessons published yet. You can
-                still browse the full lesson library, or get a tutor who has
-                taken these courses.
-              </p>
-              <div className="mt-4 flex flex-col gap-2">
+                still browse the{" "}
                 <a
                   href="#learn"
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 transition hover:text-brand-700"
+                  className="font-semibold text-brand-600 transition hover:text-brand-700"
                 >
-                  Browse free lessons
-                  <ArrowUpRight className="h-4 w-4" />
+                  full lesson library
                 </a>
+                , or{" "}
                 <Link
                   href="/tutors"
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900 transition hover:text-brand-600"
+                  className="font-semibold text-slate-900 transition hover:text-brand-600"
                 >
-                  <GraduationCap className="h-4 w-4" />
-                  Find a tutor
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </div>
-          )}
-        </aside>
+                  find a tutor
+                </Link>{" "}
+                who has taken these courses.
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>
