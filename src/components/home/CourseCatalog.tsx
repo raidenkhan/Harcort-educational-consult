@@ -96,6 +96,19 @@ function fieldIcon(subject: string): LucideIcon {
 }
 
 /**
+ * Course lists: a horizontal snap-scroll on phones — a program can carry a
+ * dozen-plus courses and a single-column stack runs the page forever — then
+ * the normal 2/3-column grid from `sm` up. The negative margin bleeds the
+ * track to the Container's edges (both call sites sit inside Container's
+ * px-6) so the next card peeks past the fold: that peek *is* the scroll
+ * affordance, no caption needed. Card height stays even because a flex row
+ * stretches its items; at `sm` the grid takes over and `w-auto` re-opens.
+ */
+const LIST =
+  "-mx-6 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-6 pt-1.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pt-0 sm:pb-0 lg:grid-cols-3";
+const LIST_ITEM = "w-[76%] shrink-0 snap-start sm:w-auto";
+
+/**
  * One course card. The whole card is the link; when `eyebrow` is set the
  * field (and year) rides above the title, since search results span fields.
  */
@@ -264,9 +277,9 @@ export function CourseCatalog({
           </div>
 
           {matches.length > 0 ? (
-            <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className={cn("mt-4", LIST)}>
               {matches.map((course) => (
-                <li key={course.id}>
+                <li key={course.id} className={LIST_ITEM}>
                   <CourseCard course={course} eyebrow />
                 </li>
               ))}
@@ -309,9 +322,9 @@ export function CourseCatalog({
                     {bucket.label}
                   </h4>
                 )}
-                <ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <ul className={cn("mt-3", LIST)}>
                   {bucket.items.map((course) => (
-                    <li key={course.id}>
+                    <li key={course.id} className={LIST_ITEM}>
                       <CourseCard course={course} />
                     </li>
                   ))}
