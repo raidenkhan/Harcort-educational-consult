@@ -4,35 +4,128 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { DUMMY_HASH, hashPassword, verifyPassword } from "@/lib/auth/password";
+import { optionalText } from "@/lib/forms";
 import {
   createSession,
   revokeSession,
   setSessionCookie,
 } from "@/lib/auth/session";
 import { createThrottle } from "@/lib/auth/throttle";
+import { isUnknownFunction } from "@/lib/auth/rpc";
 import { requireProfile } from "./queries";
 import {
   signInSchema,
   signUpSchema,
   switchRoleSchema,
   setStudyPrefsSchema,
+  setSessionModeSchema,
+  setPhoneSchema,
 } from "./schemas";
+import { DEFAULT_SESSION_MODE, type SessionMode } from "./sessionFormat";
 
-/**
- * Auth server actions — self-hosted auth.
- *
+/** Auth server actions — self-hosted auth.
  * No Supabase Auth calls, no confirmation emails, no provider rate-limit
  * ceiling: sign-up creates a profile + hashed credential atomically via the
- * register_user RPC, then issues an immediate session cookie. Sign-in is
- * throttled in-memory (per email + per IP) against credential stuffing.
+ * register_user RPC (including the student's session format, 0021), then
+ * issues an immediate session cookie. Sign-in is throttled in-memory (per
+ * email + per IP) against credential stuffing.
  */
 
 export type AuthFormState = { error?: string; message?: string };
 
-// A well-formed scrypt hash used only to burn equal CPU when the email
-// isn't found (keeps "wrong password" and "no such user" indistinguishable).
-const DUMMY_HASH = `scrypt$${"0".repeat(32)}$${"0".repeat(128)}`;
+/**
+ * Create the account through the `register_user` RPC (0003 → 0010 → 0021 →
+ * 0022). Sign-up is the one funnel that must never break, so this tolerates a
+ * database that hasn't caught up with the newest migration:
+ *
+ *   - 0022 applied → the 8-argument RPC writes profile + credential + the
+ *     student's program, year and phone in ONE transaction.
+ *   - 0022 not applied → the primary call fails with "function not found"
+ *     (`isUnknownFunction`), so we retry against the live 5-argument 0021
+ *     signature (which already stores the session format) and then set
+ *     program/year — and phone, separately, since that column doesn't exist
+ *     yet — in non-fatal follow-up writes. An unapplied migration must not
+ *     lock everyone out of the product.
+ *
+ * Both paths are loud in the server log.
+ */
+async function registerUser(
+  supabase: ReturnType<typeof createAdminClient>,
+  params: {
+    email: string;
+    passwordHash: string;
+    fullName: string;
+    role: "student" | "tutor";
+    sessionMode: SessionMode;
+    program?: string;
+    year?: number | null;
+    phone?: string | null;
+  }
+): Promise<{
+  profileId: string | null;
+  error: { code?: string | null; message: string } | null;
+}> {
+  const withExtras = await supabase.rpc("register_user", {
+    p_email: params.email,
+    p_password_hash: params.passwordHash,
+    p_full_name: params.fullName,
+    p_role: params.role,
+    p_session_mode: params.sessionMode,
+    p_program: params.program ?? null,
+    p_year: params.year ?? null,
+    p_phone: params.phone ?? null,
+  });
+  if (!withExtras.error || !isUnknownFunction(withExtras.error)) {
+    return {
+      profileId: (withExtras.data as string | null) ?? null,
+      error: withExtras.error ?? null,
+    };
+  }
+
+  console.error(
+    "[auth] register_user(program, year, phone) is unavailable — apply " +
+      "migration 0022. Falling back to the 0021 RPC.",
+  );
+
+  // Only the five arguments the live (0021) function actually accepts.
+  const fallback = await supabase.rpc("register_user", {
+    p_email: params.email,
+    p_password_hash: params.passwordHash,
+    p_full_name: params.fullName,
+    p_role: params.role,
+    p_session_mode: params.sessionMode,
+  });
+  if (fallback.error) {
+    return { profileId: null, error: fallback.error };
+  }
+
+  const profileId = fallback.data as string;
+
+  // The 0021 RPC already stored the session format; these two writes add the
+  // 0019/0020 fields. Kept apart from the phone write so a missing `phone`
+  // column can't roll back program/year with it.
+  if (params.program || params.year != null) {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ program: params.program ?? null, year: params.year ?? null })
+      .eq("id", profileId);
+    if (error) {
+      console.error(`[auth] program/year not saved: ${error.message}`);
+    }
+  }
+  if (params.phone) {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ phone: params.phone })
+      .eq("id", profileId);
+    if (error) {
+      console.error(`[auth] phone not saved (apply 0022): ${error.message}`);
+    }
+  }
+
+  return { profileId, error: null };
+}
 
 // ---------------------------------------------------------------------------
 // Brute-force throttle (see src/lib/auth/throttle.ts).
@@ -48,11 +141,18 @@ export async function signUpAction(
   _prev: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  const yearText = optionalText(formData.get("year"));
   const parsed = signUpSchema.safeParse({
-    email: formData.get("email"),
+    email: optionalText(formData.get("email")),
     password: formData.get("password"),
-    fullName: formData.get("fullName"),
-    role: formData.get("role"),
+    fullName: optionalText(formData.get("fullName")),
+    role: optionalText(formData.get("role")),
+    // `optionalText` collapses both an unrendered control (null) and a blank
+    // input ("") to undefined for the fields a role may not send.
+    sessionMode: optionalText(formData.get("sessionMode")),
+    program: optionalText(formData.get("program")),
+    year: yearText ? Number(yearText) : undefined,
+    phone: optionalText(formData.get("phone")),
   });
 
   if (!parsed.success) {
@@ -61,11 +161,15 @@ export async function signUpAction(
 
   const supabase = createAdminClient();
 
-  const { data: profileId, error } = await supabase.rpc("register_user", {
-    p_email: parsed.data.email,
-    p_password_hash: await hashPassword(parsed.data.password),
-    p_full_name: parsed.data.fullName,
-    p_role: parsed.data.role,
+  const { profileId, error } = await registerUser(supabase, {
+    email: parsed.data.email,
+    passwordHash: await hashPassword(parsed.data.password),
+    fullName: parsed.data.fullName,
+    role: parsed.data.role,
+    sessionMode: parsed.data.sessionMode ?? DEFAULT_SESSION_MODE,
+    program: parsed.data.role === "student" ? parsed.data.program : undefined,
+    year: parsed.data.role === "student" ? parsed.data.year : undefined,
+    phone: parsed.data.phone,
   });
 
   if (error) {
@@ -78,6 +182,9 @@ export async function signUpAction(
   // Instant session — no email confirmation involved.
   const token = await createSession(profileId as string);
   await setSessionCookie(token);
+
+  revalidateTag("tutors", "max");
+  revalidatePath("/");
 
   redirect("/dashboard");
 }
@@ -134,8 +241,7 @@ export async function signOutAction(): Promise<void> {
   redirect("/");
 }
 
-/**
- * A student declares their study prefs (0019 program + 0020 year) from the
+/** A student declares their study prefs (0019 program + 0020 year) from the
  * dashboard picker. Drives the per-program personalization: the dashboard
  * lists that program's courses for their year (each course page carries its
  * materials + tutors). Program is free text with a length cap; year is 1–4.
@@ -182,8 +288,89 @@ export async function setStudyPrefsAction(
   };
 }
 
-/**
- * Self-service role switch (student ↔ tutor) — e.g. a Google sign-up who
+/** A student changes how they want their sessions (0021) from the dashboard.
+ * One-on-one or group — stored on the profile, so the tutor sees it on every
+ * request they receive. Students only: for a tutor the value is meaningless.
+ */
+export async function setSessionModeAction(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const parsed = setSessionModeSchema.safeParse({
+    sessionMode: formData.get("sessionMode") ?? undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Choose a session format." };
+  }
+
+  const profile = await requireProfile();
+  if (profile.role !== "student") {
+    return { error: "Only students pick a session format." };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      session_mode: parsed.data.sessionMode,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profile.id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard");
+  return {
+    message:
+      parsed.data.sessionMode === "group"
+        ? "Set to group sessions — tutors will see this on your requests."
+        : "Set to one-on-one sessions — tutors will see this on your requests.",
+  };
+}
+
+/** A signed-in user sets—or clears—the phone number we text them on (0022).
+ * Optional for every role: nothing else depends on it, and removing a number
+ * is a first-class action rather than an error. Students are the audience for
+ * the session texts; a tutor number is stored all the same.
+ */
+export async function setPhoneAction(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const parsed = setPhoneSchema.safeParse({
+    phone: optionalText(formData.get("phone")),
+  });
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues[0]?.message ?? "Check the phone number.",
+    };
+  }
+
+  const profile = await requireProfile();
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      phone: parsed.data.phone ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profile.id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard");
+  return {
+    message: parsed.data.phone
+      ? `We'll text session updates to ${parsed.data.phone}.`
+      : "Phone number removed.",
+  };
+}
+
+/** Self-service role switch (student ↔ tutor) — e.g. a Google sign-up who
  * defaulted to student, or a tutor taking a break. Admin is never switchable:
  * the schema only allows 'student'/'tutor' and requireProfile guards the
  * acting session.
@@ -241,16 +428,23 @@ export async function switchRoleAction(
   };
 }
 
-/**
- * One-time onboarding for brand-new Google accounts (0010). Picks the role
- * AND stamps onboarding_completed_at so the /onboarding screen never shows
- * again. Same validation as switchRoleAction — admin is impossible.
+/** One-time onboarding for brand-new Google accounts (0010). Picks the role
+ * (plus the session format for a student, 0021) and stamps
+ * onboarding_completed_at so the /onboarding screen never shows again. Same
+ * role validation as switchRoleAction — admin is impossible.
  */
 export async function completeOnboardingAction(formData: FormData): Promise<void> {
   const parsed = switchRoleSchema.safeParse({ role: formData.get("role") });
   if (!parsed.success) {
     redirect("/onboarding"); // malformed — stay on the picker
   }
+
+  // The session format (0021) is asked alongside the role for a student —
+  // same question as the email sign-up form, so a Google account isn't
+  // onboarded with fewer choices. A tutor pick ignores it.
+  const sessionMode = setSessionModeSchema.safeParse({
+    sessionMode: formData.get("sessionMode") ?? undefined,
+  });
 
   const profile = await requireProfile();
   if (profile.onboarding_completed_at) {
@@ -269,6 +463,19 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
 
   if (error) {
     redirect("/onboarding");
+  }
+
+  // Second, non-fatal step: the session format needs migration 0021. Writing
+  // it separately keeps an unapplied migration from breaking onboarding —
+  // the role above is what actually finishes setup.
+  if (parsed.data.role === "student" && sessionMode.success) {
+    const { error: modeError } = await supabase
+      .from("profiles")
+      .update({ session_mode: sessionMode.data.sessionMode })
+      .eq("id", profile.id);
+    if (modeError) {
+      console.error(`[auth] session_mode not saved: ${modeError.message}`);
+    }
   }
 
   revalidateTag("tutors", "max");

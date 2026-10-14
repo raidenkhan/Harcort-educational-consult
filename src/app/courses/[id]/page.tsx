@@ -3,11 +3,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import {
+  ArrowLeft,
   BookOpen,
+  CalendarRange,
   ChevronRight,
   Download,
   ExternalLink,
   FileText,
+  FolderOpen,
   GraduationCap,
   Users,
   Video,
@@ -21,7 +24,7 @@ import {
 import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
-import type { CourseMaterial } from "@/types";
+import type { CourseMaterial, CourseVideo } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Container } from "@/components/ui/Container";
@@ -37,7 +40,15 @@ import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { CourseVideoGrid } from "@/components/courses/CourseVideoGrid";
 import { RelatedLessons } from "@/components/courses/RelatedLessons";
-import { groupBySemester, hasSemesterGrouping } from "@/services/courses/semesters";
+import { FolderCard } from "@/components/library/FolderCard";
+import {
+  groupBySemester,
+  hasSemesterGrouping,
+  parseSemesterParam,
+  semesterLabel,
+  semesterParam,
+  type SemesterBucket,
+} from "@/services/courses/semesters";
 
 /**
  * Public course page — one course's home for materials and tutorial videos,
@@ -76,10 +87,13 @@ export async function generateMetadata({
 
 export default async function CoursePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ term?: string }>;
 }) {
   const { id } = await params;
+  const { term } = await searchParams;
   const [course, profile] = await Promise.all([getCourseById(id), getCurrentProfile()]);
   if (!course) notFound();
 
@@ -89,10 +103,21 @@ export default async function CoursePage({
     listTutorsForCourse(course.id),
   ]);
 
-  // Per-term headings only appear once something actually carries a term:
-  // before that, a flat list is the honest rendering and an "Unassigned"
-  // heading over every row would just be noise (0018).
+  // Term drill-down: the page opens on term folders, and a `?term=` value
+  // drills into one term's materials and videos. Only when something is
+  // actually tagged (0018) does the folder level appear — otherwise the honest
+  // thing is a flat list, not a single fake "Not assigned" folder.
   const showSemesters = hasSemesterGrouping([...videos, ...materials]);
+  const selectedTerm = parseSemesterParam(term);
+  const termBuckets = groupBySemester([...videos, ...materials]);
+  const activeBucket =
+    selectedTerm === undefined
+      ? undefined
+      : termBuckets.find((bucket) => bucket.semester === selectedTerm);
+  const termVideos = activeBucket ? activeBucket.items.filter(isVideo) : [];
+  const termMaterials = activeBucket
+    ? activeBucket.items.filter((item): item is CourseMaterial => !isVideo(item))
+    : [];
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -118,6 +143,7 @@ export default async function CoursePage({
         links={[
           { href: "/", label: "Home" },
           { href: "/courses", label: "Courses" },
+          { href: "/library", label: "Library" },
           { href: "/tutors", label: "Find a tutor" },
         ]}
       >
@@ -166,11 +192,24 @@ export default async function CoursePage({
                 Home
               </Link>
               <ChevronRight className="h-3.5 w-3.5 text-lilac-100/50" />
-              <Link href="/courses" className="transition hover:text-white">
-                Courses
+              <Link href="/library" className="transition hover:text-white">
+                Library
               </Link>
               <ChevronRight className="h-3.5 w-3.5 text-lilac-100/50" />
-              <span className="text-white">{course.subject}</span>
+              {selectedTerm === undefined ? (
+                <span className="text-white">{course.name}</span>
+              ) : (
+                <>
+                  <Link
+                    href={`/courses/${course.id}`}
+                    className="transition hover:text-white"
+                  >
+                    {course.name}
+                  </Link>
+                  <ChevronRight className="h-3.5 w-3.5 text-lilac-100/50" />
+                  <span className="text-white">{semesterLabel(selectedTerm)}</span>
+                </>
+              )}
             </nav>
             <div className="mt-5 max-w-3xl">
               <div className="flex flex-wrap items-center gap-2">
@@ -223,104 +262,24 @@ export default async function CoursePage({
           <BentoBackdrop tone="purple" variant="smooth" className="-z-10" />
           <PerspectiveGrid tone="purple" className="-z-10" />
           <Container className="relative space-y-16 py-12 sm:py-16">
-            {/* Tutorial videos */}
-            <div>
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                    Tutorial videos
-                  </p>
-                  <h2 className="mt-2 font-display text-2xl font-semibold tracking-[0.01em] text-slate-900">
-                    Worked through, step by step
-                  </h2>
-                </div>
-                {videos.length > 0 && (
-                  <Badge tone="petrol">
-                    {videos.length} {videos.length === 1 ? "video" : "videos"}
-                  </Badge>
-                )}
-              </div>
-
-              {videos.length > 0 ? (
-                <div className="mt-6 space-y-8">
-                  {groupBySemester(videos).map((bucket) => (
-                    <div key={bucket.label}>
-                      {showSemesters && (
-                        <SemesterHead
-                          label={bucket.label}
-                          count={bucket.items.length}
-                          noun="video"
-                        />
-                      )}
-                      <div className={showSemesters ? "mt-4" : undefined}>
-                        <CourseVideoGrid videos={bucket.items} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            {showSemesters ? (
+              selectedTerm === undefined ? (
+                <TermFolders courseId={course.id} buckets={termBuckets} />
               ) : (
-                <p className="mt-6 rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
-                  No tutorial videos for this course yet — they&apos;re added as
-                  our tutors record them. In the meantime, the free lessons
-                  below cover the same ground.
-                </p>
-              )}
-            </div>
-
-            {/* Course materials */}
-            <div>
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                    Course materials
-                  </p>
-                  <h2 className="mt-2 font-display text-2xl font-semibold tracking-[0.01em] text-slate-900">
-                    Notes, outlines and references
-                  </h2>
-                </div>
-                {materials.length > 0 && (
-                  <Badge tone="brand">
-                    {materials.length}{" "}
-                    {materials.length === 1 ? "material" : "materials"}
-                  </Badge>
-                )}
-              </div>
-
-              {materials.length > 0 ? (
-                <div className="mt-6 space-y-8">
-                  {groupBySemester(materials).map((bucket) => (
-                    <div key={bucket.label}>
-                      {showSemesters && (
-                        <SemesterHead
-                          label={bucket.label}
-                          count={bucket.items.length}
-                          noun="material"
-                        />
-                      )}
-                      <ul
-                        className={
-                          showSemesters
-                            ? "mt-4 grid gap-4 sm:grid-cols-2"
-                            : "grid gap-4 sm:grid-cols-2"
-                        }
-                      >
-                        {bucket.items.map((material) => (
-                          <li key={material.id}>
-                            <MaterialCard material={material} />
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-6 rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
-                  Course materials for {course.name} haven&apos;t been uploaded
-                  yet. Check back, or message us and we&apos;ll point you at the
-                  right notes.
-                </p>
-              )}
-            </div>
+                <TermContent
+                  courseId={course.id}
+                  term={selectedTerm}
+                  courseName={course.name}
+                  videos={termVideos}
+                  materials={termMaterials}
+                />
+              )
+            ) : (
+              <>
+                <VideosBlock videos={videos} />
+                <MaterialsBlock materials={materials} courseName={course.name} />
+              </>
+            )}
 
             {/* Tutors who teach this course */}
             <div>
@@ -444,27 +403,181 @@ export default async function CoursePage({
   );
 }
 
-/**
- * Term heading above one semester bucket. Only rendered when something on the
- * page actually carries a term (see `showSemesters`), so the section count in
- * the header above still tells the whole story.
- */
-function SemesterHead({
-  label,
-  count,
-  noun,
+/** Distinguish a video from a material when a bucket holds both. */
+function isVideo(item: CourseVideo | CourseMaterial): item is CourseVideo {
+  return "video_id" in item;
+}
+
+/** The tutorial-videos section: heading, count and grid (or an honest empty note). */
+function VideosBlock({ videos }: { videos: CourseVideo[] }) {
+  return (
+    <div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
+            Tutorial videos
+          </p>
+          <h2 className="mt-2 font-display text-2xl font-semibold tracking-[0.01em] text-slate-900">
+            Worked through, step by step
+          </h2>
+        </div>
+        {videos.length > 0 && (
+          <Badge tone="petrol">
+            {videos.length} {videos.length === 1 ? "video" : "videos"}
+          </Badge>
+        )}
+      </div>
+
+      {videos.length > 0 ? (
+        <div className="mt-6">
+          <CourseVideoGrid videos={videos} />
+        </div>
+      ) : (
+        <p className="mt-6 rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
+          No tutorial videos for this course yet — they&apos;re added as our
+          tutors record them. In the meantime, the free lessons below cover the
+          same ground.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The materials section: heading, count and cards (or an honest empty note). */
+function MaterialsBlock({
+  materials,
+  courseName,
 }: {
-  label: string;
-  count: number;
-  noun: "video" | "material";
+  materials: CourseMaterial[];
+  courseName: string;
 }) {
   return (
-    <h3 className="flex items-baseline gap-3 border-b border-slate-200 pb-2 font-display text-lg font-semibold tracking-[0.01em] text-slate-900">
-      {label}
-      <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">
-        {count} {count === 1 ? noun : `${noun}s`}
-      </span>
-    </h3>
+    <div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
+            Course materials
+          </p>
+          <h2 className="mt-2 font-display text-2xl font-semibold tracking-[0.01em] text-slate-900">
+            Notes, outlines and references
+          </h2>
+        </div>
+        {materials.length > 0 && (
+          <Badge tone="brand">
+            {materials.length}{" "}
+            {materials.length === 1 ? "material" : "materials"}
+          </Badge>
+        )}
+      </div>
+
+      {materials.length > 0 ? (
+        <ul className="mt-6 grid gap-4 sm:grid-cols-2">
+          {materials.map((material) => (
+            <li key={material.id}>
+              <MaterialCard material={material} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-6 rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
+          Course materials for {courseName} haven&apos;t been uploaded yet.
+          Check back, or message us and we&apos;ll point you at the right notes.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Level 2 of the drill-down: one folder per term that actually has content.
+ * A folder's subtitle counts its videos and materials so the student knows
+ * what is behind the door before opening it.
+ */
+function TermFolders({
+  courseId,
+  buckets,
+}: {
+  courseId: string;
+  buckets: SemesterBucket<CourseVideo | CourseMaterial>[];
+}) {
+  return (
+    <div>
+      <div className="max-w-2xl">
+        <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
+          Step 1 of 2
+        </p>
+        <h2 className="mt-2 font-display text-2xl font-semibold tracking-[0.01em] text-slate-900">
+          Choose a term
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+          Open the term you&apos;re studying to see its materials and tutorial
+          videos.
+        </p>
+      </div>
+
+      <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {buckets.map((bucket) => {
+          const videoCount = bucket.items.filter(isVideo).length;
+          const materialCount = bucket.items.length - videoCount;
+          return (
+            <FolderCard
+              key={bucket.label}
+              href={`/courses/${courseId}?term=${semesterParam(bucket.semester)}`}
+              title={bucket.label}
+              icon={bucket.semester === null ? FolderOpen : CalendarRange}
+              meta={<Badge tone="brand">{bucket.items.length}</Badge>}
+              subtitle={`${videoCount} ${
+                videoCount === 1 ? "video" : "videos"
+              } · ${materialCount} ${
+                materialCount === 1 ? "material" : "materials"
+              }`}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Level 3: one term's videos and materials, with a way back to the folders. */
+function TermContent({
+  courseId,
+  term,
+  courseName,
+  videos,
+  materials,
+}: {
+  courseId: string;
+  term: number | null;
+  courseName: string;
+  videos: CourseVideo[];
+  materials: CourseMaterial[];
+}) {
+  return (
+    <div className="space-y-16">
+      <div>
+        <Link
+          href={`/courses/${courseId}`}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          All terms
+        </Link>
+        <div className="mt-4 flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-600 text-white">
+            <CalendarRange className="h-4 w-4" />
+          </span>
+          <h2 className="font-display text-2xl font-semibold tracking-[0.01em] text-slate-900">
+            {semesterLabel(term)}
+          </h2>
+        </div>
+      </div>
+
+      {videos.length > 0 && <VideosBlock videos={videos} />}
+      {materials.length > 0 && (
+        <MaterialsBlock materials={materials} courseName={courseName} />
+      )}
+    </div>
   );
 }
 

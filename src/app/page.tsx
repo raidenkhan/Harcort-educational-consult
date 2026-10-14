@@ -196,6 +196,7 @@ export default async function Home() {
         links={[
           { href: "/tutors", label: "Find a Tutor" },
           { href: "/courses", label: "Courses" },
+          { href: "/library", label: "Library" },
           { href: "#learn", label: "Harcourt University" },
         ]}
       >

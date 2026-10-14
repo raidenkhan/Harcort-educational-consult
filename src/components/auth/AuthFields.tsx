@@ -1,19 +1,26 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { signInAction, signUpAction, type AuthFormState } from "@/services/auth/actions";
+import { ENGINEERING_FIELDS, YEARS } from "@/components/home/courseTaxonomy";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Fields";
 import { Button } from "@/components/ui/Button";
 import { GoogleAuthBlock } from "./GoogleAuthBlock";
-import { RolePicker } from "./RolePicker";
+import { RolePicker, type AuthRole } from "./RolePicker";
+import { SessionModePicker } from "./SessionModePicker";
 
-/**
- * Shared auth forms — rendered inside both the auth modal (with tabs)
+/** Shared auth forms — rendered inside both the auth modal (with tabs)
  * and the standalone /sign-in and /sign-up pages.
  */
 
+/** Matches StudyPrefsPicker's select styling so the two program pickers read
+ *  as the same control. */
+const selectClass =
+  "h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-xs transition focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/15";
+
+/** Sign-in form. */
 export function SignInFields() {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(
     signInAction,
@@ -37,7 +44,13 @@ export function SignInFields() {
 
       <form action={formAction} className="space-y-4">
         <Field label="Email" htmlFor="email">
-          <Input id="email" name="email" type="email" required autoComplete="email" />
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+          />
         </Field>
         <Field label="Password" htmlFor="password">
           <Input
@@ -64,11 +77,17 @@ export function SignInFields() {
   );
 }
 
+/** Sign-up form — students see program + year + phone + session format;
+ *  tutors see only role and basic fields.
+ */
 export function SignUpFields() {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(
     signUpAction,
     {},
   );
+  // Tracked only to reveal the session-format question for students (0021):
+  // the role radios themselves stay uncontrolled, so this never resets them.
+  const [role, setRole] = useState<AuthRole>("student");
 
   return (
     <>
@@ -115,7 +134,77 @@ export function SignUpFields() {
           />
         </Field>
 
-        <RolePicker name="role" />
+        <RolePicker name="role" onChange={setRole} />
+
+        {/* Only students have a session format — a tutor sign-up sends
+          nothing and the DB default applies. */}
+        {role === "student" && (
+          <SessionModePicker
+            hint="One-on-one or group — your tutor sees this when you request them. You can change it later from your dashboard."
+          />
+        )}
+
+        {/* Program + year are required for students (Program → Year → Course).
+            Selects, not free text: the value is written to profiles.program and
+            matched against courses.subject, so it must be one of the KNUST
+            engineering fields the catalog uses. */}
+        {role === "student" && (
+          <>
+            <Field label="Program" htmlFor="program">
+              <select
+                id="program"
+                name="program"
+                required
+                defaultValue=""
+                className={selectClass}
+              >
+                <option value="" disabled>
+                  Choose your program
+                </option>
+                {ENGINEERING_FIELDS.map((field) => (
+                  <option key={field} value={field}>
+                    {field}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Year" htmlFor="year">
+              <select
+                id="year"
+                name="year"
+                required
+                defaultValue=""
+                className={selectClass}
+              >
+                <option value="" disabled>
+                  Choose your year
+                </option>
+                {YEARS.map((year) => (
+                  <option key={year} value={year}>
+                    Year {year}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </>
+        )}
+
+        {/* Phone is optional for every role. Students get session texts
+            (Arkesel SMS, 0022); the number can be added or cleared later from
+            the dashboard. */}
+        <Field
+          label="Phone number (optional)"
+          htmlFor="phone"
+          hint="Ghana mobile — used for session text updates."
+        >
+          <Input
+            id="phone"
+            name="phone"
+            type="tel"
+            autoComplete="tel"
+            placeholder="e.g. 0241234567"
+          />
+        </Field>
 
         <Button type="submit" size="lg" className="w-full" disabled={pending}>
           {pending ? "Creating account…" : "Create account"}

@@ -1,6 +1,10 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  normalizeSessionMode,
+  type SessionMode,
+} from "@/services/auth/sessionFormat";
 import type { Profile } from "@/types";
 
 /**
@@ -24,6 +28,10 @@ export interface TutorRequestView {
   studentId?: string;
   studentName?: string;
   studentPublicCode?: string;
+  /** How the student wants to be tutored (0021). `undefined` means the value
+   *  could not be read (migration not applied yet) — render nothing rather
+   *  than claiming a format the student never chose. */
+  studentSessionMode?: SessionMode;
   /** The tutor's bookable service (course offer) for this request — used by
    *  the accepted-request "Pay 50%" CTA to create the agreement (0012 flow:
    *  request-first, pay-after-acceptance). Resolved from the tutor's active
@@ -100,6 +108,39 @@ function toView(raw: unknown): TutorRequestView {
   };
 }
 
+/**
+ * Session formats for a set of students (0021).
+ *
+ * Best-effort and separate from the request select on purpose: `session_mode`
+ * only exists once migration 0021 is applied, and a tutor's inbox has to keep
+ * rendering either way. A missing column is logged, never fatal — the same
+ * contract as the course library's asset queries.
+ */
+async function listSessionModes(
+  studentIds: string[],
+): Promise<Map<string, SessionMode>> {
+  const ids = [...new Set(studentIds)];
+  if (ids.length === 0) return new Map();
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, session_mode")
+    .in("id", ids);
+
+  if (error) {
+    console.error(`[requests] session_mode lookup failed: ${error.message}`);
+    return new Map();
+  }
+
+  return new Map(
+    (data ?? []).map((row) => [
+      row.id as string,
+      normalizeSessionMode((row as { session_mode?: unknown }).session_mode),
+    ]),
+  );
+}
+
 /** The student's sent requests, newest first. */
 export async function listStudentRequests(profile: Profile): Promise<TutorRequestView[]> {
   const supabase = createAdminClient();
@@ -131,13 +172,26 @@ export async function listTutorInbox(profile: Profile): Promise<TutorRequestView
   if (error) throw new Error(`listTutorInbox: ${error.message}`);
 
   const views = (data ?? []).map((row) => toView(row));
+
+  // The tutor decides how to run the engagement (one-on-one vs group), so
+  // every incoming request carries the student's stated format.
+  const modes = await listSessionModes(
+    views
+      .map((view) => view.studentId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const withModes = views.map((view) => ({
+    ...view,
+    studentSessionMode: view.studentId ? modes.get(view.studentId) : undefined,
+  }));
+
   const rank: Record<RequestStatus, number> = {
     pending: 0,
     accepted: 1,
     declined: 2,
     withdrawn: 3,
   };
-  return views.sort(
+  return withModes.sort(
     (a, b) => rank[a.status] - rank[b.status] || b.createdAt.localeCompare(a.createdAt),
   );
 }

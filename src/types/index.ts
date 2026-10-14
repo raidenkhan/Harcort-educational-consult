@@ -3,7 +3,14 @@
  * These mirror the database schema defined in supabase/migrations/0001_init.sql.
  */
 
+import type { SessionMode } from "@/services/auth/sessionFormat";
+
 export type UserRole = "student" | "tutor" | "admin";
+
+/** Stored as text in the DB (0017/0021 convention) with a CHECK constraint.
+ *  The union lives with its runtime values in `sessionFormat.ts`; re-exported
+ *  here so the type has a single definition. */
+export type { SessionMode };
 
 export type TutorStatus = "pending" | "approved" | "rejected";
 
@@ -33,6 +40,14 @@ export interface Profile {
   program?: string | null;
   /** The student's current year (0020) — 1–4, null until they pick one. */
   year?: number | null;
+  /** How the student wants to be tutored (0021) — 'one_on_one' | 'group'.
+   *  Chosen at sign-up, editable from the dashboard, shown to the tutor on
+   *  every request. Optional in the type because a profile read before
+   *  migration 0021 is applied has no such column. */
+  session_mode?: SessionMode | null;
+  /** Phone we text session updates to (0022). Optional for every role;
+   *  optional in the type because a profile read before 0022 has no column. */
+  phone?: string | null;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
@@ -148,4 +163,42 @@ export interface TutoringSession {
   student_confirmed_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * A study group (0023) — a course-scoped room a tutor runs for their
+ * students. Students join by sharing the short `join_code`; everyone in the
+ * group sees a shared message feed. `is_archived` is a soft-delete so the
+ * owner's audit trail (and the group's messages) survives.
+ */
+export interface StudyGroup {
+  id: string;
+  name: string;
+  course_id: string | null;
+  description: string | null;
+  /** Short human-quotable code (e.g. "K7M2QX") the owner shares to invite. */
+  join_code: string;
+  /** The tutor (or admin) who created the group — its owner. */
+  created_by: string;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type StudyGroupRole = "owner" | "member";
+
+export interface StudyGroupMember {
+  id: string;
+  group_id: string;
+  profile_id: string;
+  role: StudyGroupRole;
+  joined_at: string;
+}
+
+export interface StudyGroupMessage {
+  id: string;
+  group_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
 }

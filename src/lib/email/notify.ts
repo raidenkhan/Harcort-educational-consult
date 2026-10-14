@@ -7,6 +7,7 @@ import {
   passwordResetEmail,
   sessionCancelledEmail,
   sessionScheduledEmail,
+  studyGroupMessageEmail,
   tutorApplicationEmail,
   tutorReviewEmail,
   type EmailMessage,
@@ -78,6 +79,30 @@ export function notifyNewMessage(opts: {
       senderName: opts.senderName,
       preview: opts.body,
       chatUrl,
+    });
+    await Promise.all([...emails.values()].map((to) => deliver(to, message)));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Study groups
+// ---------------------------------------------------------------------------
+
+export function notifyGroupMessage(opts: {
+  recipientProfileIds: string[];
+  senderName: string;
+  groupName: string;
+  body: string;
+  groupId: string;
+}): void {
+  const groupUrl = `${APP_URL}/groups?g=${opts.groupId}`;
+  afterResponse(async () => {
+    const emails = await emailsForProfiles(opts.recipientProfileIds);
+    const message = studyGroupMessageEmail({
+      senderName: opts.senderName,
+      groupName: opts.groupName,
+      preview: opts.body,
+      groupUrl,
     });
     await Promise.all([...emails.values()].map((to) => deliver(to, message)));
   });

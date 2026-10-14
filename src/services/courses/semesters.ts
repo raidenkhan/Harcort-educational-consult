@@ -61,6 +61,31 @@ function normalizeSemester(value: number | null): Semester {
   return value === 1 || value === 2 ? value : null;
 }
 
+/**
+ * The `?term=` URL value for a semester bucket: "1", "2", or "none" (the
+ * unassigned bucket). Round-trips with `parseSemesterParam`, so a term folder
+ * link and the page that reads it never drift.
+ */
+export function semesterParam(semester: Semester): string {
+  if (semester === 1) return "1";
+  if (semester === 2) return "2";
+  return "none";
+}
+
+/**
+ * Read a `?term=` URL value back into a `Semester`. Returns `undefined` for
+ * anything unrecognised (absent, junk) so the caller can tell "no term chosen
+ * yet" (`undefined`) from "the unassigned bucket" (`null`).
+ */
+export function parseSemesterParam(
+  raw: string | null | undefined,
+): Semester | undefined {
+  if (raw === "1") return 1;
+  if (raw === "2") return 2;
+  if (raw === "none") return null;
+  return undefined;
+}
+
 /** True when at least one asset carries a semester — drives whether the
  *  page shows per-semester headings at all (otherwise a flat list is right). */
 export function hasSemesterGrouping(

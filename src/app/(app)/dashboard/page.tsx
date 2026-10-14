@@ -23,6 +23,9 @@ import { StudentPaymentsCard } from "@/components/payments/StudentPaymentsCard";
 import { StudentRequestsCard } from "@/components/payments/StudentRequestsCard";
 import { RoleSwitcher } from "@/components/auth/RoleSwitcher";
 import { StudyPrefsPicker } from "@/components/auth/StudyPrefsPicker";
+import { SessionModeForm } from "@/components/auth/SessionModeForm";
+import { PhoneForm } from "@/components/auth/PhoneForm";
+import { sessionModeLabel } from "@/services/auth/sessionFormat";
 import { accraDate } from "@/lib/time";
 
 /** Sessions can be ticked from 15 minutes before their start time. */
@@ -235,6 +238,31 @@ export default async function DashboardPage() {
             </Card>
           )}
 
+          {/* Session format (0021) — chosen at sign-up, changeable here. The
+              tutor sees it on every request this student sends. */}
+          {profile.role === "student" && (
+            <Card>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Session format
+                </h2>
+                <Badge tone={profile.session_mode === "group" ? "brand" : "neutral"}>
+                  {sessionModeLabel(profile.session_mode)}
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm text-slate-600">
+                One-on-one or group — your tutor sees this on every request
+                you send. Change it any time.
+              </p>
+              <div className="mt-2">
+                <SessionModeForm
+                  key={profile.session_mode ?? "default"}
+                  current={profile.session_mode}
+                />
+              </div>
+            </Card>
+          )}
+
           {profile.role === "tutor" && tutor && (
             <Card>
               <h2 className="text-lg font-semibold text-slate-900">
@@ -305,6 +333,21 @@ export default async function DashboardPage() {
           {(profile.role === "student" || profile.role === "tutor") && (
             <RoleSwitcher currentRole={profile.role} />
           )}
+
+          {/* Phone (0022) — where session text updates go. Optional for every
+              role; an empty value clears the number. */}
+          <Card>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Phone number
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              We text session updates to this number. Optional — add or remove
+              it any time.
+            </p>
+            <div className="mt-3">
+              <PhoneForm key={profile.phone ?? "none"} current={profile.phone} />
+            </div>
+          </Card>
 
           <Card>
             <h2 className="text-lg font-semibold text-slate-900">Account</h2>

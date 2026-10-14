@@ -21,6 +21,17 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 /**
+ * A syntactically valid scrypt hash used only to burn equal CPU when the
+ * account doesn't exist, so "wrong password" and "no such user" take the same
+ * time (sign-in user-enumeration defense).
+ *
+ * It MUST stay well-formed (`scrypt$<salt>$<hash>`): `verifyPassword` bails out
+ * before running scrypt on a malformed hash, which would silently defeat the
+ * defense. `password.test.ts` guards the shape.
+ */
+export const DUMMY_HASH = `scrypt$${"0".repeat(32)}$${"0".repeat(128)}`;
+
+/**
  * Constant-time verification of a password against a stored hash.
  * Returns false for malformed hashes (never throws).
  */

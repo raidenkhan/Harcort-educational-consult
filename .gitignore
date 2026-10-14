@@ -52,3 +52,12 @@ next-env.d.ts
 sn-*.js
 sn-*.css
 supernova-home.html
+
+# local agent tooling & scratch (installed skill packs, dev-server output) —
+# not part of the app; would otherwise be swept in by `git add -A`.
+/.agents/
+/.claude/
+/agent/
+/.check/
+/nextprot
+/dev-server.log

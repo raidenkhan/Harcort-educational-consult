@@ -1,17 +1,16 @@
 import { redirect } from "next/navigation";
 import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
-import { completeOnboardingAction } from "@/services/auth/actions";
-import { RolePicker } from "@/components/auth/RolePicker";
+import { OnboardingForm } from "@/components/auth/OnboardingForm";
 import { BrandMark } from "@/components/ui/BrandMark";
-import { Button } from "@/components/ui/Button";
 import { Container } from "@/components/ui/Container";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 
 /**
  * One-time onboarding — reached only from the Google callback when the
  * account is brand-new (profiles.onboarding_completed_at is null, 0010).
- * The user picks student or tutor once; completeOnboardingAction stamps the
- * flag so this screen never shows again. Returning users never get here.
+ * The user picks student or tutor once (and, as a student, how they want
+ * their sessions — 0021); completeOnboardingAction stamps the flag so this
+ * screen never shows again. Returning users never get here.
  */
 export default async function OnboardingPage() {
   const profile = await requireProfile();
@@ -37,12 +36,7 @@ export default async function OnboardingPage() {
             later from your dashboard.
           </p>
 
-          <form action={completeOnboardingAction} className="mt-6 space-y-5">
-            <RolePicker name="role" legend="I want to join as" />
-            <Button type="submit" size="lg" className="w-full">
-              Continue
-            </Button>
-          </form>
+          <OnboardingForm />
 
           <p className="mt-4 text-center text-xs leading-relaxed text-slate-400">
             Tutors set up a profile that needs admin approval before appearing

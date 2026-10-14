@@ -71,6 +71,7 @@ export default async function TutorsPage({
         links={[
           { href: "/", label: "Home" },
           { href: "/tutors", label: "Find a tutor" },
+          { href: "/library", label: "Library" },
         ]}
       >
         {profile ? (

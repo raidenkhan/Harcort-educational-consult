@@ -75,7 +75,10 @@ async function AppHeader() {
   const links = [
     { href: "/dashboard", label: "Dashboard" },
     ...(profile?.role === "student" || profile?.role === "tutor"
-      ? [{ href: "/chat", label: "Messages" }]
+      ? [
+          { href: "/chat", label: "Messages" },
+          { href: "/groups", label: "Groups" },
+        ]
       : []),
     ...(profile?.role === "tutor"
       ? [{ href: "/tutor", label: "My tutor profile" }]

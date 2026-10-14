@@ -1,6 +1,7 @@
-import { Clock, GraduationCap, Inbox } from "lucide-react";
+import { Clock, GraduationCap, Inbox, User, Users } from "lucide-react";
 import { requireRole } from "@/services/auth/queries";
 import { listTutorInbox } from "@/services/requests/queries";
+import { sessionModeLabel } from "@/services/auth/sessionFormat";
 import { dueDateLabel } from "@/lib/time";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -73,6 +74,22 @@ export async function TutorRequestsInbox() {
                     <GraduationCap className="h-4 w-4 text-slate-400" />
                     {request.courseName ?? "Course to decide together"}
                   </p>
+                  {/* The student chose this at sign-up (0021) — it decides
+                      how you run the engagement. Absent pre-migration. */}
+                  {request.studentSessionMode && (
+                    <p className="mt-2">
+                      <Badge
+                        tone={request.studentSessionMode === "group" ? "brand" : "neutral"}
+                      >
+                        {request.studentSessionMode === "group" ? (
+                          <Users className="h-3 w-3" />
+                        ) : (
+                          <User className="h-3 w-3" />
+                        )}
+                        {sessionModeLabel(request.studentSessionMode)}
+                      </Badge>
+                    </p>
+                  )}
                   {request.message && (
                     <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
                       “{request.message}”

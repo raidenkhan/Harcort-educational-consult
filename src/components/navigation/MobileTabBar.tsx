@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   MessageCircle,
   ShieldCheck,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -33,6 +34,7 @@ const TABS: Record<UserRole, Tab[]> = {
     { href: "/dashboard", label: "Home", icon: LayoutDashboard },
     { href: "/tutors", label: "Find tutors", icon: Compass },
     { href: "/chat", label: "Messages", icon: MessageCircle },
+    { href: "/groups", label: "Groups", icon: Users },
     {
       href: "/dashboard",
       hash: "#timetable",
@@ -44,6 +46,7 @@ const TABS: Record<UserRole, Tab[]> = {
     { href: "/dashboard", label: "Home", icon: LayoutDashboard },
     { href: "/tutors", label: "Find tutors", icon: Compass },
     { href: "/chat", label: "Messages", icon: MessageCircle },
+    { href: "/groups", label: "Groups", icon: Users },
     { href: "/tutor", label: "My profile", icon: GraduationCap },
   ],
   admin: [

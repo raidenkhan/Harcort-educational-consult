@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hashPassword, verifyPassword } from "./password";
+import { DUMMY_HASH, hashPassword, verifyPassword } from "./password";
 
 describe("password hashing (scrypt)", () => {
   it("round-trips: a freshly hashed password verifies", async () => {
@@ -25,5 +25,19 @@ describe("password hashing (scrypt)", () => {
     await expect(verifyPassword("anything", "plain-text")).resolves.toBe(false);
     await expect(verifyPassword("anything", "scrypt$onlysalt")).resolves.toBe(false);
     await expect(verifyPassword("anything", "bcrypt$salt$hash")).resolves.toBe(false);
+  });
+});
+
+describe("DUMMY_HASH", () => {
+  it("is well-formed so verifyPassword runs scrypt instead of bailing early", () => {
+    const parts = DUMMY_HASH.split("$");
+    expect(parts).toHaveLength(3);
+    expect(parts[0]).toBe("scrypt");
+    expect(parts[1]).toMatch(/^[0-9a-f]{32}$/);
+    expect(parts[2]).toMatch(/^[0-9a-f]{128}$/);
+  });
+
+  it("never actually verifies a password", async () => {
+    await expect(verifyPassword("anything", DUMMY_HASH)).resolves.toBe(false);
   });
 });

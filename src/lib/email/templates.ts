@@ -95,6 +95,29 @@ export function newMessageEmail(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// Study groups
+// ---------------------------------------------------------------------------
+
+export function studyGroupMessageEmail(opts: {
+  senderName: string;
+  groupName: string;
+  preview: string;
+  groupUrl: string;
+}): EmailMessage {
+  const preview =
+    opts.preview.length > 160 ? `${opts.preview.slice(0, 157)}…` : opts.preview;
+  const subject = `New message in ${opts.groupName}`;
+  const text = `${opts.senderName} posted in the study group "${opts.groupName}":\n\n"${preview}"\n\nOpen the group: ${opts.groupUrl}`;
+  const html = wrap(
+    `New message in ${opts.groupName}`,
+    `${p(`<strong>${escapeHtml(opts.senderName)}</strong> posted in <strong>${escapeHtml(opts.groupName)}</strong>:`)}${p(
+      `<em>"${escapeHtml(preview)}"</em>`,
+    )}${actionButton(opts.groupUrl, "Open the group")}`,
+  );
+  return { subject, text, html };
+}
+
+// ---------------------------------------------------------------------------
 // Sessions (timetable)
 // ---------------------------------------------------------------------------
 

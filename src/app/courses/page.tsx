@@ -45,6 +45,7 @@ export default async function CoursesPage() {
         links={[
           { href: "/", label: "Home" },
           { href: "/courses", label: "Courses" },
+          { href: "/library", label: "Library" },
           { href: "/tutors", label: "Find a tutor" },
         ]}
       >

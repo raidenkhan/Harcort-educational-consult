@@ -7,6 +7,7 @@ import {
   notifySessionCancelled,
   notifySessionScheduled,
 } from "@/lib/email/notify";
+import { notifySmsToProfiles } from "@/lib/sms";
 import { sessionWhen } from "@/lib/time";
 import { requireProfile } from "@/services/auth/queries";
 import { createSessionSchema } from "./schemas";
@@ -136,6 +137,14 @@ export async function createSession(
     topic: parsed.data.topic ?? null,
     location: parsed.data.location ?? null,
   });
+
+  // Same event by SMS (best-effort, after the response, no-op without a key
+  // or a number on file). Kept short — one segment where possible.
+  notifySmsToProfiles(
+    [parsed.data.studentId],
+    `Harcourt: ${profile.full_name || "Your tutor"} scheduled a session for ` +
+      `${sessionWhen(start, parsed.data.durationMinutes)}. See your dashboard.`,
+  );
 
   revalidatePath("/tutor", "layout");
   revalidatePath("/dashboard");
