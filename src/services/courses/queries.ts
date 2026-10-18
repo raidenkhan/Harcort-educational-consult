@@ -11,6 +11,19 @@ import type { Course, CourseMaterial, CourseVideo } from "@/types";
  *  plus the course library (materials + tutorial videos, see 0017). */
 
 /**
+ * Reads degrade to an empty list rather than 500ing a public page — but never
+ * SILENTLY: a missing table (migration not applied yet) or a transient error
+ * is logged so "nothing attached" can be told apart from "the query is
+ * broken". Without the log, a failed query and a genuinely empty table are
+ * indistinguishable — which once blanked the landing page's "Browse by course"
+ * band with no trace of why.
+ */
+function logAndEmpty<T>(scope: string, message: string | undefined): T[] {
+  if (message) console.error(`[courses] ${scope} failed: ${message}`);
+  return [];
+}
+
+/**
  * The full subject/course taxonomy. Cached after the first request (5 min
  * TTL); the taxonomy changes rarely, and the tutor schedule form reads it
  * from cache too.
@@ -19,12 +32,13 @@ export const listCourses = unstable_cache(
   async (): Promise<Course[]> => {
     const supabase = createAdminClient();
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("courses")
       .select("*")
       .order("subject", { ascending: true })
       .order("name", { ascending: true });
 
+    if (error) return logAndEmpty<Course>("listCourses", error.message);
     return (data as Course[]) ?? [];
   },
   ["courses"],
@@ -53,17 +67,6 @@ export async function getCourseById(courseId: string): Promise<Course | null> {
     .maybeSingle();
 
   return (data as Course) ?? null;
-}
-
-/**
- * Library reads degrade to an empty list rather than 500ing the public page —
- * but never SILENTLY: a missing table (migration 0017 not applied yet) or a
- * transient error is logged so "nothing attached" can be told apart from
- * "the query is broken".
- */
-function logAndEmpty<T>(scope: string, message: string | undefined): T[] {
-  if (message) console.error(`[courses] ${scope} failed: ${message}`);
-  return [];
 }
 
 export async function listCourseMaterials(

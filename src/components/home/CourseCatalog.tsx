@@ -164,7 +164,25 @@ export function CourseCatalog({
   const [query, setQuery] = useState("");
   const active = chosen && fields.includes(chosen) ? chosen : fields[0] ?? null;
 
-  if (!active) return null;
+  // No courses at all — an empty taxonomy, or a read that degraded to nothing.
+  // Show an honest empty state instead of returning null: a null return leaves
+  // the band as a bare heading, which reads as "the section is broken".
+  if (!active) {
+    return (
+      <div className={className}>
+        <p className="rounded-[2px] border border-dashed border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
+          No courses are published right now — check back soon, or{" "}
+          <Link
+            href="/tutors"
+            className="font-semibold text-slate-900 transition hover:text-brand-600"
+          >
+            browse our tutors
+          </Link>{" "}
+          directly.
+        </p>
+      </div>
+    );
+  }
 
   const trimmed = query.trim();
   const searching = trimmed.length > 0;
