@@ -10,6 +10,7 @@ import {
   type SessionView,
 } from "@/services/sessions/queries";
 import { Container } from "@/components/ui/Container";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -100,25 +101,20 @@ export default async function DashboardPage() {
     <div className="relative overflow-hidden">
       <BentoBackdrop tone="petrol" />
       <Container className="py-12">
-        <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
-          Dashboard
-        </p>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-slate-900">
-              Welcome, {profile.full_name.split(" ")[0]}.
-            </h1>
-            <p className="mt-2 max-w-xl text-slate-600">{roleHeading[profile.role]}</p>
-          </div>
-          {profile.public_code && (
-            <p
-              className="rounded-md border border-slate-200 bg-white/70 px-3 py-1.5 font-mono text-xs tracking-wide text-slate-500"
-              title="Your Harcourt tracking code — quote it whenever you contact support or an admin about payments"
-            >
-              {profile.public_code}
-            </p>
-          )}
-        </div>
+        <PageHeader
+          title={`Welcome, ${profile.full_name.split(" ")[0]}.`}
+          description={roleHeading[profile.role]}
+          actions={
+            profile.public_code ? (
+              <p
+                className="rounded-md border border-slate-200 bg-white/70 px-3 py-1.5 font-mono text-xs tracking-wide tabular-nums text-slate-500"
+                title="Your Harcourt tracking code — quote it whenever you contact support or an admin about payments"
+              >
+                {profile.public_code}
+              </p>
+            ) : null
+          }
+        />
 
         {/* Your program — per-program personalization (board flow: Program →
             Year → Course → Materials → Tutors). Students pick what they study

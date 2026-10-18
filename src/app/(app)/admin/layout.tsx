@@ -1,6 +1,7 @@
 import { requireRole } from "@/services/auth/queries";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { Container } from "@/components/ui/Container";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { AdminTabs } from "@/components/admin/AdminTabs";
 
 /**
@@ -19,12 +20,7 @@ export default async function AdminLayout({
     <div className="relative overflow-hidden">
       <BentoBackdrop tone="petrol" />
       <Container className="py-12">
-        <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
-          Harcourt Educational Consult
-        </p>
-        <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-slate-900">
-          Admin console
-        </h1>
+        <PageHeader title="Admin console" />
 
         <AdminTabs />
 

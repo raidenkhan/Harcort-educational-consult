@@ -15,6 +15,9 @@ const eslintConfig = defineConfig([
     // Saved-page dumps (webpack chunks from a browser save tool) — not app code.
     "sn-*.js",
     "sn-*.css",
+    // Vendored agent skills (third-party, shipped as-is) — not app code.
+    ".agents/**",
+    ".claude/**",
   ]),
 ]);
 

@@ -5,7 +5,9 @@ import {
   BookOpenCheck,
   LifeBuoy,
   Wrench,
+  ArrowRight,
   ArrowUpRight,
+  Sparkle,
   type LucideIcon,
 } from "lucide-react";
 import { safeListApprovedTutors } from "@/services/tutors/queries";
@@ -64,6 +66,16 @@ const FREE_LESSONS_PUBLISHED = "30+";
  * why-click-to-play reasoning and how to add more.
  */
 const HAS_TESTIMONIALS = TESTIMONIAL_VIDEOS.length > 0;
+
+/**
+ * The one heading voice for the page: display face at a tight optical
+ * tracking, with the negative tracking the letterforms need at this size.
+ * Every band used to open with a small uppercase kicker above its heading;
+ * the headings carry their own weight now, so a band is labelled by what it
+ * actually says.
+ */
+const SECTION_HEADING =
+  "font-display text-3xl font-semibold tracking-[-0.02em] text-slate-900 sm:text-4xl";
 
 /**
  * Structured data (schema.org JSON-LD) — tells search engines and AI
@@ -275,26 +287,22 @@ export default async function Home() {
         </div>
         <Container className="relative py-20 sm:py-28">
           <div className="mx-auto max-w-3xl text-center">
-            <span
-              className="inline-flex animate-fade-up items-center gap-2 rounded-[2px] bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.14em] text-lilac-100 ring-1 ring-inset ring-white/20 backdrop-blur"
+            <h1
+              className="animate-fade-up font-display text-4xl font-semibold leading-[1.08] tracking-[-0.02em] text-white [text-shadow:0_2px_24px_rgba(21,10,32,0.75)] sm:text-6xl"
               style={{ animationDelay: "0ms" }}
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              Built for Ghanaian students · KNUST engineering first
-            </span>
-            <h1
-              className="mt-6 animate-fade-up font-display text-4xl font-semibold leading-[1.08] tracking-[0.01em] text-white [text-shadow:0_2px_24px_rgba(21,10,32,0.75)] sm:text-6xl"
-              style={{ animationDelay: "60ms" }}
-            >
               When the course gets difficult,{" "}
-              <span className="bg-gradient-to-r from-lilac-100 to-lilac-300 bg-clip-text text-transparent">
+              {/* Emphasis by weight and a solid lilac, not a gradient
+                  clipped to the text — the brand reads in the colour, and
+                  the phrase keeps the same optical weight as its line. */}
+              <span className="font-bold text-lilac-200">
                 get the right support
               </span>
               .
             </h1>
             <p
-              className="mx-auto mt-6 max-w-xl animate-fade-up text-lg leading-relaxed text-lilac-100/90 [text-shadow:0_1px_12px_rgba(21,10,32,0.65)]"
-              style={{ animationDelay: "120ms" }}
+              className="mx-auto mt-6 max-w-[62ch] animate-fade-up text-lg leading-relaxed text-lilac-100/90 [text-shadow:0_1px_12px_rgba(21,10,32,0.65)]"
+              style={{ animationDelay: "80ms" }}
             >
               Harcourt is academic support built around the courses students
               actually struggle with. Get a tutor for one-on-one help — or
@@ -304,7 +312,7 @@ export default async function Home() {
             </p>
             <div
               className="mt-10 flex animate-fade-up flex-wrap items-center justify-center gap-4"
-              style={{ animationDelay: "180ms" }}
+              style={{ animationDelay: "160ms" }}
             >
               <Link
                 href="/tutors"
@@ -325,9 +333,8 @@ export default async function Home() {
               figure (the public YouTube lesson library). No invented numbers:
               the tutor count is exactly what the database says, even when it
               is zero. */}
-          <div
-            className="mx-auto mt-12 max-w-3xl animate-fade-up sm:mt-16"
-            style={{ animationDelay: "260ms" }}
+          <div              className="mx-auto mt-12 max-w-3xl animate-fade-up sm:mt-16"
+              style={{ animationDelay: "240ms" }}
           >
             <BeamCard
               mode="always"
@@ -350,7 +357,7 @@ export default async function Home() {
                   <dt className="text-xs font-medium uppercase tracking-wide text-lilac-100/70">
                     {stat.label}
                   </dt>
-                  <dd className="mt-1 text-2xl font-bold text-white sm:text-3xl">
+                  <dd className="mt-1 text-2xl font-bold tabular-nums text-white sm:text-3xl">
                     {stat.value}
                   </dd>
                 </div>
@@ -384,7 +391,7 @@ export default async function Home() {
                   className="mx-3 flex shrink-0 items-center gap-2.5 rounded-[2px] border border-slate-300/70 bg-white px-4 py-2 text-sm font-medium text-slate-700"
                 >
                   {item}
-                  <span className="text-brand-600">✦</span>
+                  <Sparkle className="h-3.5 w-3.5 text-brand-600" aria-hidden />
                 </span>
               ))}
               {/* Duplicate half keeps the loop seamless; hidden from screen readers */}
@@ -395,7 +402,7 @@ export default async function Home() {
                     className="mx-3 flex shrink-0 items-center gap-2.5 rounded-[2px] border border-slate-300/70 bg-white px-4 py-2 text-sm font-medium text-slate-700"
                   >
                     {item}
-                    <span className="text-brand-600">✦</span>
+                    <Sparkle className="h-3.5 w-3.5 text-brand-600" aria-hidden />
                   </span>
                 ))}
               </div>
@@ -415,12 +422,7 @@ export default async function Home() {
         <Container className="py-20 sm:py-28">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:items-end">
             <Reveal variant="left">
-              <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                Browse by course
-              </p>
-              <h2 className="mt-3 font-display text-3xl font-semibold tracking-[0.01em] text-slate-900 sm:text-4xl">
-                Start from your course
-              </h2>
+              <h2 className={SECTION_HEADING}>Start from your course</h2>
             </Reveal>
             <Reveal variant="right" delay={100}>
               <p className="max-w-sm text-sm leading-relaxed text-slate-600">
@@ -455,11 +457,11 @@ export default async function Home() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <Reveal>
               <div className="max-w-2xl">
-                <p className="text-sm font-semibold uppercase tracking-widest text-brand-600">
-                  Harcourt University
-                </p>
-                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                  Free lessons on the courses that trip students up
+                {/* The brand name used to sit in a kicker above this heading;
+                    it reads in the heading itself now. */}
+                <h2 className={SECTION_HEADING}>
+                  Free lessons from Harcourt University on the courses that
+                  trip students up
                 </h2>
               </div>
             </Reveal>
@@ -513,10 +515,7 @@ export default async function Home() {
         <Container className="py-20 sm:py-28">
           <div className="mx-auto max-w-2xl text-center">
             <Reveal>
-              <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                The problem
-              </p>
-              <h2 className="mt-3 font-display text-3xl font-semibold tracking-[0.01em] text-slate-900 sm:text-4xl">
+              <h2 className={SECTION_HEADING}>
                 Some courses are difficult. Getting help shouldn&apos;t be.
               </h2>
             </Reveal>
@@ -534,7 +533,7 @@ export default async function Home() {
             strength={0.45}
             borderRadius={2}
           >
-          <div className="mx-auto max-w-2xl rounded-[2px] border border-slate-200/80 bg-white/60 p-8 text-center backdrop-blur-sm sm:p-10">
+          <div className="mx-auto max-w-[68ch] rounded-[2px] border border-slate-200/80 bg-white/60 p-8 text-center backdrop-blur-sm sm:p-10">
             {/* Body copy gets the blur-focus variant — it reads as the
                 section "coming into focus" after the headline lands. */}
             <Reveal variant="blur" delay={120}>
@@ -560,10 +559,7 @@ export default async function Home() {
         <Container className="py-20 sm:py-28">
           <Reveal>
             <div className="mx-auto max-w-2xl text-center">
-              <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                What Harcourt does
-              </p>
-              <h2 className="mt-3 font-display text-3xl font-semibold tracking-[0.01em] text-slate-900 sm:text-4xl">
+              <h2 className={SECTION_HEADING}>
                 One platform, more than one way to get help
               </h2>
             </div>
@@ -609,13 +605,10 @@ export default async function Home() {
         <Container className="py-20 sm:py-28">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:items-end">
             <Reveal variant="left">
-              <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-slate-500">
-                Find your tutor
-              </p>
-              <h2 className="mt-3 font-display text-3xl font-semibold tracking-[0.01em] text-slate-900 sm:text-4xl">
+              <h2 className={SECTION_HEADING}>
                 Reviewed, verified, ready
               </h2>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-600">
+              <p className="mt-3 max-w-lg text-sm leading-relaxed text-slate-600">
                 Every profile below has passed our review process —
                 qualifications checked, rates published, conversations
                 started in one tap.
@@ -624,9 +617,10 @@ export default async function Home() {
             <Reveal variant="right" delay={100}>
               <AuthTrigger
                 tab="sign-up"
-                className="text-sm font-semibold text-slate-900 hover:text-slate-700"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900 hover:text-slate-700"
               >
-                Become a tutor →
+                Become a tutor
+                <ArrowRight className="h-4 w-4" aria-hidden />
               </AuthTrigger>
             </Reveal>
           </div>
@@ -740,10 +734,7 @@ export default async function Home() {
             <div className="grid items-center gap-12 lg:grid-cols-5 lg:gap-16">
               <div className="lg:col-span-2">
                 <Reveal variant="left">
-                  <p className="text-[13px] font-medium uppercase tracking-[0.14em] text-lilac-100/70">
-                    Student stories
-                  </p>
-                  <h2 className="mt-3 font-display text-3xl font-semibold tracking-[0.01em] text-white sm:text-4xl">
+                  <h2 className={cn(SECTION_HEADING, "text-white")}>
                     From stuck to understood
                   </h2>
                   <p className="mt-4 text-base leading-relaxed text-lilac-100/80">
@@ -779,7 +770,7 @@ export default async function Home() {
       <section className="border-t border-slate-200 bg-slate-100">
         <Container className="flex flex-col items-center justify-between gap-8 py-20 text-center sm:flex-row sm:text-left">
           <Reveal variant="left">
-            <h2 className="font-display text-2xl font-semibold tracking-[0.01em] text-slate-900 sm:text-3xl">
+            <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-slate-900 sm:text-3xl">
               Understand the course. Keep moving.
             </h2>
             <p className="mt-2 max-w-md leading-relaxed text-slate-600">
@@ -800,7 +791,7 @@ export default async function Home() {
               className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 transition hover:text-brand-700"
             >
               Watch a free lesson
-              <span aria-hidden="true">→</span>
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </a>
             </div>
           </Reveal>

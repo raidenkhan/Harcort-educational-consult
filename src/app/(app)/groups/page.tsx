@@ -12,6 +12,7 @@ import { JoinGroupForm } from "@/components/groups/JoinGroupForm";
 import { CreateGroupForm } from "@/components/groups/CreateGroupForm";
 import { Card } from "@/components/ui/Card";
 import { Container } from "@/components/ui/Container";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 
 /**
@@ -64,13 +65,7 @@ export default async function GroupsPage({
     <div className="relative overflow-hidden">
       <BentoBackdrop tone="purple" />
       <Container className="py-12">
-        <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
-          Study groups
-        </p>
-        <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-slate-900">
-          Learn together
-        </h1>
-        <p className="mt-2 max-w-xl text-slate-600">{subtitle}</p>
+        <PageHeader title="Learn together" description={subtitle} />
 
         <Card className="mt-8">
           <JoinGroupForm />

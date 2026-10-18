@@ -8,6 +8,7 @@ import {
 import { ChatView } from "@/components/chat/ChatView";
 import { AdminNewConversation } from "@/components/chat/AdminNewConversation";
 import { Container } from "@/components/ui/Container";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { PaymentGroundRules } from "@/components/support/PaymentGroundRules";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
@@ -74,22 +75,19 @@ export default async function ChatPage({
     <div className="relative overflow-hidden">
       <BentoBackdrop tone="petrol" />
       <Container className="py-12">
-        <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
-          Messages
-        </p>
-        <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-slate-900">
-          {roleCopy.title}
-        </h1>
-        <p className="mt-2 max-w-xl text-slate-600">
-          {profileIsAdmin(profile) ? (
-            <span className="inline-flex items-center gap-1.5">
-              {roleCopy.subtitle}
-              <VerifiedBadge className="align-[-1px]" />
-            </span>
-          ) : (
-            roleCopy.subtitle
-          )}
-        </p>
+        <PageHeader
+          title={roleCopy.title}
+          description={
+            profileIsAdmin(profile) ? (
+              <span className="inline-flex items-center gap-1.5">
+                {roleCopy.subtitle}
+                <VerifiedBadge className="align-[-1px]" />
+              </span>
+            ) : (
+              roleCopy.subtitle
+            )
+          }
+        />
 
         {/* Payment reminder — students: only admins take payments; tutors: don't collect fees. */}
         {(profile.role === "student" || profile.role === "tutor") && (
