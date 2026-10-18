@@ -9,14 +9,17 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Select, Textarea } from "@/components/ui/Fields";
 import { Modal } from "@/components/ui/Modal";
+import { SessionModePicker } from "@/components/auth/SessionModePicker";
 
 /**
  * "Request tutoring" CTA on a directory card.
  *
  * Signed out → auth modal. Signed in → opens a small dialog to pick the
- * course and add an optional note, then sends the structured request via
- * the 0012 RPC. The tutor accepts from their inbox; only then does the
- * student's Pay 50% path unlock (request-first, pay-after-acceptance).
+ * course, the session format (one-on-one vs group — chosen here, at booking
+ * time, not at sign-up), and an optional note, then sends the structured
+ * request via the 0012 RPC. The tutor accepts from their inbox; only then
+ * does the student's Pay 50% path unlock (request-first,
+ * pay-after-acceptance).
  */
 export function RequestTutorButton({
   tutorProfileId,
@@ -61,7 +64,7 @@ export function RequestTutorButton({
         open={open}
         onClose={() => setOpen(false)}
         title="Request tutoring"
-        description="Pick the course you need help with. The tutor accepts, then your payment unlocks — 50% now, 50% by the final session."
+        description="Pick the course and how you want to learn. The tutor accepts, then your payment unlocks — 50% now, 50% by the final session."
       >
         {state?.error && (
           <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -85,6 +88,10 @@ export function RequestTutorButton({
               ))}
             </Select>
           </Field>
+          <SessionModePicker
+            legend="Session format"
+            hint="One-on-one or group — saved as your preference for future requests too."
+          />
           <Field label="Note (optional)" htmlFor="message">
             <Textarea
               id="message"

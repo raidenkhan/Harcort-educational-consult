@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SESSION_MODES } from "@/services/auth/sessionFormat";
 
 /**
  * Validation for the tutor-request flow — the structured first step before
@@ -23,6 +24,10 @@ export const sendRequestSchema = z.object({
     .max(500, "Keep the note under 500 characters")
     .optional()
     .transform((v) => v ?? ""),
+  /** How the student wants THIS engagement tutored — chosen at booking time,
+   *  not at sign-up. Stored on the profile so the tutor inbox (and every
+   *  later request) shows the latest preference. Defaults when absent. */
+  sessionMode: z.enum(SESSION_MODES).optional(),
 });
 
 /** Tutor responds to a request. */

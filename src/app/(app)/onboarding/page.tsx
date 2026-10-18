@@ -8,9 +8,10 @@ import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 /**
  * One-time onboarding — reached only from the Google callback when the
  * account is brand-new (profiles.onboarding_completed_at is null, 0010).
- * The user picks student or tutor once (and, as a student, how they want
- * their sessions — 0021); completeOnboardingAction stamps the flag so this
- * screen never shows again. Returning users never get here.
+ * The user picks student or tutor once; completeOnboardingAction stamps the
+ * flag so this screen never shows again. Returning users never get here.
+ * The session format (one-on-one vs group) is not asked here — it is chosen
+ * when the student books a tutor.
  */
 export default async function OnboardingPage() {
   const profile = await requireProfile();

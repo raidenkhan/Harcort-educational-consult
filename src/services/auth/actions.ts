@@ -27,9 +27,12 @@ import { DEFAULT_SESSION_MODE, type SessionMode } from "./sessionFormat";
 /** Auth server actions — self-hosted auth.
  * No Supabase Auth calls, no confirmation emails, no provider rate-limit
  * ceiling: sign-up creates a profile + hashed credential atomically via the
- * register_user RPC (including the student's session format, 0021), then
- * issues an immediate session cookie. Sign-in is throttled in-memory (per
- * email + per IP) against credential stuffing.
+ * register_user RPC, then issues an immediate session cookie. Sign-in is
+ * throttled in-memory (per email + per IP) against credential stuffing.
+ *
+ * The session format (one-on-one vs group — 0021) is NOT part of sign-up:
+ * it is chosen when the student books a tutor and saved to their profile
+ * there, so registration stays short.
  */
 
 export type AuthFormState = { error?: string; message?: string };
@@ -429,22 +432,16 @@ export async function switchRoleAction(
 }
 
 /** One-time onboarding for brand-new Google accounts (0010). Picks the role
- * (plus the session format for a student, 0021) and stamps
- * onboarding_completed_at so the /onboarding screen never shows again. Same
- * role validation as switchRoleAction — admin is impossible.
+ * only — the session format (0021) is chosen at booking time, when a student
+ * requests a tutor — and stamps onboarding_completed_at so the /onboarding
+ * screen never shows again. Same role validation as switchRoleAction —
+ * admin is impossible.
  */
 export async function completeOnboardingAction(formData: FormData): Promise<void> {
   const parsed = switchRoleSchema.safeParse({ role: formData.get("role") });
   if (!parsed.success) {
     redirect("/onboarding"); // malformed — stay on the picker
   }
-
-  // The session format (0021) is asked alongside the role for a student —
-  // same question as the email sign-up form, so a Google account isn't
-  // onboarded with fewer choices. A tutor pick ignores it.
-  const sessionMode = setSessionModeSchema.safeParse({
-    sessionMode: formData.get("sessionMode") ?? undefined,
-  });
 
   const profile = await requireProfile();
   if (profile.onboarding_completed_at) {
@@ -463,19 +460,6 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
 
   if (error) {
     redirect("/onboarding");
-  }
-
-  // Second, non-fatal step: the session format needs migration 0021. Writing
-  // it separately keeps an unapplied migration from breaking onboarding —
-  // the role above is what actually finishes setup.
-  if (parsed.data.role === "student" && sessionMode.success) {
-    const { error: modeError } = await supabase
-      .from("profiles")
-      .update({ session_mode: sessionMode.data.sessionMode })
-      .eq("id", profile.id);
-    if (modeError) {
-      console.error(`[auth] session_mode not saved: ${modeError.message}`);
-    }
   }
 
   revalidateTag("tutors", "max");

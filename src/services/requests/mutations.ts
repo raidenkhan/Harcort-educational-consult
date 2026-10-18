@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scheduleOutboxDrain } from "@/lib/email/outbox";
 import { requireProfile } from "@/services/auth/queries";
+import { normalizeSessionMode } from "@/services/auth/sessionFormat";
 import { sendRequestSchema, respondRequestSchema } from "./schemas";
 
 /**
@@ -55,12 +56,32 @@ export async function sendTutorRequest(
     tutorProfileId: formData.get("tutorProfileId"),
     courseId: formData.get("courseId") ?? undefined,
     message: formData.get("message") ?? undefined,
+    sessionMode: formData.get("sessionMode") ?? undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid request" };
   }
 
   const supabase = createAdminClient();
+
+  // The session format (0021) is chosen here — at booking time — rather than
+  // at sign-up. Stored on the profile so the tutor's inbox and every later
+  // request show the student's current preference. Non-fatal if the column
+  // doesn't exist yet (migration 0021 unapplied): the request itself must
+  // never fail over a display preference.
+  if (parsed.data.sessionMode) {
+    const { error: modeError } = await supabase
+      .from("profiles")
+      .update({
+        session_mode: normalizeSessionMode(parsed.data.sessionMode),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", profile.id);
+    if (modeError) {
+      console.error(`[requests] session_mode not saved: ${modeError.message}`);
+    }
+  }
+
   const { error } = await supabase.rpc("send_tutor_request", {
     actor_id: profile.id,
     p_tutor_profile_id: parsed.data.tutorProfileId,

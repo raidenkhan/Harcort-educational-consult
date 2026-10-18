@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/Fields";
 import { Button } from "@/components/ui/Button";
 import { GoogleAuthBlock } from "./GoogleAuthBlock";
 import { RolePicker, type AuthRole } from "./RolePicker";
-import { SessionModePicker } from "./SessionModePicker";
 
 /** Shared auth forms — rendered inside both the auth modal (with tabs)
  * and the standalone /sign-in and /sign-up pages.
@@ -77,16 +76,17 @@ export function SignInFields() {
   );
 }
 
-/** Sign-up form — students see program + year + phone + session format;
- *  tutors see only role and basic fields.
+/** Sign-up form — students see program + year + phone; tutors see only role
+ *  and basic fields. The session format (one-on-one vs group) is chosen at
+ *  booking time, not here.
  */
 export function SignUpFields() {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(
     signUpAction,
     {},
   );
-  // Tracked only to reveal the session-format question for students (0021):
-  // the role radios themselves stay uncontrolled, so this never resets them.
+  // Tracked only to reveal the student-only fields (program/year): the role
+  // radios themselves stay uncontrolled, so this never resets them.
   const [role, setRole] = useState<AuthRole>("student");
 
   return (
@@ -135,14 +135,6 @@ export function SignUpFields() {
         </Field>
 
         <RolePicker name="role" onChange={setRole} />
-
-        {/* Only students have a session format — a tutor sign-up sends
-          nothing and the DB default applies. */}
-        {role === "student" && (
-          <SessionModePicker
-            hint="One-on-one or group — your tutor sees this when you request them. You can change it later from your dashboard."
-          />
-        )}
 
         {/* Program + year are required for students (Program → Year → Course).
             Selects, not free text: the value is written to profiles.program and
