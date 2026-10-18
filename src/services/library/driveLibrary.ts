@@ -2,8 +2,7 @@
  * The Harcourt study library, mirrored from the public "MECHANICAL ENGINEERING
  * LIBRARY" Google Drive folder.
  *
- * The Drive is the source of truth for the study materials, and it is laid out
- * exactly the way students think about their programme:
+ * The Drive is the source of truth for the study materials and their links:
  *
  *   Year (MECH ONE…FOUR) → Semester (SEM 1/2) → course folder (a Drive link)
  *
@@ -11,6 +10,13 @@
  * `embeddedfolderview` listing) and exposes it as plain typed data. It is
  * server-safe — no "use client" — so the /library page (a server component)
  * can read it directly and pass plain data down.
+ *
+ * Term placement follows the official KNUST curriculum, NOT the Drive folder
+ * a link happens to sit in — the Drive was filed by hand and had courses in
+ * the wrong semester. Source of truth for the mapping:
+ * https://mech.knust.edu.gh/ug/bsc-mechanical-engineering
+ * (KNUST rule: odd course-code digits are first-semester, even are second.)
+ * `driveLibrary.test.ts` enforces both.
  *
  * Nothing here touches the database: the library is browsable content, not
  * marketplace data. Each course card links straight to its Drive folder, and
@@ -200,15 +206,12 @@ const MECHANICAL_YEARS: LibraryYear[] = [
           ),
           course("ME 252 FLUID DYNAMICS I", "1Il_XUVGez4TXTYtgatO1Wx95-h5gdI-7"),
           course(
-            "ME 264 MECHANISM SYNTHESIS AND ANALYSIS I",
+            "ME 262 MECHANISM SYNTHESIS AND ANALYSIS I",
             "1Id-ysWaL7LJqvEu2zRcQ_DIrMP8OmO2-",
           ),
           course("ME 266 THERMODYNAMICS I", "1IZsHpP6klqysAoGGRDJv2awsdNJdHkSZ"),
+          course("ME 270 MANUFACTURING TECHNOLOGY", "1IVFdEp84WUmcm_QhjqG3Bo18CszLXq0g"),
           course("ME 274 SECOND YEAR DESIGN PROJECT", "1IWwYuyFPCZUjM2rAedsznesaZ-g6wFa8"),
-          course(
-            "ME 292 INDUSTRIAL ENGINEERING AND ERGONOMICS",
-            "1REaod1dqVzOU4XTwdC3I-pJXGw_PPxsu",
-          ),
           course("ME 296 MECHANICAL LABORATORY II", "1IwhhdxKjgHyEw1vRlxaugKAq-txVIHgS"),
         ],
       ),
@@ -228,15 +231,12 @@ const MECHANICAL_YEARS: LibraryYear[] = [
         [
           course("ECON 151 INTRODUCTION TO ECONOMICS I", "1OvuFBWaR8kARTKQvz-Aw62EcYDFXemRf"),
           course("MATH 351 NUMERICAL ANALYSIS", "1OlZ5025OtsYAyYt5onjwtGMy9XFV4D3x"),
+          course("MATH 353 PROBABILITY AND STATISTICS", "1OmQ7VhqB7HkYLXp_kdkHNFaKK137eUrL"),
           course("ME 361 DYNAMICS OF MACHINERY", "1O8X-q12pwchfU5yCAbZIZ_0sQSEGxhpj"),
           course("ME 363 AUTOMATIC CONTROL I", "1Ogz8CddtjxHJahHdZq1fFF0QRwnu4uzV"),
           course("ME 365 THERMODYNAMICS II", "1O9ebxAAZme_vKoNuUis0U56esDAXRx_j"),
           course("ME 373 MACHINE DESIGN ELEMENT", "1OfMEauaOWwRrWRClDghji07Tql83tY-T"),
           course("ME 395 MECHANICAL LABORATORY III", "1P-K9-oBuh7r7dzSfKPU1u39ylAPfvu0B"),
-          course(
-            "STAT 252 PROBABILITY AND STATISTICS",
-            "1OmQ7VhqB7HkYLXp_kdkHNFaKK137eUrL",
-          ),
         ],
         [
           file("3rd Year First Sem Video Links", "1icuzfGEEdL4D43uUPiyeeFUvnHL9HPfO"),
@@ -253,8 +253,11 @@ const MECHANICAL_YEARS: LibraryYear[] = [
           course("ME 356 STRENGHT OF MATERIALS II", "1RAOC0638Ml9UZQJ2E4gBqHiPUlAao1VS"),
           course("ME 362 VIBRATIONS I", "1R6cH9TZhyOBMyi-gEnTfhbfGR-fWjjng"),
           course("ME 366 HEAT TRANSFER I", "1R5OiB4KkHveBzdREzclw3Znkv_RjnXVI"),
-          course("ME 370 MANUFACTURING TECHNOLOGY", "1IVFdEp84WUmcm_QhjqG3Bo18CszLXq0g"),
           course("ME 374 MACHINE DESIGN", "1R--VV52cvAMH_opn4JMo6U510s0ZbXcJ"),
+          course(
+            "ME 392 INDUSTRIAL ENGINEERING AND ERGONOMICS",
+            "1REaod1dqVzOU4XTwdC3I-pJXGw_PPxsu",
+          ),
           course("ME 396 MECHANICAL LABORATORY IV", "1RcTCiFEbqT97iR-pE2r4pWFwUCWZn_6N"),
         ],
       ),
@@ -275,6 +278,7 @@ const MECHANICAL_YEARS: LibraryYear[] = [
           course("ME 451 BEHAVIOUR OF REAL FLUIDS", "1eU9KgFD98HKD_XAYPQktzhYs0C07-ehT"),
           course("ME 453 HYDRAULICS AND PNEUMATICS", "1vXOsLZpW8IVFMd2k0RZzhGokqQWw5JPB"),
           course("ME 455 STRENGTH OF MATERIALS III", "1elexhX3t2FnNLc1so9xZFDYyvSAlfIpz"),
+          course("ME 457 DISCRETE EVENT SIMULATION", "1cjFqP5kF8qLhTcGT7DboaIsXxM5XC71h"),
           course("ME 461 VIBRATION II", "1gTWsDuQgI_AmGTucjLmtcjxD5aVqnzkm"),
           course("ME 463 AUTOMATIC CONTROL II", "1irwlaRvKmBU8vZr0RhpWk3hxbuezX9qg"),
           course(
@@ -288,13 +292,9 @@ const MECHANICAL_YEARS: LibraryYear[] = [
             "1sz0SVv76W1yfTsqM8zyLq6oZcljtTS3g",
           ),
           course("ME 477 PRODUCTION ENGINEERING I", "1wMLqG_2TfnqJGb8XUyq8Z3VdI9h1uYeJ"),
-          course("ME 479 DISCRETE EVENT SIMULATION", "1cjFqP5kF8qLhTcGT7DboaIsXxM5XC71h"),
           course("ME 481 ENGINEERING MATERIALS II", "1gDiALLEpnUlOHxrNNLWaNlXiz6GuW_o9"),
           course("ME 483 MECHATRONICS", "1e3xwI_7YftZ1UbQwo2I3nS0eBLGo_72l"),
-          course(
-            "ME 489 VEHICLE CONTROL, SUSPENSION AND STABILITY",
-            "1xM8Y6gn3eXgrNGgcTsYIis9tudfb1_DF",
-          ),
+          course("ME 485 DESIGN OF VEHICLE STRUCTURES", "1CWFPcl3aAiI-UYs-O3P8mqx9VS3XK2UX"),
           course(
             "ME 491 INDUSTRIAL ECONOMICS AND MANAGEMENT",
             "1to1jaTW1m04MSeC0gFKxlt6IGlS8Fhdp",
@@ -321,9 +321,12 @@ const MECHANICAL_YEARS: LibraryYear[] = [
           course("ME 468 INTERNAL COMBUSTION ENGINES", "1CF3F9ePmMoPhK4N_pwG_hCp7Njcqa938"),
           course("ME 472 MACHINE SHOP AND FACTORY DESIGN", "1CMtqbtDZtDlOi35o6y0pEXZUDCvEa1hL"),
           course("ME 474 PRODUCTION PLANNING AND CONTROL", "1ByKgWfbPMAiiXq5IgQgn4QDSOpC_sGa5"),
-          course("ME 476 DESIGN OF VEHICLE STRUCTURES", "1CWFPcl3aAiI-UYs-O3P8mqx9VS3XK2UX"),
           course("ME 478 PRODUCTION ENGINEERING II", "1UZhbFxzSJ_1FyF5zXO7ksuEAQVkg4YPM"),
           course("ME 482 ENGINEERING MATERIALS III", "1CNbrqwoQALVTlVetj2ISczmgQOcvbNRP"),
+          course(
+            "ME 486 VEHICLE CONTROL, SUSPENSION AND STABILITY",
+            "1xM8Y6gn3eXgrNGgcTsYIis9tudfb1_DF",
+          ),
           course(
             "ME 492 MANAGEMENT AND ENTREPRENEURSHIP DEVELOPMENT",
             "1xhNZ3uuu7JrK-uU0fVxrLa_HAP5Aw56d",
