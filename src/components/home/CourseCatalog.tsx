@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Reveal } from "./Reveal";
+import { LevelRail } from "./LevelRail";
 import {
   LESSON_FIELDS,
   matchCourses,
@@ -45,8 +46,11 @@ import {
  * The band reads as a program picker first: every field carries its own icon
  * so the four engineering faculties stay visually distinct at a glance, the
  * selected program gets a header, and the courses themselves are the page's
- * hero cards. Free lessons are demoted to a single strip underneath — the
- * full lesson library already has its own band further up the page.
+ * hero cards. Within a program the levels live on a rail (see LevelRail) and
+ * only one is open at a time, so the band stays a band instead of a very long
+ * scroll through every year of the curriculum. Free lessons are demoted to a
+ * single strip underneath — the full lesson library already has its own band
+ * further up the page.
  *
  * Data comes in as props from the server page (see page.tsx) — this component
  * never queries anything and never imports from a server-only module.
@@ -175,6 +179,13 @@ export function CourseCatalog({
   // so the band renders correctly even if data arrives late or empty.
   const [chosen, setChosen] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // Which level is open, per programme. `key: null` means the student closed
+  // every level; the field is part of the state so switching programme
+  // falls back to that programme's first level instead of a stale choice.
+  const [levelChoice, setLevelChoice] = useState<{
+    field: string;
+    key: string | null;
+  } | null>(null);
   const active = chosen && fields.includes(chosen) ? chosen : fields[0] ?? null;
 
   // No courses at all — an empty taxonomy, or a read that degraded to nothing.
@@ -214,6 +225,21 @@ export function CourseCatalog({
   // call) so react-hooks/static-components can't see a component "created
   // during render".
   const ActiveIcon = FIELD_ICONS[active] ?? GraduationCap;
+
+  // One level open at a time — the rail's chips, and which one is open.
+  const levelChips = activeYearBuckets.map((bucket) => ({
+    key: bucket.year == null ? "all" : String(bucket.year),
+    label: bucket.label,
+    count: bucket.items.length,
+  }));
+  const openLevelKey =
+    levelChoice && levelChoice.field === active
+      ? levelChoice.key
+      : (levelChips[0]?.key ?? null);
+  const openBucket =
+    activeYearBuckets.find(
+      (bucket) => (bucket.year == null ? "all" : String(bucket.year)) === openLevelKey,
+    ) ?? null;
 
   return (
     <div className={className}>
@@ -343,25 +369,37 @@ export function CourseCatalog({
             </span>
           </div>
 
-          {/* Courses in the selected field, bucketed by year — the hero of
-              this band. Full width now that the lesson aside is gone. */}
-          <div className="mt-6 space-y-8">
-            {activeYearBuckets.map((bucket) => (
-              <div key={bucket.label}>
-                {(activeYearBuckets.length > 1 || bucket.year !== null) && (
-                  <h4 className="text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    {bucket.label}
-                  </h4>
-                )}
-                <ul className={cn("mt-3", LIST)}>
-                  {bucket.items.map((course) => (
-                    <li key={course.id} className={LIST_ITEM}>
-                      <CourseCard course={course} />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+          {/* Courses in the selected field, one level at a time — the hero of
+              this band. The rail keeps the band short: a programme carries a
+              level's worth of courses per year, so opening every level at once
+              ran the page for a very long scroll. */}
+          <LevelRail
+            className="mt-6"
+            chips={levelChips}
+            openKey={openLevelKey}
+            panelId="course-level-panel"
+            onToggle={(key) =>
+              setLevelChoice({
+                field: active,
+                key: openLevelKey === key ? null : key,
+              })
+            }
+          />
+
+          <div id="course-level-panel" className="mt-5">
+            {openBucket ? (
+              <ul className={cn(LIST)}>
+                {openBucket.items.map((course) => (
+                  <li key={course.id} className={LIST_ITEM}>
+                    <CourseCard course={course} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="rounded-[2px] border border-dashed border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
+                Every level is closed. Open one above to see its courses.
+              </p>
+            )}
           </div>
 
           {/* Free lessons, demoted to one quiet strip. The full library band

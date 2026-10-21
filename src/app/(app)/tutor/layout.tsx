@@ -22,7 +22,10 @@ export default async function TutorLayout({
   return (
     <div className="relative overflow-hidden">
       <BentoBackdrop tone="purple" />
-      <Container className="py-12">
+      {/* Wide: the timetable tab's calendar views (a 7-column month grid and
+          a 7-day timeline) need the extra room the default container denies
+          them. */}
+      <Container size="wide" className="py-12">
         <PageHeader title="Tutor hub" />
 
         {tutor.profile && (

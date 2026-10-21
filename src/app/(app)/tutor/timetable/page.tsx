@@ -70,7 +70,11 @@ export default async function TutorTimetablePage() {
         </div>
       </div>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+      {/* The calendar needs the width: the week timeline is a 7-column
+          timeline and the month grid is 7 columns wide, so the schedule card
+          only takes a side column once there is room for both (xl+). Below
+          that it stacks under the calendar instead of squeezing it. */}
+      <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
         <TimetableViews
           sessions={sessions}
           now={now}
@@ -119,7 +123,7 @@ export default async function TutorTimetablePage() {
         />
 
         <div>
-          <Card className="lg:sticky lg:top-24">
+          <Card className="xl:sticky xl:top-24">
             <h3 className="text-lg font-semibold text-slate-900">
               Schedule a session
             </h3>
