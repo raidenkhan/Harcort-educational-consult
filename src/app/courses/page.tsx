@@ -2,9 +2,8 @@ import { Suspense } from "react";
 import { listCourses } from "@/services/courses/queries";
 import { getCurrentProfile } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
-import { CourseCatalog } from "@/components/home/CourseCatalog";
+import { CourseDirectory } from "@/components/courses/CourseDirectory";
 import { engineeringCourses } from "@/components/home/courseTaxonomy";
-import { LESSONS } from "@/components/home/HarcourtUniversity";
 import { Container } from "@/components/ui/Container";
 import { Logo } from "@/components/ui/Logo";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
@@ -16,12 +15,13 @@ import { FloatingNav } from "@/components/navigation/FloatingNav";
 import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
 
 /**
- * /courses — the course catalog, one place where every program and course is
- * listed clearly (the board's "display available courses clearly" ask). Reuses
- * the landing's CourseCatalog picker so the browse experience is identical on
- * both pages: pick a program (Mechanical, Electrical, Computer, Civil…), see
- * its courses, jump to one. Data comes from the cached listCourses, filtered
- * to the KNUST engineering fields.
+ * /courses — the course directory: programme → level → semester → course.
+ * This is the shape a KNUST student thinks in, and it is what makes the
+ * catalogue usable for the mechanical curriculum's real codes and credit
+ * hours (0026). Pick a programme (Mechanical, Electrical, Computer, Civil…),
+ * then a level, then the semester; each course opens its materials, videos
+ * and the tutors who teach it. Data comes from the cached listCourses,
+ * filtered to the KNUST engineering programmes.
  */
 export const dynamic = "force-dynamic";
 
@@ -93,9 +93,9 @@ export default async function CoursesPage() {
                 Start from your course
               </h1>
               <p className="mt-3 text-lilac-100/90">
-                Pick your program — Mechanical, Electrical &amp; Electronic,
-                Computer, Civil or Chemical Engineering — then jump to the
-                course, its materials, and the tutors who teach it.
+                Pick your programme — Mechanical, Electrical &amp; Electronic,
+                Computer, Civil or Chemical Engineering — then your level, your
+                semester, and the exact course you&apos;re taking.
               </p>
             </div>
           </Container>
@@ -112,15 +112,17 @@ export default async function CoursesPage() {
                 </p>
               </div>
             ) : (
-              <CourseCatalog
+              <CourseDirectory
                 courses={courses.map((course) => ({
                   id: course.id,
                   subject: course.subject,
                   name: course.name,
                   description: course.description,
                   year: course.year,
+                  code: course.code ?? null,
+                  credits: course.credits ?? null,
+                  semester: course.semester ?? null,
                 }))}
-                lessons={LESSONS}
               />
             )}
           </Container>

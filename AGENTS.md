@@ -134,6 +134,37 @@ mobile app.
   is `profiles.role <> 'student'` — and switching back re-lists them. Role
   is chosen at sign-up (email form) or on the one-time `/onboarding` screen
   (brand-new Google accounts, 0010 — no pre-auth picker on the auth tabs).
+- **Per-request session format + paywall (0024).** The session format is
+  chosen inside the request dialog and stored on `tutor_requests.session_mode`
+  — it is per tutor+course, so a student can want group sessions with one
+  tutor and one-on-one with another. It is never shown at sign-up or on the
+  dashboard (`profiles.session_mode` is legacy and no longer read). Sending a
+  request now opens the **paywall immediately**: the first 50% is payable
+  straight away (`commitAndStartCheckout` accepts a `pending` request; the
+  tutor's acceptance governs scheduling, not payment). A student who can't pay
+  in full uses `PaymentPlanRequestButton` → `requestPaymentPlan`, which opens
+  (or re-enters) their admin conversation in `/chat` with the course, tutor,
+  amount and student code pre-filled.
+- **Course directory + real KNUST curriculum (0026).** `/courses` is now a
+  three-step directory — **programme → level → semester → course** — mirroring
+  how KNUST students find their course. The mechanical curriculum comes from
+  the programme data: codes (MATH 151, ME 255…), credit hours, levels 100–400
+  and both semesters. `courses.code` / `credits` / `semester` back it; the
+  generic topic rows ("Fluid Mechanics", no code/year) were removed only where
+  nothing referenced them. "Engineering Mathematics" / "Engineering Sciences"
+  are no longer offered as programmes (they're service subjects), though their
+  rows stay in the DB for tutor offers. `levelsInCourses` /
+  `coursesForTerm` / `levelLabel` live in `courseTaxonomy.ts` and are
+  unit-tested; `CourseDirectory.tsx` renders the flow, and the home band plus
+  the dashboard course cards now show code + credit hours.
+- **Admin Performance tab (0025).** `/admin/analytics` shows money in/out
+  (collected, paid out, queued, platform fees, outstanding installments), the
+  request funnel (acceptance rate, average response time), sessions vs dual
+  attendance, people counts, tutor performance, and first-party traffic. The
+  traffic is recorded by `POST /api/track` + `PageViewTracker` into
+  `page_views`: no third-party script, no IPs/user agents/query strings, DNT is
+  honoured, admin and API paths are excluded, and the visitor cookie is an
+  opaque UUID hashed with `ANALYTICS_SALT` before storage.
 - **Email notifications (Resend).** `src/lib/email/` — fail-safe transactional
   email: new chat messages (recipient gets the sender + preview + chat link),
   session scheduled/cancelled, attendance ticks (admins emailed — proves
@@ -261,6 +292,10 @@ and all are safe to re-run:
 | `0008_admin_tutor_flag.sql` | `profiles.is_admin` flag — admin becomes a privilege, not an exclusive role; backfills legacy `role='admin'`; `is_admin(p_uid)` honors flag OR legacy role. A tutor with `is_admin=true` stays in the public tutor list with a verified badge |
 | `0009_google_signin.sql` | `credentials.google_id` (partial unique index), `password_hash` nullable, `upsert_google_user` RPC — find-or-link-or-create for Google identities |
 | `0010_google_onboarding.sql` | `profiles.onboarding_completed_at` (backfilled) — the Google callback sends brand-new accounts to `/onboarding` for a one-time role pick; the RPC stamps the flag when it LINKS an existing account |
+| `0011`–`0023` | Payments (engagements/installments/payments/payouts), tutor requests + public codes, moderation reports, tutor-profile repair, payout transfers + reconciliation, course library, asset semesters, student program, course year tier, session format, student phone, study groups — each described in the history above |
+| `0024_request_session_mode.sql` | `tutor_requests.session_mode` (per request, not per profile); `send_tutor_request` gains `p_session_mode`; `update_tutor_request_session` for a pending request. `profiles.session_mode` is legacy and no longer read |
+| `0025_page_views.sql` | First-party traffic log (`path`, `referrer_host`, `visitor_hash`, `created_at`) for the admin Performance tab — no IPs, no user agents, no query strings; deny-all RLS |
+| `0026_knust_course_curriculum.sql` | `courses.code` / `credits` / `semester`; seeds the KNUST Mechanical Engineering curriculum (Level 100→400, both semesters, 41 coded courses). Generic un-coded Mechanical rows are deleted only when nothing references them |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -319,7 +354,15 @@ NEXT_PUBLIC_ADMIN_WHATSAPP=   # student Contact-admin WhatsApp button (digits on
 RESEND_API_KEY=               # optional — email notifications (Resend, free tier)
 EMAIL_FROM=                   # optional — verified-domain sender, e.g. "Harcourt <noreply@yourdomain.com>"
 APP_URL=                      # optional — public origin for email links (default http://localhost:3000)
+ANALYTICS_SALT=               # optional — extra salt for the page-view visitor hash (0025)
+PAYSTACK_SECRET_KEY=          # Paystack secret (sk_test_… / sk_live_…) — server only
+NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=  # only if a client-side Paystack popup is added
 ```
+
+Paystack dashboard configuration: webhook `https://<APP_URL host>/api/payments/webhook`
+with events `charge.success`, `transfer.success`, `transfer.failed`,
+`transfer.reversed`; hosted checkout returns to `/dashboard?payment=return`.
+Set the same env vars in the Vercel project (`.env.local` is local only).
 
 Setup runbook:
 1. `npm install`

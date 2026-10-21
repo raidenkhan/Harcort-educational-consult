@@ -24,9 +24,7 @@ import { StudentPaymentsCard } from "@/components/payments/StudentPaymentsCard";
 import { StudentRequestsCard } from "@/components/payments/StudentRequestsCard";
 import { RoleSwitcher } from "@/components/auth/RoleSwitcher";
 import { StudyPrefsPicker } from "@/components/auth/StudyPrefsPicker";
-import { SessionModeForm } from "@/components/auth/SessionModeForm";
 import { PhoneForm } from "@/components/auth/PhoneForm";
-import { sessionModeLabel } from "@/services/auth/sessionFormat";
 import { accraDate } from "@/lib/time";
 
 /** Sessions can be ticked from 15 minutes before their start time. */
@@ -179,6 +177,19 @@ export default async function DashboardPage() {
                                 href={`/courses/${course.id}`}
                                 className="group flex h-full flex-col rounded-lg border border-slate-200 bg-white p-5 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lift focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
                               >
+                                {course.code && (
+                                  <span className="mb-1 flex flex-wrap items-center gap-2">
+                                    <span className="rounded-[2px] bg-brand-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-brand-800">
+                                      {course.code}
+                                    </span>
+                                    {course.credits != null && (
+                                      <span className="text-[11px] text-slate-400">
+                                        {course.credits} credit hour
+                                        {course.credits === 1 ? "" : "s"}
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
                                 <span className="font-display text-base font-semibold leading-snug text-slate-900">
                                   {course.name}
                                 </span>
@@ -231,31 +242,6 @@ export default async function DashboardPage() {
               <Link href="/tutors" className="mt-4 block">
                 <Button className="w-full sm:w-auto">Browse tutors</Button>
               </Link>
-            </Card>
-          )}
-
-          {/* Session format (0021) — chosen at sign-up, changeable here. The
-              tutor sees it on every request this student sends. */}
-          {profile.role === "student" && (
-            <Card>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Session format
-                </h2>
-                <Badge tone={profile.session_mode === "group" ? "brand" : "neutral"}>
-                  {sessionModeLabel(profile.session_mode)}
-                </Badge>
-              </div>
-              <p className="mt-1 text-sm text-slate-600">
-                One-on-one or group — your tutor sees this on every request
-                you send. Change it any time.
-              </p>
-              <div className="mt-2">
-                <SessionModeForm
-                  key={profile.session_mode ?? "default"}
-                  current={profile.session_mode}
-                />
-              </div>
             </Card>
           )}
 

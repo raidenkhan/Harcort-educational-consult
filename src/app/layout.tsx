@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/space-grotesk";
 import { AuthModalProvider } from "@/components/auth/AuthModal";
+import { PageViewTracker } from "@/components/analytics/PageViewTracker";
 import {
   SITE_NAME,
   SITE_URL,
@@ -71,7 +72,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="flex min-h-full flex-col bg-canvas text-slate-800">
-        <AuthModalProvider>{children}</AuthModalProvider>
+        <AuthModalProvider>
+          {children}
+          {/* First-party traffic, read only by the admin Performance tab. */}
+          <PageViewTracker />
+        </AuthModalProvider>
       </body>
     </html>
   );

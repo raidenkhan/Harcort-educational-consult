@@ -59,6 +59,11 @@ export type CatalogCourse = {
   description: string | null;
   /** Year tier (0020) — 1–4, null = not year-specific. */
   year: number | null;
+  /** KNUST code, credits and semester (0026) — optional so pre-migration
+   *  rows still render. */
+  code?: string | null;
+  credits?: number | null;
+  semester?: number | null;
 };
 
 export type CatalogLesson = {
@@ -74,7 +79,7 @@ export type CatalogLesson = {
  * future taxonomy row adds) fall back to the graduation cap, so a new row
  * never renders as a blank chip.
  */
-const FIELD_ICONS: Record<string, LucideIcon> = {
+export const FIELD_ICONS: Record<string, LucideIcon> = {
   "Mechanical Engineering": Cog,
   "Electrical & Electronic Engineering": Zap,
   "Computer Engineering": Cpu,
@@ -90,10 +95,6 @@ const FIELD_ICONS: Record<string, LucideIcon> = {
   Languages: Languages,
   "Exam Prep": Target,
 };
-
-function fieldIcon(subject: string): LucideIcon {
-  return FIELD_ICONS[subject] ?? GraduationCap;
-}
 
 /**
  * Course lists: a horizontal snap-scroll on phones — a program can carry a
@@ -127,7 +128,19 @@ function CourseCard({
       {eyebrow && (
         <span className="block truncate text-[11px] font-semibold uppercase tracking-widest text-brand-600">
           {course.subject}
-          {course.year != null && ` · Year ${course.year}`}
+          {course.year != null && ` · Level ${course.year * 100}`}
+        </span>
+      )}
+      {course.code && (
+        <span className="mb-1.5 flex flex-wrap items-center gap-2">
+          <span className="rounded-[2px] bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-600">
+            {course.code}
+          </span>
+          {course.credits != null && (
+            <span className="text-[11px] text-slate-400">
+              {course.credits} credit hour{course.credits === 1 ? "" : "s"}
+            </span>
+          )}
         </span>
       )}
       <span className="font-display text-base font-semibold tracking-[0.01em] text-slate-900">
@@ -243,7 +256,7 @@ export function CourseCatalog({
           className="flex flex-wrap gap-2"
         >
           {fields.map((field) => {
-            const Icon = fieldIcon(field);
+            const Icon = FIELD_ICONS[field] ?? GraduationCap;
             const isActive = field === active;
             const count = courses.filter((c) => c.subject === field).length;
             return (

@@ -24,6 +24,7 @@ import {
 import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { levelLabel } from "@/components/home/courseTaxonomy";
 import type { CourseMaterial, CourseVideo } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
@@ -126,6 +127,7 @@ export default async function CoursePage({
     description: course.description ?? undefined,
     url: `${SITE_URL}/courses/${course.id}`,
     about: course.subject,
+    courseCode: course.code ?? undefined,
     provider: {
       "@type": "EducationalOrganization",
       name: SITE_NAME,
@@ -216,9 +218,24 @@ export default async function CoursePage({
                 <span className="inline-flex items-center rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-widest text-lilac-100 ring-1 ring-inset ring-white/20 backdrop-blur">
                   {course.subject}
                 </span>
+                {course.code && (
+                  <span className="inline-flex items-center rounded-md bg-white/10 px-2.5 py-1 font-mono text-xs font-semibold text-lilac-100 ring-1 ring-inset ring-white/20 backdrop-blur">
+                    {course.code}
+                  </span>
+                )}
                 {course.year != null && (
                   <span className="inline-flex items-center rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-widest text-lilac-100 ring-1 ring-inset ring-white/20 backdrop-blur">
-                    Year {course.year}
+                    {levelLabel(course.year)}
+                  </span>
+                )}
+                {course.semester != null && (
+                  <span className="inline-flex items-center rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-widest text-lilac-100 ring-1 ring-inset ring-white/20 backdrop-blur">
+                    Semester {course.semester}
+                  </span>
+                )}
+                {course.credits != null && (
+                  <span className="inline-flex items-center rounded-md bg-white/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-widest text-lilac-100 ring-1 ring-inset ring-white/20 backdrop-blur">
+                    {course.credits} credit hours
                   </span>
                 )}
               </div>

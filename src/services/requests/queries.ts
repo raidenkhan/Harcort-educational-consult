@@ -28,10 +28,15 @@ export interface TutorRequestView {
   studentId?: string;
   studentName?: string;
   studentPublicCode?: string;
-  /** How the student wants to be tutored (0021). `undefined` means the value
-   *  could not be read (migration not applied yet) — render nothing rather
-   *  than claiming a format the student never chose. */
-  studentSessionMode?: SessionMode;
+  /** How the student wants THIS engagement tutored (0024). It is per request
+   *  on purpose: the same student may pick group with one tutor and
+   *  one-on-one with another. `undefined` means the value could not be read
+   *  (migration not applied yet) — render nothing rather than claiming a
+   *  format the student never chose. */
+  sessionMode?: SessionMode;
+  /** The tutor's quoted price for this course in whole cedis (as stored on
+   *  tutor_services), used by the paywall to show the 50% due. */
+  tutorServicePrice: number | null;
   /** The tutor's bookable service (course offer) for this request — used by
    *  the accepted-request "Pay 50%" CTA to create the agreement (0012 flow:
    *  request-first, pay-after-acceptance). Resolved from the tutor's active
@@ -98,6 +103,7 @@ function toView(raw: unknown): TutorRequestView {
     courseId: row.course_id,
     courseName: course?.name ?? null,
     tutorServiceId: matched?.id,
+    tutorServicePrice: matched ? Number(matched.price) : null,
     createdAt: row.created_at,
     respondedAt: row.responded_at,
     tutorProfileId: tp?.id,
@@ -109,22 +115,23 @@ function toView(raw: unknown): TutorRequestView {
 }
 
 /**
- * Session formats for a set of students (0021).
+ * Session formats for a set of requests (0024).
  *
  * Best-effort and separate from the request select on purpose: `session_mode`
- * only exists once migration 0021 is applied, and a tutor's inbox has to keep
- * rendering either way. A missing column is logged, never fatal — the same
- * contract as the course library's asset queries.
+ * only exists once migration 0024 is applied, and both the student's list and
+ * the tutor's inbox have to keep rendering either way. A missing column is
+ * logged, never fatal — the same contract as the course library's asset
+ * queries.
  */
-async function listSessionModes(
-  studentIds: string[],
+async function listRequestSessionModes(
+  requestIds: string[],
 ): Promise<Map<string, SessionMode>> {
-  const ids = [...new Set(studentIds)];
+  const ids = [...new Set(requestIds)];
   if (ids.length === 0) return new Map();
 
   const supabase = createAdminClient();
   const { data, error } = await supabase
-    .from("profiles")
+    .from("tutor_requests")
     .select("id, session_mode")
     .in("id", ids);
 
@@ -141,6 +148,14 @@ async function listSessionModes(
   );
 }
 
+/** Attach each request's own session format (0024). */
+async function withSessionModes(
+  views: TutorRequestView[],
+): Promise<TutorRequestView[]> {
+  const modes = await listRequestSessionModes(views.map((view) => view.id));
+  return views.map((view) => ({ ...view, sessionMode: modes.get(view.id) }));
+}
+
 /** The student's sent requests, newest first. */
 export async function listStudentRequests(profile: Profile): Promise<TutorRequestView[]> {
   const supabase = createAdminClient();
@@ -150,7 +165,7 @@ export async function listStudentRequests(profile: Profile): Promise<TutorReques
     .eq("student_id", profile.id)
     .order("created_at", { ascending: false });
   if (error) throw new Error(`listStudentRequests: ${error.message}`);
-  return (data ?? []).map((row) => toView(row));
+  return withSessionModes((data ?? []).map((row) => toView(row)));
 }
 
 /** The tutor's inbox, pending first then newest. */
@@ -171,19 +186,8 @@ export async function listTutorInbox(profile: Profile): Promise<TutorRequestView
     .order("created_at", { ascending: false });
   if (error) throw new Error(`listTutorInbox: ${error.message}`);
 
-  const views = (data ?? []).map((row) => toView(row));
-
-  // The tutor decides how to run the engagement (one-on-one vs group), so
-  // every incoming request carries the student's stated format.
-  const modes = await listSessionModes(
-    views
-      .map((view) => view.studentId)
-      .filter((id): id is string => Boolean(id)),
-  );
-  const withModes = views.map((view) => ({
-    ...view,
-    studentSessionMode: view.studentId ? modes.get(view.studentId) : undefined,
-  }));
+  // Every request carries the format the student chose for THAT request.
+  const withModes = await withSessionModes((data ?? []).map((row) => toView(row)));
 
   const rank: Record<RequestStatus, number> = {
     pending: 0,

@@ -61,6 +61,12 @@ export interface Course {
   /** The year this course is normally taken (0020) — 1–4, null = not
    *  year-specific. */
   year: number | null;
+  /** KNUST course code, e.g. "ME 255" (0026). Null on legacy topic rows. */
+  code?: string | null;
+  /** Credit hours (0026). */
+  credits?: number | null;
+  /** 1 or 2; null = runs across both / not semester-bound (0026). */
+  semester?: number | null;
   created_at: string;
 }
 

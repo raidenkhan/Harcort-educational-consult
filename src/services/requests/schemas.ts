@@ -24,9 +24,9 @@ export const sendRequestSchema = z.object({
     .max(500, "Keep the note under 500 characters")
     .optional()
     .transform((v) => v ?? ""),
-  /** How the student wants THIS engagement tutored — chosen at booking time,
-   *  not at sign-up. Stored on the profile so the tutor inbox (and every
-   *  later request) shows the latest preference. Defaults when absent. */
+  /** How the student wants THIS engagement tutored — chosen at booking time
+   *  and stored on the request itself (0024), never as a global preference.
+   *  Defaults to one-on-one when absent. */
   sessionMode: z.enum(SESSION_MODES).optional(),
 });
 
@@ -40,3 +40,16 @@ export const respondRequestSchema = z.object({
 
 export type SendRequestInput = z.infer<typeof sendRequestSchema>;
 export type RespondRequestInput = z.infer<typeof respondRequestSchema>;
+
+/** A student asks the admin team for a payment plan from the paywall. */
+export const paymentPlanRequestSchema = z.object({
+  requestId: uuid("Missing request"),
+  note: z
+    .string()
+    .trim()
+    .max(300, "Keep the note under 300 characters")
+    .optional()
+    .transform((v) => v ?? ""),
+});
+
+export type PaymentPlanRequestInput = z.infer<typeof paymentPlanRequestSchema>;

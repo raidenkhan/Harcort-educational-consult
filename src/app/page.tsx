@@ -441,6 +441,9 @@ export default async function Home() {
               name: course.name,
               description: course.description,
               year: course.year,
+              code: course.code ?? null,
+              credits: course.credits ?? null,
+              semester: course.semester ?? null,
             }))}
             lessons={LESSONS}
           />

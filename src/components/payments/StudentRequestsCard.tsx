@@ -1,4 +1,4 @@
-import { Clock, GraduationCap } from "lucide-react";
+import { Clock, GraduationCap, ShieldCheck } from "lucide-react";
 import { requireProfile } from "@/services/auth/queries";
 import { listStudentRequests } from "@/services/requests/queries";
 import { dueDateLabel } from "@/lib/time";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { WithdrawRequestButton } from "./WithdrawRequestButton";
 import { PayInstallmentButton } from "./PayInstallmentButton";
 import { CommitToCourseButton } from "./CommitToCourseButton";
+import { PaymentPlanRequestButton } from "./PaymentPlanRequestButton";
 import { listStudentEngagements } from "@/services/payments/queries";
 import { formatGhs } from "@/lib/money";
 
@@ -14,16 +15,25 @@ import { formatGhs } from "@/lib/money";
  * Student requests card — "My tutor requests" on the dashboard.
  *
  * Statuses and what each unlocks:
- *   pending  → waiting on the tutor (withdraw available)
- *   accepted → the Pay 50% CTA appears (finds the engagement's first
- *              unpaid installment; hidden if already paid/active)
+ *   pending  → the PAYWALL: the first 50% is due now (0024 — pay to
+ *              activate, the tutor accepts to schedule). Withdraw stays
+ *              available, and the paywall carries the ask-an-admin path for
+ *              a student who can't pay in full.
+ *   accepted → the engaged 50/50 plan, with the first unpaid installment's
+ *              pay button (hidden if already paid/active)
  *   declined → closed, with the tutor's decision time
  *   withdrawn → history
  *
- * Payment CTA resolution: the accepted request's course is matched to the
- * student's open engagement installments by tutor+course; the first
- * payable installment wins.
+ * Payment CTA resolution: the request's course is matched to the student's
+ * open engagement installments by tutor+course; the first payable
+ * installment wins.
  */
+
+/** Half of the tutor's quote, in pesewas — the paywall amount. */
+function duePesewas(priceInCedis: number | null): bigint | null {
+  if (!priceInCedis || priceInCedis <= 0) return null;
+  return BigInt(Math.floor(Math.round(priceInCedis * 100) / 2));
+}
 
 const STATUS_BADGE: Record<
   string,
@@ -77,9 +87,9 @@ export async function StudentRequestsCard() {
       <Card className="border-dashed">
         <h2 className="text-lg font-semibold text-slate-900">My tutor requests</h2>
         <p className="mt-1 text-sm text-slate-600">
-          When you request a tutor from the directory, the request and its
-          status appear here — and once accepted, your payment button
-          unlocks.
+          When you request a tutor from the directory, the request appears
+          here with its payment wall — pay the first 50% to activate your
+          sessions, or ask an admin for a plan.
         </p>
       </Card>
     );
@@ -97,6 +107,10 @@ export async function StudentRequestsCard() {
           label: request.status,
           tone: "neutral" as const,
         };
+        const alreadyEngaged = engagements.some(
+          (e) => e.tutorName === request.tutorName && e.status !== "cancelled",
+        );
+        const due = duePesewas(request.tutorServicePrice);
         return (
           <Card key={request.id}>
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -126,6 +140,35 @@ export async function StudentRequestsCard() {
                 )}
               </div>
             </div>
+
+            {/* Paywall — opened the moment the request was sent (0024). */}
+            {request.status === "pending" &&
+              request.tutorServiceId &&
+              due !== null &&
+              !alreadyEngaged && (
+                <div className="mt-4 rounded-lg border border-brand-200 bg-brand-50/60 px-4 py-3.5">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-brand-800">
+                    <ShieldCheck className="h-4 w-4" />
+                    Payment required
+                  </p>
+                  <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-700">
+                    Pay the first 50% ({formatGhs(due)}) to activate your
+                    sessions. The tutor confirms the timetable once you&apos;ve
+                    paid. Payments go to Harcourt, never to the tutor.
+                  </p>
+                  <div className="mt-3">
+                    <CommitToCourseButton
+                      tutorServiceId={request.tutorServiceId}
+                      label={`Pay ${formatGhs(due)} now`}
+                      signedIn={Boolean(profile.id)}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-600 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-brand-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                  </div>
+                  <div className="mt-4 border-t border-brand-200/70 pt-3">
+                    <PaymentPlanRequestButton requestId={request.id} />
+                  </div>
+                </div>
+              )}
 
             {request.status === "accepted" && (
               <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">

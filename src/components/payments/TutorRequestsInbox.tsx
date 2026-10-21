@@ -74,19 +74,20 @@ export async function TutorRequestsInbox() {
                     <GraduationCap className="h-4 w-4 text-slate-400" />
                     {request.courseName ?? "Course to decide together"}
                   </p>
-                  {/* The student chose this at sign-up (0021) — it decides
-                      how you run the engagement. Absent pre-migration. */}
-                  {request.studentSessionMode && (
+                  {/* Chosen for THIS request (0024) — the same student may
+                      want group here and one-on-one with another tutor.
+                      Absent pre-migration. */}
+                  {request.sessionMode && (
                     <p className="mt-2">
                       <Badge
-                        tone={request.studentSessionMode === "group" ? "brand" : "neutral"}
+                        tone={request.sessionMode === "group" ? "brand" : "neutral"}
                       >
-                        {request.studentSessionMode === "group" ? (
+                        {request.sessionMode === "group" ? (
                           <Users className="h-3 w-3" />
                         ) : (
                           <User className="h-3 w-3" />
                         )}
-                        {sessionModeLabel(request.studentSessionMode)}
+                        {sessionModeLabel(request.sessionMode)}
                       </Badge>
                     </p>
                   )}

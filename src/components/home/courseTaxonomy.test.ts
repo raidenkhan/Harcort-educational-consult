@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   ENGINEERING_FIELDS,
   FIELD_ORDER,
+  coursesForTerm,
   engineeringCourses,
+  groupCoursesByYear,
+  levelLabel,
+  levelsInCourses,
   matchCourses,
   sortFields,
 } from "./courseTaxonomy";
@@ -51,6 +55,12 @@ describe("matchCourses", () => {
     expect(matchCourses(COURSES, "engineering")).toHaveLength(3);
     expect(matchCourses(COURSES, "quantum")).toEqual([]);
   });
+
+  it("finds a course by its KNUST code (0026)", () => {
+    const coded = [{ ...COURSES[0], code: "ME 255" }];
+    expect(matchCourses(coded, "me 255")).toHaveLength(1);
+    expect(matchCourses(coded, "ME 2")).toHaveLength(1);
+  });
 });
 
 describe("sortFields", () => {
@@ -81,7 +91,9 @@ describe("sortFields", () => {
 });
 
 describe("engineeringCourses", () => {
-  it("keeps only the KNUST engineering fields, in order", () => {
+  it("keeps only the KNUST engineering programmes, in order", () => {
+    // Engineering Mathematics / Engineering Sciences are service subjects,
+    // not degrees, so they are no longer student-facing programmes (0026).
     const rows = [
       { subject: "Mechanical Engineering" },
       { subject: "English" },
@@ -92,7 +104,6 @@ describe("engineeringCourses", () => {
     ];
     expect(engineeringCourses(rows).map((r) => r.subject)).toEqual([
       "Mechanical Engineering",
-      "Engineering Mathematics",
       "Civil Engineering",
     ]);
   });
@@ -101,9 +112,76 @@ describe("engineeringCourses", () => {
     const kept = engineeringCourses(ENGINEERING_FIELDS.map((subject) => ({ subject })));
     expect(kept).toHaveLength(ENGINEERING_FIELDS.length);
 
-    const dropped = ["Computer Science", "Mathematics", "Sciences", "English"];
+    const dropped = [
+      "Computer Science",
+      "Mathematics",
+      "Sciences",
+      "English",
+      "Engineering Mathematics",
+      "Engineering Sciences",
+    ];
     expect(engineeringCourses(dropped.map((subject) => ({ subject })))).toEqual(
       [],
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Directory helpers: Program → Level → Semester → Course (0026)
+// ---------------------------------------------------------------------------
+
+const TERM_COURSES = [
+  { id: "1", name: "Mathematics I", year: 1, semester: 1 },
+  { id: "2", name: "Engineering Drawing I", year: 1, semester: 1 },
+  { id: "3", name: "Mathematics II", year: 1, semester: 2 },
+  { id: "4", name: "Strength of Materials I", year: 2, semester: 1 },
+  { id: "5", name: "General Lab Safety", year: null, semester: null },
+];
+
+describe("levelLabel", () => {
+  it("names a KNUST level by its hundreds", () => {
+    expect(levelLabel(1)).toBe("Level 100");
+    expect(levelLabel(4)).toBe("Level 400");
+  });
+
+  it("uses the same vocabulary for course buckets", () => {
+    expect(groupCoursesByYear([{ year: 2 }]).map((b) => b.label)).toEqual([
+      "Level 200",
+    ]);
+    expect(groupCoursesByYear([{ year: null }]).map((b) => b.label)).toEqual([
+      "All levels",
+    ]);
+  });
+});
+
+describe("levelsInCourses", () => {
+  it("returns the distinct levels, ascending", () => {
+    expect(levelsInCourses(TERM_COURSES)).toEqual([1, 2]);
+  });
+
+  it("ignores year-null courses and is empty when nothing is level-bound", () => {
+    expect(levelsInCourses([TERM_COURSES[4]])).toEqual([]);
+    expect(levelsInCourses([])).toEqual([]);
+  });
+});
+
+describe("coursesForTerm", () => {
+  it("filters by level and semester", () => {
+    const ids = coursesForTerm(TERM_COURSES, 1, 1).map((c) => c.id);
+    expect(ids).toEqual(["1", "2", "5"]);
+  });
+
+  it("keeps level-independent courses in both semesters", () => {
+    expect(coursesForTerm(TERM_COURSES, 2, 1).map((c) => c.id)).toContain("5");
+    expect(coursesForTerm(TERM_COURSES, 1, 2).map((c) => c.id)).toContain("5");
+  });
+
+  it("treats a null level as the whole programme", () => {
+    expect(coursesForTerm(TERM_COURSES, null, 1).map((c) => c.id)).toEqual([
+      "1",
+      "2",
+      "4",
+      "5",
+    ]);
   });
 });

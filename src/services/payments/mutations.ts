@@ -238,9 +238,10 @@ export async function initializeInstallmentPayment(
 }
 
 /**
- * One-click commit AFTER the tutor accepted the request (request-first,
- * pay-after-acceptance): creates (or re-enters) the payment agreement for
- * the quoted course, then goes straight to Paystack for the first 50%.
+ * One-click pay from the request paywall: creates (or re-enters) the payment
+ * agreement for the quoted course, then goes straight to Paystack for the
+ * first 50%. The request may still be pending (0024 — pay to activate, the
+ * tutor accepts to schedule); a declined request closed the paywall instead.
  * Reuses an existing open engagement so tapping twice never blocks.
  */
 export async function commitAndStartCheckout(
@@ -261,8 +262,10 @@ export async function commitAndStartCheckout(
 
   const supabase = createAdminClient();
 
-  // Gate: the tutor must have ACCEPTED this student's request first
-  // (request-first, pay-after-acceptance).
+  // Gate: there must be a live request from this student to this tutor. As of
+  // 0024 the paywall opens the moment the request is sent — payment no longer
+  // waits for acceptance — so a pending request is enough. Acceptance still
+  // governs scheduling; a declined request falls out of this filter.
   const { data: service } = await supabase
     .from("tutor_services")
     .select("id, tutor_profile_id")
@@ -276,11 +279,13 @@ export async function commitAndStartCheckout(
     .select("id")
     .eq("student_id", profile.id)
     .eq("tutor_profile_id", tutorProfileId)
-    .eq("status", "accepted")
+    .in("status", ["pending", "accepted"])
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (!request) {
     return {
-      error: "Your tutor request hasn't been accepted yet — you can pay once the tutor accepts.",
+      error: "Send a tutor request first — the payment wall opens once it's sent.",
     };
   }
   const requestId = (request as { id: string }).id;

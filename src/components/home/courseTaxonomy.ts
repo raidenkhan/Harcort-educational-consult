@@ -9,9 +9,12 @@
  */
 
 /**
- * The KNUST College-of-Engineering fields — the only subjects the
- * student-facing catalog shows (browse band, nav search, program picker).
- * The DB may still hold wider academic subjects (English, Business…);
+ * The KNUST degree programmes the student-facing catalog shows (browse band,
+ * directory, nav search, program picker). A program is a degree, not a
+ * subject taught inside one: "Engineering Mathematics" / "Engineering
+ * Sciences" are service subjects, so they stay in the DB for tutor offers but
+ * are no longer presented as things a student can "study". The DB also holds
+ * wider academic subjects (English, Business…) for the same reason —
  * management surfaces (admin console, tutor service form) see everything,
  * but every student-facing read filters through `engineeringCourses`.
  */
@@ -21,8 +24,6 @@ export const ENGINEERING_FIELDS: readonly string[] = [
   "Computer Engineering",
   "Civil Engineering",
   "Chemical & Petroleum Engineering",
-  "Engineering Mathematics",
-  "Engineering Sciences",
 ];
 
 /**
@@ -33,6 +34,8 @@ export const ENGINEERING_FIELDS: readonly string[] = [
  */
 export const FIELD_ORDER = [
   ...ENGINEERING_FIELDS,
+  "Engineering Mathematics",
+  "Engineering Sciences",
   "Computer Science",
   "Mathematics",
   "Sciences",
@@ -84,12 +87,17 @@ export const LESSON_FIELDS: Record<string, string[]> = {
  * that an empty query means "no search", not "show everything".
  */
 export function matchCourses<
-  T extends { name: string; subject: string; description: string | null },
+  T extends {
+    name: string;
+    subject: string;
+    description: string | null;
+    code?: string | null;
+  },
 >(courses: T[], query: string): T[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
   return courses.filter((course) =>
-    `${course.name} ${course.subject} ${course.description ?? ""}`
+    `${course.name} ${course.subject} ${course.code ?? ""} ${course.description ?? ""}`
       .toLowerCase()
       .includes(needle),
   );
@@ -112,9 +120,43 @@ export function sortFields(subjects: string[]): string[] {
 export const YEARS = [1, 2, 3, 4] as const;
 export type Year = (typeof YEARS)[number];
 
-/** "Year 1" … "Year 4"; null reads "All years". */
+/** "Level 100" … "Level 400"; null reads "All levels". KNUST names a
+ *  study year by its hundreds, so course buckets use the same vocabulary as
+ *  the directory. */
 export function yearLabel(year: number | null | undefined): string {
-  return year ? `Year ${year}` : "All years";
+  return year ? levelLabel(year) : "All levels";
+}
+
+/** "Level 100" — KNUST names a study year by its hundreds. */
+export function levelLabel(year: number): string {
+  return `Level ${year * 100}`;
+}
+
+/**
+ * The levels a programme actually has courses for, ascending. Empty when none
+ * of its courses carry a year — the directory then skips the level step
+ * instead of showing four empty levels.
+ */
+export function levelsInCourses(
+  courses: { year: number | null }[],
+): number[] {
+  return [...new Set(courses.map((c) => c.year).filter((y): y is number => y != null))]
+    .sort((a, b) => a - b);
+}
+
+/**
+ * Courses for one level + semester (0026). A null `level` means "the whole
+ * programme" (no level step). A course with no year is not level-bound, so it
+ * appears at every level; a null `semester` runs in both.
+ */
+export function coursesForTerm<
+  T extends { year: number | null; semester?: number | null },
+>(courses: T[], level: number | null, semester: 1 | 2): T[] {
+  return courses.filter(
+    (course) =>
+      (level === null || course.year === level || course.year == null) &&
+      (course.semester == null || course.semester === semester),
+  );
 }
 
 /**

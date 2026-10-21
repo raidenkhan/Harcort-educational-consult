@@ -7,6 +7,7 @@ import {
   CalendarCheck,
   LibraryBig,
   Wallet,
+  TrendingUp,
   LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -21,6 +22,7 @@ const TABS = [
   { href: "/admin/attendance", label: "Attendance", icon: CalendarCheck },
   { href: "/admin/courses", label: "Courses", icon: LibraryBig },
   { href: "/admin/payments", label: "Payments", icon: Wallet },
+  { href: "/admin/analytics", label: "Performance", icon: TrendingUp },
   { href: "/admin/support", label: "Support", icon: LifeBuoy },
 ];
 
