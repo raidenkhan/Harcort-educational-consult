@@ -100,7 +100,8 @@ export function RequestTutorButton({
                 {formatGhs(BigInt(paywall.duePesewas))} to start
               </h3>
               <p className="mt-1 text-sm leading-relaxed text-slate-700">
-                First 50% of {formatGhs(BigInt(paywall.totalPesewas))} for{" "}
+                First 50% of{" "}
+                {formatGhs(BigInt(paywall.totalPesewas))} per semester for{" "}
                 <span className="font-medium">{paywall.courseName}</span> with{" "}
                 <span className="font-medium">{paywall.tutorName}</span>. The
                 remaining 50% falls due by your final session.
@@ -146,7 +147,7 @@ export function RequestTutorButton({
               <Select id="courseId" name="courseId" defaultValue={offerings[0]?.courseId ?? ""}>
                 {offerings.map((o) => (
                   <option key={o.courseId} value={o.courseId}>
-                    {o.name} · GH₵{o.price.toLocaleString()}
+                    {o.name} · GH₵{o.price.toLocaleString()}/semester
                   </option>
                 ))}
               </Select>

@@ -146,8 +146,8 @@ export async function TutorEarningsCard() {
                   </h3>
                   <p className="mt-0.5 text-sm text-slate-600">
                     {engagement.studentName || "Student"} ·{" "}
-                    {formatGhs(engagement.agreedTotal)} total · your share{" "}
-                    {formatGhs(engagement.tutorShare)}
+                    {formatGhs(engagement.agreedTotal)} per semester · your
+                    share {formatGhs(engagement.tutorShare)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

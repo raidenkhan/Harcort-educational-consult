@@ -14,7 +14,7 @@ export const tutorProfileSchema = z.object({
     .min(5, "List your qualifications / experience")
     .max(500, "Keep your qualifications under 500 characters"),
   ratePerHour: z.coerce
-    .number({ message: "Enter a valid hourly rate" })
+    .number({ message: "Enter a valid semester rate" })
     .min(0, "Rate cannot be negative")
     .max(100000, "Rate looks too high"),
 });

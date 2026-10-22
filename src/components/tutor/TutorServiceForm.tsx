@@ -50,7 +50,7 @@ export function TutorServiceForm({ courses }: { courses: Course[] }) {
         </Select>
       </Field>
 
-      <Field label="Price per hour (GH₵)" htmlFor="price">
+      <Field label="Price per semester (GH₵)" htmlFor="price">
         <Input
           id="price"
           name="price"

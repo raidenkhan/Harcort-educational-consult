@@ -93,7 +93,7 @@ export async function StudentPaymentsCard() {
                 </h3>
                 <p className="mt-0.5 text-sm text-slate-600">
                   with {engagement.tutorName || "your tutor"} ·{" "}
-                  {formatGhs(engagement.agreedTotal)} total
+                  {formatGhs(engagement.agreedTotal)} per semester
                 </p>
               </div>
               <Badge tone={badge.tone}>{badge.label}</Badge>

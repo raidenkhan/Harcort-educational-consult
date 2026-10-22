@@ -337,7 +337,7 @@ export default async function CoursePage({
                           </p>
                           <p className="text-xs text-slate-500">
                             {tutorProfile.rate_per_hour != null
-                              ? `GH₵${tutorProfile.rate_per_hour.toLocaleString()}/hr`
+                              ? `GH₵${tutorProfile.rate_per_hour.toLocaleString()}/semester`
                               : "Rates on request"}
                           </p>
                         </div>

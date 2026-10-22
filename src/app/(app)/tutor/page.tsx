@@ -41,7 +41,7 @@ export default async function TutorOverviewPage() {
           </h2>
           <p className="mt-1 text-sm text-slate-500">
             Add the courses you&apos;re willing to tutor, with your price per
-            hour. Students request these directly.
+            semester. Students request these directly.
           </p>
           <TutorServiceForm courses={courses} />
         </Card>
@@ -82,7 +82,7 @@ export default async function TutorOverviewPage() {
                   <span className="font-semibold text-slate-900">
                     GH₵{service.price.toLocaleString()}
                     <span className="ml-1 text-xs font-normal text-slate-400">
-                      /hr
+                      /semester
                     </span>
                   </span>
                 </li>

@@ -54,7 +54,7 @@ export function TutorProfileForm({
         />
       </Field>
 
-      <Field label="Hourly rate (GH₵)" htmlFor="ratePerHour">
+      <Field label="Semester rate (GH₵)" htmlFor="ratePerHour">
         <Input
           id="ratePerHour"
           name="ratePerHour"

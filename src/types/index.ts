@@ -114,6 +114,12 @@ export interface TutorProfile {
   profile_id: string;
   bio: string | null;
   qualifications: string | null;
+  /** The tutor's advertised rate. ⚠️ The COLUMN is still named
+   *  `rate_per_hour`, but the business charges PER SEMESTER — every price tag
+   *  in the app must read "/semester", never "/hr". Same for
+   *  `tutor_services.price` (the per-course quote the student actually pays,
+   *  which becomes the semester agreement). Rename the column when it's
+   *  convenient; until then the labels carry the meaning. */
   rate_per_hour: number | null;
   verification_status: TutorStatus;
   admin_notes: string | null;

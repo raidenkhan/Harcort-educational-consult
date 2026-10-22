@@ -198,7 +198,7 @@ function TutorCard({
             </Badge>
             <p className="text-xs text-slate-500">
               {tp.rate_per_hour != null
-                ? `GH₵${tp.rate_per_hour.toLocaleString()}/hr`
+                ? `GH₵${tp.rate_per_hour.toLocaleString()}/semester`
                 : "Rates on request"}
             </p>
           </div>
@@ -229,7 +229,10 @@ function TutorCard({
             >
               <span className="min-w-0 truncate text-xs font-medium text-slate-700">
                 {o.name}
-                <span className="text-brand-700"> · GH₵{o.price.toLocaleString()}</span>
+                <span className="text-brand-700">
+                  {" "}
+                  · GH₵{o.price.toLocaleString()}/semester
+                </span>
               </span>
               <RequestTutorButton
                 tutorProfileId={tp.id}

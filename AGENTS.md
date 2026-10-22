@@ -355,6 +355,14 @@ Key security properties:
   `AnimatedGradient`; all app chrome uses `FloatingNav`.
 - **Errors:** never expose raw DB errors to users beyond `error.message` in
   form states.
+- **Prices are PER SEMESTER.** Every price tag in the app reads
+  `GH₵<amount>/semester` — the tutor's advertised rate, the per-course quote
+  (`tutor_services.price`, what the student actually pays), and the engagement
+  totals. **Never "/hr" or "per hour".** ⚠️ The DB column is still named
+  `rate_per_hour` (and the form field `ratePerHour`) — the LABEL carries the
+  meaning until the column is renamed. A student books a tutor for a
+  semester, pays 50% up front and the rest by the final session; there is no
+  hourly billing anywhere in the product.
 
 ---
 
