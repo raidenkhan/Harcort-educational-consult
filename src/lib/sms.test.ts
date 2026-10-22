@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { extractSmsId, normalizeGhPhone, reminderDedupeKey } from "./sms";
+import { describe, expect, it, afterEach } from "vitest";
+import {
+  arkeselApiKey,
+  extractSmsId,
+  isSmsConfigured,
+  normalizeGhPhone,
+  reminderDedupeKey,
+} from "./sms";
 
 describe("normalizeGhPhone", () => {
   it("converts the local 0-prefixed form to international digits", () => {
@@ -61,5 +67,40 @@ describe("reminderDedupeKey", () => {
     expect(reminderDedupeKey("session:abc:reminder", "tutor")).not.toBe(
       reminderDedupeKey("session:abc:reminder", "student"),
     );
+  });
+});
+
+describe("arkeselApiKey", () => {
+  const original = process.env.ARKESEL_API_KEY;
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.ARKESEL_API_KEY;
+    else process.env.ARKESEL_API_KEY = original;
+  });
+
+  it("trims a pasted key", () => {
+    process.env.ARKESEL_API_KEY = "  abc123\r\n";
+    expect(arkeselApiKey()).toBe("abc123");
+  });
+
+  it("strips quotes the user typed around it", () => {
+    process.env.ARKESEL_API_KEY = '"abc123"';
+    expect(arkeselApiKey()).toBe("abc123");
+  });
+
+  it("strips single quotes and stray whitespace together", () => {
+    process.env.ARKESEL_API_KEY = " 'abc123' ";
+    expect(arkeselApiKey()).toBe("abc123");
+  });
+
+  it("keeps a clean key untouched", () => {
+    process.env.ARKESEL_API_KEY = "abc123";
+    expect(arkeselApiKey()).toBe("abc123");
+  });
+
+  it("treats an empty or whitespace-only value as unset", () => {
+    process.env.ARKESEL_API_KEY = "   ";
+    expect(arkeselApiKey()).toBe("");
+    expect(isSmsConfigured()).toBe(false);
   });
 });

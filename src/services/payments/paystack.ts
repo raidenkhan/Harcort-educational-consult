@@ -20,7 +20,15 @@ export function isPaystackConfigured(): boolean {
 }
 
 function secretKey(): string {
-  const key = process.env.PAYSTACK_SECRET_KEY;
+  // Trimmed and unquoted: a key pasted into a dashboard field often carries a
+  // trailing space, a carriage return, or the quotes the user typed around
+  // it — and Paystack answers that with a plain signature mismatch that
+  // looks exactly like a wrong key.
+  const key = (process.env.PAYSTACK_SECRET_KEY ?? "")
+    .trim()
+    .replace(/^["']/, "")
+    .replace(/["']$/, "")
+    .trim();
   if (!key) throw new Error("PAYSTACK_SECRET_KEY is not configured");
   return key;
 }

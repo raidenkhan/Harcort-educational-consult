@@ -53,9 +53,26 @@ export type SmsKind =
   | "reset"
   | "test";
 
+/**
+ * The API key, cleaned up.
+ *
+ * A key pasted into a dashboard field often arrives with a trailing space, a
+ * carriage return, or the quotes the user typed around it — and Arkesel
+ * answers that with a bare "401 Invalid key", which looks exactly like a
+ * wrong key. Trimming and stripping the quotes here makes the app immune to
+ * that whole class of paste accident.
+ */
+export function arkeselApiKey(): string {
+  return (process.env.ARKESEL_API_KEY ?? "")
+    .trim()
+    .replace(/^["']/, "")
+    .replace(/["']$/, "")
+    .trim();
+}
+
 /** True when an API key is configured — cheap guard before doing lookups. */
 export function isSmsConfigured(): boolean {
-  return Boolean(process.env.ARKESEL_API_KEY);
+  return arkeselApiKey().length > 0;
 }
 
 /**
@@ -143,7 +160,7 @@ export function lastBalanceFailure(): string | null {
  * provider's own message rather than a silent null.
  */
 export async function getSmsBalance(force = false): Promise<SmsBalance | null> {
-  const apiKey = process.env.ARKESEL_API_KEY;
+  const apiKey = arkeselApiKey();
   if (!apiKey) return null;
 
   if (!force && balanceCache && Date.now() - balanceCache.at < BALANCE_TTL_MS) {
@@ -369,7 +386,7 @@ export async function sendSms(opts: {
   dedupeKey?: string;
   now?: number;
 }): Promise<SendResult> {
-  const apiKey = process.env.ARKESEL_API_KEY;
+  const apiKey = arkeselApiKey();
   if (!apiKey) {
     console.log(`[sms] Arkesel not configured — no-op for ${opts.to}`);
     return { ok: false, error: "SMS isn't configured (missing ARKESEL_API_KEY)." };
