@@ -1,0 +1,45 @@
+name: Session reminders
+
+# Texts both parties about a session that is about to start.
+#
+# Why a GitHub schedule instead of a Vercel cron: Vercel's free plan allows
+# cron jobs once a DAY, and a reminder that arrives the morning of a 4pm
+# session is useless. GitHub's scheduler runs every 15 minutes for free.
+#
+# The route does the work — this workflow only fires it:
+#   GET {APP_URL}/api/sessions/remind  with  Authorization: Bearer <CRON_SECRET>
+#
+# Repository secrets needed (Settings → Secrets and variables → Actions):
+#   CRON_SECRET — the SAME value as the one in the Vercel project env.
+# Optional:
+#   APP_URL — defaults to the Vercel production URL.
+#
+# Note: GitHub disables scheduled workflows in a repo with no activity for 60
+# days, and the schedule can drift by a few minutes. The reminder window is
+# wide (45–90 minutes before the start) to absorb that.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire the reminder route
+        env:
+          APP_URL: ${{ secrets.APP_URL || 'https://harcort-educational-consult.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is not set — add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/sessions/remind"

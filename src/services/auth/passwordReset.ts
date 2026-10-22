@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createThrottle } from "@/lib/auth/throttle";
 import { notifyPasswordReset } from "@/lib/email/notify";
+import { phonesForProfiles, sendSms } from "@/lib/sms";
 import { hashPassword } from "@/lib/auth/password";
 import { requireRole } from "@/services/auth/queries";
 import { resetRedeemSchema, resetRequestSchema } from "./schemas";
@@ -124,6 +125,31 @@ async function createResetCode(
 }
 
 /**
+ * Also text the reset code to the phone on file (0022). Email stays the
+ * primary channel: a failed text never blocks the reset, and the reply the
+ * user sees stays generic either way, so this endpoint still can't be used to
+ * probe which accounts exist.
+ */
+async function textResetCode(
+  profileId: string,
+  code: string,
+): Promise<void> {
+  try {
+    const phones = await phonesForProfiles([profileId]);
+    const phone = phones.get(profileId);
+    if (!phone) return;
+    await sendSms({
+      to: phone,
+      message: `Harcourt: your password reset code is ${code}. It expires in 30 minutes.`,
+      kind: "reset",
+      profileId,
+    });
+  } catch (err) {
+    console.error("[sms] reset code text failed:", err);
+  }
+}
+
+/**
  * Self-service: a locked-out user enters their email and the code is emailed
  * automatically — no admin involved. Throttled per email + per IP. The reply
  * is identical whether or not the account exists (no email enumeration), so a
@@ -183,6 +209,12 @@ export async function requestResetCode(
         "Your reset code was created but couldn't be emailed: " + sendError,
     };
   }
+
+  // The phone on file gets the same code (best-effort, never blocks).
+  await textResetCode(
+    (credential as { profile_id: string }).profile_id,
+    issued.code,
+  );
 
   return {
     message:

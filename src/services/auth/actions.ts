@@ -21,6 +21,7 @@ import {
   setStudyPrefsSchema,
   setSessionModeSchema,
   setPhoneSchema,
+  setSmsOptOutSchema,
 } from "./schemas";
 import { DEFAULT_SESSION_MODE, type SessionMode } from "./sessionFormat";
 
@@ -370,6 +371,43 @@ export async function setPhoneAction(
     message: parsed.data.phone
       ? `We'll text session updates to ${parsed.data.phone}.`
       : "Phone number removed.",
+  };
+}
+
+/**
+ * SMS opt-out (0027). The user's kill switch: while it is on, the app never
+ * texts this number — reminders, request updates, payment notices and reset
+ * codes all skip it.
+ */
+export async function setSmsOptOutAction(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const parsed = setSmsOptOutSchema.safeParse({
+    optedOut: formData.get("optedOut"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Could not save that." };
+  }
+
+  const profile = await requireProfile();
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      sms_opt_out: parsed.data.optedOut,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profile.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard");
+  revalidatePath("/tutor", "layout");
+  return {
+    message: parsed.data.optedOut
+      ? "Text messages are off. We won't text this number any more."
+      : "Text messages are on.",
   };
 }
 

@@ -48,6 +48,9 @@ export interface Profile {
   /** Phone we text session updates to (0022). Optional for every role;
    *  optional in the type because a profile read before 0022 has no column. */
   phone?: string | null;
+  /** True when the user has turned SMS off (0027). Optional for the same
+   *  reason — a profile read before 0027 has no column. */
+  sms_opt_out?: boolean;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;

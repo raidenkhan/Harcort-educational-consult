@@ -144,6 +144,7 @@ export async function createSession(
     [parsed.data.studentId],
     `Harcourt: ${profile.full_name || "Your tutor"} scheduled a session for ` +
       `${sessionWhen(start, parsed.data.durationMinutes)}. See your dashboard.`,
+    "session_scheduled",
   );
 
   revalidatePath("/tutor", "layout");
@@ -317,27 +318,46 @@ export async function cancelSession(
     .eq("id", sessionRow.id);
   if (error) return { error: error.message };
 
-  // Email the other party so they know the session is off (best-effort).
+  // Email AND text the other party so they know the session is off
+  // (best-effort — a failed text never blocks the cancellation).
+  const when = sessionWhen(
+    new Date(sessionRow.scheduled_at),
+    sessionRow.duration_minutes,
+  );
+  const cancelledByName = profile.full_name || (profile.role === "tutor" ? "The tutor" : "The student");
+
   if (profile.role === "tutor") {
     notifySessionCancelled({
       recipientProfileIds: [sessionRow.student_id],
-      cancelledByName: profile.full_name || "The tutor",
-      when: sessionWhen(new Date(sessionRow.scheduled_at), sessionRow.duration_minutes),
+      cancelledByName,
+      when,
       topic: sessionRow.topic,
     });
+    notifySmsToProfiles(
+      [sessionRow.student_id],
+      `Harcourt: your session with ${cancelledByName} on ${when} was cancelled. Open the app to rebook.`,
+      "session_cancelled",
+    );
   } else {
     const { data: tp } = await supabase
       .from("tutor_profiles")
       .select("profile_id")
       .eq("id", sessionRow.tutor_profile_id)
       .maybeSingle();
-    if (tp) {
+    const tutorProfile = tp as { profile_id: string } | null;
+
+    if (tutorProfile) {
       notifySessionCancelled({
-        recipientProfileIds: [(tp as { profile_id: string }).profile_id],
-        cancelledByName: profile.full_name || "The student",
-        when: sessionWhen(new Date(sessionRow.scheduled_at), sessionRow.duration_minutes),
+        recipientProfileIds: [tutorProfile.profile_id],
+        cancelledByName,
+        when,
         topic: sessionRow.topic,
       });
+      notifySmsToProfiles(
+        [tutorProfile.profile_id],
+        `Harcourt: your session with ${cancelledByName} on ${when} was cancelled. Open the app to rebook.`,
+        "session_cancelled",
+      );
     }
   }
 

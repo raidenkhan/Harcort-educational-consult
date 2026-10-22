@@ -3,6 +3,8 @@ import { getOwnTutorProfile } from "@/services/tutors/queries";
 import { listCourses } from "@/services/courses/queries";
 import { TutorProfileForm } from "@/components/tutor/TutorProfileForm";
 import { TutorServiceForm } from "@/components/tutor/TutorServiceForm";
+import { PhoneForm } from "@/components/auth/PhoneForm";
+import { SmsPreferenceForm } from "@/components/auth/SmsPreferenceForm";
 import { Card } from "@/components/ui/Card";
 import type { TutorService } from "@/types";
 
@@ -12,7 +14,7 @@ import type { TutorService } from "@/types";
  * what students see.
  */
 export default async function TutorOverviewPage() {
-  await requireRole("tutor");
+  const profile = await requireRole("tutor");
 
   const [tutor, courses] = await Promise.all([
     getOwnTutorProfile(),
@@ -42,6 +44,23 @@ export default async function TutorOverviewPage() {
             hour. Students request these directly.
           </p>
           <TutorServiceForm courses={courses} />
+        </Card>
+
+        <Card>
+          <h2 className="text-lg font-semibold text-slate-900">
+            Phone number &amp; text alerts
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            We text you when a student requests you, when a session is coming
+            up, and when a session is cancelled. Add your number here — without
+            it, those alerts only reach your email.
+          </p>
+          <div className="mt-3">
+            <PhoneForm key={profile.phone ?? "none"} current={profile.phone} />
+          </div>
+          <div className="mt-6 border-t border-slate-100 pt-5">
+            <SmsPreferenceForm optedOut={profile.sms_opt_out ?? false} />
+          </div>
         </Card>
 
         <Card>

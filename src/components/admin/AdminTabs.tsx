@@ -9,6 +9,7 @@ import {
   Wallet,
   TrendingUp,
   LifeBuoy,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -23,6 +24,7 @@ const TABS = [
   { href: "/admin/courses", label: "Courses", icon: LibraryBig },
   { href: "/admin/payments", label: "Payments", icon: Wallet },
   { href: "/admin/analytics", label: "Performance", icon: TrendingUp },
+  { href: "/admin/sms", label: "Texts", icon: MessageSquare },
   { href: "/admin/support", label: "Support", icon: LifeBuoy },
 ];
 

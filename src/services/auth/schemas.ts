@@ -140,11 +140,24 @@ export const setPhoneSchema = z.object({
     .optional(),
 });
 
+/**
+ * SMS opt-out input (0027). The checkbox posts "on" when ticked and nothing
+ * when unticked, so the schema accepts both and normalizes to a boolean.
+ */
+export const setSmsOptOutSchema = z.object({
+  optedOut: z
+    .union([z.literal("on"), z.literal("true"), z.literal("")])
+    .transform((value) => value === "on" || value === "true"),
+});
+
 /** Switch role input type */
 export type SwitchRoleInput = z.infer<typeof switchRoleSchema>;
 
 /** Phone input type */
 export type SetPhoneInput = z.infer<typeof setPhoneSchema>;
+
+/** SMS opt-out input type */
+export type SetSmsOptOutInput = z.infer<typeof setSmsOptOutSchema>;
 
 /** Study prefs input type */
 export type SetStudyPrefsInput = z.infer<typeof setStudyPrefsSchema>;

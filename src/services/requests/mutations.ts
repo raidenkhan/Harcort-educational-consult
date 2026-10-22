@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { scheduleOutboxDrain } from "@/lib/email/outbox";
 import { notifyNewMessage } from "@/lib/email/notify";
+import { notifySmsToProfiles } from "@/lib/sms";
 import { formatGhs } from "@/lib/money";
 import { requireProfile } from "@/services/auth/queries";
 import { normalizeSessionMode } from "@/services/auth/sessionFormat";
@@ -147,6 +148,17 @@ export async function sendTutorRequest(
   // money agreement.
   const paywall = await resolvePaywall(supabase, requestId);
 
+  // Text the tutor: a new request is the one thing a tutor must not miss,
+  // and most of them won't open their email between classes. Best-effort.
+  const contact = await resolveRequestContact(supabase, requestId);
+  if (contact?.tutorProfileId) {
+    notifySmsToProfiles(
+      [contact.tutorProfileId],
+      `Harcourt: ${profile.full_name || "A student"} wants to book ${contact.courseName}. Open the app to respond.`,
+      "request",
+    );
+  }
+
   scheduleOutboxDrain();
   revalidatePath("/dashboard");
   revalidatePath("/tutor", "layout");
@@ -155,6 +167,63 @@ export async function sendTutorRequest(
       ? "Request sent. Complete the first 50% below to activate your sessions."
       : "Request sent. You'll get an email when the tutor accepts — your payment button unlocks then.",
     paywall: paywall ?? undefined,
+  };
+}
+
+/**
+ * Who a request concerns — the two people who may need to be told about it,
+ * and what it's about. Resolved from the REQUEST ROW (never from the form),
+ * so the text always matches the request that actually exists.
+ */
+async function resolveRequestContact(
+  supabase: ReturnType<typeof createAdminClient>,
+  requestId: string | null,
+): Promise<{
+  studentId: string;
+  tutorProfileId: string;
+  courseName: string;
+  tutorName: string;
+} | null> {
+  if (!requestId) return null;
+
+  const { data } = await supabase
+    .from("tutor_requests")
+    .select(
+      "id, student_id, course_id, tutor_profile_id, courses(name), tutor_profiles(profile_id, profiles(full_name))",
+    )
+    .eq("id", requestId)
+    .maybeSingle();
+
+  if (!data) return null;
+  const row = data as unknown as {
+    student_id: string;
+    course_id: string | null;
+    tutor_profile_id: string;
+    courses?: { name?: string } | { name?: string }[] | null;
+    tutor_profiles?:
+      | {
+          profile_id?: string;
+          profiles?: { full_name?: string } | { full_name?: string }[] | null;
+        }
+      | Array<{
+          profile_id?: string;
+          profiles?: { full_name?: string } | { full_name?: string }[] | null;
+        }>
+      | null;
+  };
+
+  const course = Array.isArray(row.courses) ? row.courses[0] : row.courses;
+  const tp = Array.isArray(row.tutor_profiles)
+    ? row.tutor_profiles[0]
+    : row.tutor_profiles;
+  const names = tp?.profiles;
+  const tutor = Array.isArray(names) ? names[0] : names;
+
+  return {
+    studentId: row.student_id,
+    tutorProfileId: tp?.profile_id ?? "",
+    courseName: course?.name ?? "your course",
+    tutorName: tutor?.full_name ?? "your tutor",
   };
 }
 
@@ -395,6 +464,22 @@ export async function respondTutorRequest(
     p_accept: parsed.data.accept,
   });
   if (error) return { error: friendlyError(rpcError(error)) };
+
+  // Text the student the verdict — accepted means they can now pay the first
+  // 50%, declined means they should stop waiting for it.
+  const contact = await resolveRequestContact(
+    supabase,
+    parsed.data.requestId,
+  );
+  if (contact) {
+    notifySmsToProfiles(
+      [contact.studentId],
+      parsed.data.accept
+        ? `Harcourt: ${contact.tutorName} accepted your request for ${contact.courseName}. Open the app to pay and schedule.`
+        : `Harcourt: ${contact.tutorName} declined your request for ${contact.courseName}.`,
+      "request_response",
+    );
+  }
 
   scheduleOutboxDrain();
   revalidatePath("/tutor", "layout");

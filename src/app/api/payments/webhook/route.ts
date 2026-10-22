@@ -5,6 +5,8 @@ import {
   verifyTransfer,
   verifyWebhookSignature,
 } from "@/services/payments/paystack";
+import { notifySmsToProfiles } from "@/lib/sms";
+import { formatGhs } from "@/lib/money";
 
 /**
  * POST /api/payments/webhook — Paystack event receiver.
@@ -190,6 +192,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, refused: applyError.message });
     }
 
+    // Text the student that the money landed. Best-effort — the money is
+    // already applied either way, and a failed text never rolls that back.
+    await textPaymentReceived(supabase, row.engagement_id, verifiedAmount);
+
     return NextResponse.json({ received: true, payment: appliedId });
   } catch (err) {
     // Verify call failed (Paystack down / network) — return 500 so Paystack
@@ -197,4 +203,33 @@ export async function POST(request: NextRequest) {
     console.error(`[payments] verify failed for ${reference}`, err);
     return NextResponse.json({ error: "verify unavailable" }, { status: 500 });
   }
+}
+
+/**
+ * Tell the student their payment landed. The amount comes from Paystack's
+ * verified response, never from the webhook body.
+ */
+async function textPaymentReceived(
+  supabase: ReturnType<typeof createAdminClient>,
+  engagementId: string,
+  amountPesewas: bigint,
+): Promise<void> {
+  const { data } = await supabase
+    .from("engagements")
+    .select("student_id, profiles!engagements_student_id_fkey(full_name)")
+    .eq("id", engagementId)
+    .maybeSingle();
+
+  if (!data) return;
+  const row = data as unknown as {
+    student_id: string;
+    profiles?: { full_name?: string } | { full_name?: string }[] | null;
+  };
+  if (!row.student_id) return;
+
+  notifySmsToProfiles(
+    [row.student_id],
+    `Harcourt: we received your payment of ${formatGhs(amountPesewas)}. Thank you.`,
+    "payment",
+  );
 }

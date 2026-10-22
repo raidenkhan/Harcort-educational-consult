@@ -174,6 +174,21 @@ mobile app.
   slows the primary action; when `RESEND_API_KEY` is unset every send is a
   silent no-op. Env: `RESEND_API_KEY`, `EMAIL_FROM` (verified-domain sender),
   `APP_URL`.
+- **SMS notifications (Arkesel).** `src/lib/sms.ts` — the text-message twin of
+  the email module, and the only channel that reliably reaches a Ghanaian
+  student. Every send is logged to `sms_messages` (0027) with the provider's
+  message id, so Arkesel's batched delivery report (`?sms_id=&status=`, ~10
+  minutes later) lands on the same row; `/api/sms/delivery` is the receiver.
+  Two guards make it safe to run unattended: the UNIQUE `dedupe_key` is the
+  atomic claim (a scheduled job that runs twice texts nobody twice), and a
+  daily cap, a per-number cap and a balance check bound the spend. The
+  flows: session reminders (both parties), session scheduled/cancelled,
+  tutor request sent/answered, payment received, installment due/overdue, and
+  password-reset codes. `profiles.sms_opt_out` is the user's kill switch and
+  is checked before every message. `ARKESEL_SANDBOX=1` makes sends free and
+  undelivered — the same trick as Paystack's test mode. The reminder job runs
+  from `.github/workflows/reminders.yml` (every 15 min → `/api/sessions/remind`,
+  `CRON_SECRET`-guarded) because Vercel's free plan only allows daily crons.
 - **Tests + CI.** Vitest unit tests for pure logic (`src/**/*.test.ts`,
   node environment, `@` alias in `vitest.config.ts`): password hashing,
   sign-in throttle (extracted to `src/lib/auth/throttle.ts` with an injectable
@@ -296,6 +311,7 @@ and all are safe to re-run:
 | `0024_request_session_mode.sql` | `tutor_requests.session_mode` (per request, not per profile); `send_tutor_request` gains `p_session_mode`; `update_tutor_request_session` for a pending request. `profiles.session_mode` is legacy and no longer read |
 | `0025_page_views.sql` | First-party traffic log (`path`, `referrer_host`, `visitor_hash`, `created_at`) for the admin Performance tab — no IPs, no user agents, no query strings; deny-all RLS |
 | `0026_knust_course_curriculum.sql` | `courses.code` / `credits` / `semester`; seeds the KNUST Mechanical Engineering curriculum (Level 100→400, both semesters, 41 coded courses). Generic un-coded Mechanical rows are deleted only when nothing references them |
+| `0027_sms_messages.sql` | `sms_messages` — the log of every SMS attempt (`to_number`, `body`, `kind`, `sms_id`, `status`, `delivery_status`, `error`, `dedupe_key`). The UNIQUE index on `dedupe_key` is the atomic claim that stops a re-run from texting anybody twice. Plus `profiles.sms_opt_out` and `profiles.sms_verified_at`. Deny-all RLS |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -357,12 +373,24 @@ APP_URL=                      # optional — public origin for email links (defa
 ANALYTICS_SALT=               # optional — extra salt for the page-view visitor hash (0025)
 PAYSTACK_SECRET_KEY=          # Paystack secret (sk_test_… / sk_live_…) — server only
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=  # only if a client-side Paystack popup is added
+ARKESEL_API_KEY=              # Arkesel SMS key (server only) — texts are a no-op without it
+ARKESEL_SENDER_ID=            # sender on the handset (≤11 chars) — must be approved in Ghana
+ARKESEL_SANDBOX=1             # 1 = not billed, not delivered (build); 0 = live texts
+ARKESEL_DAILY_CAP=            # max texts per day (default 200)
+ARKESEL_PER_NUMBER_CAP=       # max texts to one number per day (default 10)
+ARKESEL_MIN_BALANCE=          # stop sending below this credit balance (default 50)
 ```
 
 Paystack dashboard configuration: webhook `https://<APP_URL host>/api/payments/webhook`
 with events `charge.success`, `transfer.success`, `transfer.failed`,
 `transfer.reversed`; hosted checkout returns to `/dashboard?payment=return`.
 Set the same env vars in the Vercel project (`.env.local` is local only).
+
+Arkesel needs no dashboard configuration: the app passes
+`<APP_URL>/api/sms/delivery` as the `callback_url` on every send and Arkesel
+calls it back with `?sms_id=&status=`. The "Harcourt" sender ID must be
+registered and approved in the Arkesel account first (unapproved → 403 on
+every send).
 
 Setup runbook:
 1. `npm install`
@@ -448,9 +476,12 @@ The dev machine is slow — give compiles 30–60s.
   path exists (or keep polling — it's fine at this scale). Unread counts.
 - ~~Email notifications~~ ✅ (Resend — messages, sessions, admin review,
   password-reset codes; `src/lib/email/`, `after()`-based, no-op without a key).
-- Session reminders (email/WhatsApp) before scheduled meetings — a cron/timer
-  job that emails both parties N minutes before `scheduled_at` (the notify
-  plumbing in `src/lib/email/` is ready for it).
+- ~~Session reminders~~ ✅ (email + SMS — `.github/workflows/reminders.yml`
+  fires `/api/sessions/remind` every 15 min; both parties get a text 45–90
+  minutes before the session, deduped so a re-run never double-texts).
+- Phone-ownership verification (Arkesel OTP) so an unproven number can't
+  carry a password-reset code — `profiles.sms_verified_at` is already there
+  waiting for it.
 - Weekly calendar view of the timetable; live "now" ticker so the confirm
   button appears the moment a session starts.
 - Cancellation-rate warnings on the admin page for tutors who cancel a lot.
