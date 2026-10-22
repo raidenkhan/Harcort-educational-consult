@@ -133,7 +133,10 @@ export async function getSmsBalance(force = false): Promise<SmsBalance | null> {
 
   try {
     const res = await fetch(`${ARKESEL_BASE}${ARKESEL_BALANCE_PATH}`, {
-      headers: { apiKey },
+      // Arkesel authenticates with the "api-key" header — the same name the
+      // send endpoint uses. A differently-spelled header is a 401, and a
+      // missing balance would silently let the app send into a void.
+      headers: { "api-key": apiKey },
       cache: "no-store",
     });
     const json = (await res.json().catch(() => null)) as {

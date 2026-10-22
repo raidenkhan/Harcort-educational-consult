@@ -157,7 +157,7 @@ export async function SmsConsole() {
                   SMS credits left
                 </dt>
                 <dd className="font-display text-lg font-semibold text-slate-900">
-                  {balance ? balance.smsBalance : "—"}
+                  {balance ? balance.smsBalance : "Unavailable"}
                 </dd>
               </div>
               <div>
@@ -165,7 +165,7 @@ export async function SmsConsole() {
                   Main balance
                 </dt>
                 <dd className="font-display text-lg font-semibold text-slate-900">
-                  {balance ? balance.mainBalance || "—" : "—"}
+                  {balance ? balance.mainBalance || "—" : "Unavailable"}
                 </dd>
               </div>
               <div>
@@ -177,6 +177,13 @@ export async function SmsConsole() {
                 </dd>
               </div>
             </dl>
+            {!balance && (
+              <p className="mt-3 text-sm text-amber-700">
+                Arkesel did not answer the balance lookup — the key may be
+                wrong, or the account may have no credit yet. Sending still
+                works, but the low-balance guard cannot fire.
+              </p>
+            )}
             <div className="mt-4">
               <SmsTestButton />
             </div>
