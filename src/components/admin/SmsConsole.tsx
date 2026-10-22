@@ -5,7 +5,7 @@ import {
   smsStats,
   type SmsMessageRow,
 } from "@/services/sms/queries";
-import { getSmsBalance, isSmsConfigured, smsSandbox } from "@/lib/sms";
+import { getSmsBalance, isSmsConfigured, lastBalanceFailure, smsSandbox } from "@/lib/sms";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { SmsTestButton } from "./SmsTestButton";
@@ -74,6 +74,7 @@ export async function SmsConsole() {
 
   const configured = isSmsConfigured();
   const sandbox = smsSandbox();
+  const balanceFailure = lastBalanceFailure();
 
   const tiles = [
     {
@@ -179,7 +180,8 @@ export async function SmsConsole() {
             </dl>
             {!balance && (
               <p className="mt-3 text-sm text-amber-700">
-                Arkesel did not answer the balance lookup — the key may be
+                Arkesel did not answer the balance lookup
+                {balanceFailure ? ` (${balanceFailure})` : ""} — the key may be
                 wrong, or the account may have no credit yet. Sending still
                 works, but the low-balance guard cannot fire.
               </p>

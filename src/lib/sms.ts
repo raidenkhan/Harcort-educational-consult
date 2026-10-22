@@ -123,6 +123,25 @@ export interface SmsBalance {
 let balanceCache: { at: number; value: SmsBalance } | null = null;
 const BALANCE_TTL_MS = 5 * 60_000;
 
+/** Why the last balance lookup failed — shown in the admin console, because
+ *  "no balance" and "broken balance" look identical otherwise. */
+let balanceFailure: string | null = null;
+
+export function lastBalanceFailure(): string | null {
+  return balanceFailure;
+}
+
+/**
+ * The account balance.
+ *
+ * Two documented endpoints, tried in order:
+ *   1. GET /api/v2/clients/balance-details  (header `api-key`)
+ *   2. GET /sms/api?action=check-balance&api_key=…&response=json  (the
+ *      legacy one, which answers with `balance` / `main_balance`)
+ *
+ * Either is enough; a failure on both is surfaced to the admin with the
+ * provider's own message rather than a silent null.
+ */
 export async function getSmsBalance(force = false): Promise<SmsBalance | null> {
   const apiKey = process.env.ARKESEL_API_KEY;
   if (!apiKey) return null;
@@ -131,6 +150,7 @@ export async function getSmsBalance(force = false): Promise<SmsBalance | null> {
     return balanceCache.value;
   }
 
+  // ── 1. The v2 endpoint ─────────────────────────────────────────────────
   try {
     const res = await fetch(`${ARKESEL_BASE}${ARKESEL_BALANCE_PATH}`, {
       // Arkesel authenticates with the "api-key" header — the same name the
@@ -141,24 +161,58 @@ export async function getSmsBalance(force = false): Promise<SmsBalance | null> {
     });
     const json = (await res.json().catch(() => null)) as {
       status?: string;
+      message?: string;
       data?: { sms_balance?: string | number; main_balance?: string | number };
     } | null;
-    if (!res.ok || json?.status !== "success" || !json.data) {
-      console.error(
-        `[sms] balance check failed: HTTP ${res.status} ${json?.status ?? ""}`,
-      );
-      return null;
+
+    if (res.ok && json?.status === "success" && json.data) {
+      const value: SmsBalance = {
+        smsBalance: Number(json.data.sms_balance ?? 0),
+        mainBalance: String(json.data.main_balance ?? ""),
+      };
+      balanceCache = { at: Date.now(), value };
+      balanceFailure = null;
+      return value;
     }
-    const value: SmsBalance = {
-      smsBalance: Number(json.data.sms_balance ?? 0),
-      mainBalance: String(json.data.main_balance ?? ""),
-    };
-    balanceCache = { at: Date.now(), value };
-    return value;
+    balanceFailure = `HTTP ${res.status} ${json?.status ?? ""} ${json?.message ?? ""}`.trim();
+    console.error(`[sms] balance check failed: ${balanceFailure}`);
   } catch (err) {
+    balanceFailure = err instanceof Error ? err.message : "request failed";
     console.error("[sms] balance check exception:", err);
-    return null;
   }
+
+  // ── 2. The legacy endpoint ─────────────────────────────────────────────
+  try {
+    const url = new URL(`${ARKESEL_BASE}/sms/api`);
+    url.searchParams.set("action", "check-balance");
+    url.searchParams.set("api_key", apiKey);
+    url.searchParams.set("response", "json");
+
+    const res = await fetch(url, { cache: "no-store" });
+    const json = (await res.json().catch(() => null)) as {
+      code?: string;
+      message?: string;
+      balance?: number | string;
+      main_balance?: number | string;
+    } | null;
+
+    if (res.ok && json && (json.code === "ok" || json.balance !== undefined)) {
+      const value: SmsBalance = {
+        smsBalance: Number(json.balance ?? 0),
+        mainBalance: String(json.main_balance ?? ""),
+      };
+      balanceCache = { at: Date.now(), value };
+      balanceFailure = null;
+      return value;
+    }
+    console.error(
+      `[sms] legacy balance check failed: HTTP ${res.status} ${json?.code ?? ""} ${json?.message ?? ""}`,
+    );
+  } catch (err) {
+    console.error("[sms] legacy balance check exception:", err);
+  }
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------
