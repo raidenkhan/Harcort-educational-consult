@@ -5,7 +5,13 @@ import {
   smsStats,
   type SmsMessageRow,
 } from "@/services/sms/queries";
-import { getSmsBalance, isSmsConfigured, lastBalanceFailure, smsSandbox } from "@/lib/sms";
+import {
+  arkeselApiKey,
+  getSmsBalance,
+  isSmsConfigured,
+  lastBalanceFailure,
+  smsSandbox,
+} from "@/lib/sms";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { SmsTestButton } from "./SmsTestButton";
@@ -75,6 +81,11 @@ export async function SmsConsole() {
   const configured = isSmsConfigured();
   const sandbox = smsSandbox();
   const balanceFailure = lastBalanceFailure();
+  const rawKey = arkeselApiKey();
+  // Never print the secret — just enough to spot a paste accident.
+  const maskedKey = rawKey
+    ? `${rawKey.slice(0, 3)}…${rawKey.slice(-3)} (${rawKey.length} chars)`
+    : "not set";
 
   const tiles = [
     {
@@ -178,6 +189,12 @@ export async function SmsConsole() {
                 </dd>
               </div>
             </dl>
+            {/* The key's shape, masked. A paste accident (stray quote, a
+                trailing space) is invisible in a dashboard but fatal to the
+                API — this makes it visible without printing the secret. */}
+            <p className="mt-2 font-mono text-[11px] text-slate-400">
+              key: {maskedKey}
+            </p>
             {!balance && (
               <p className="mt-3 text-sm text-amber-700">
                 Arkesel did not answer the balance lookup
