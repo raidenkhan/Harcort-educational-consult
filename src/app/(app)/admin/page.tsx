@@ -90,8 +90,8 @@ export default async function AdminPage() {
                         </span>
                       )}
                       Applied {accraDate(new Date(tutor.created_at))} ·{" "}
-                      {tutor.rate_per_hour != null
-                        ? `GH₵${tutor.rate_per_hour.toLocaleString()}/semester`
+                      {tutor.rate_per_semester != null
+                        ? `GH₵${tutor.rate_per_semester.toLocaleString()}/semester`
                         : "No rate set"}
                     </p>
                     {tutor.bio && (

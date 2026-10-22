@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyTutorApplication } from "@/lib/email/notify";
+import { isMissingColumn } from "@/lib/postgres";
 import { requireProfile } from "@/services/auth/queries";
 import { tutorProfileSchema, tutorServiceSchema } from "./schemas";
 
@@ -24,7 +25,7 @@ export async function submitTutorProfile(
   const parsed = tutorProfileSchema.safeParse({
     bio: formData.get("bio"),
     qualifications: formData.get("qualifications"),
-    ratePerHour: formData.get("ratePerHour"),
+    ratePerSemester: formData.get("ratePerSemester"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Please check your details." };
@@ -39,21 +40,38 @@ export async function submitTutorProfile(
     .eq("profile_id", profile.id)
     .maybeSingle();
 
-  const payload = {
+  const base = {
     bio: parsed.data.bio,
     qualifications: parsed.data.qualifications,
-    rate_per_hour: parsed.data.ratePerHour,
   };
 
-  const { error } = existing
-    ? await supabase
-        .from("tutor_profiles")
-        .update(payload)
-        .eq("id", (existing as { id: string }).id)
-    : await supabase.from("tutor_profiles").insert({
-        ...payload,
-        profile_id: profile.id,
-      });
+  /**
+   * Write the advertised rate to whichever column this database has.
+   *
+   * 0028 renamed `rate_per_hour` → `rate_per_semester`. The app is deployed
+   * separately from the migration, so the write tries the new column and, if
+   * Postgres says it doesn't exist yet, retries against the old one — the
+   * profile saves either way.
+   */
+  const write = async (column: "rate_per_semester" | "rate_per_hour") =>
+    existing
+      ? await supabase
+          .from("tutor_profiles")
+          .update({ ...base, [column]: parsed.data.ratePerSemester })
+          .eq("id", (existing as { id: string }).id)
+      : await supabase.from("tutor_profiles").insert({
+          ...base,
+          [column]: parsed.data.ratePerSemester,
+          profile_id: profile.id,
+        });
+
+  let { error } = await write("rate_per_semester");
+  if (error && isMissingColumn(error)) {
+    console.warn(
+      "[tutors] rate_per_semester missing — falling back to rate_per_hour (apply migration 0028).",
+    );
+    ({ error } = await write("rate_per_hour"));
+  }
 
   if (error) return { error: error.message };
 

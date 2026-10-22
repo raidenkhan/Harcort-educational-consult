@@ -7,6 +7,7 @@ import {
   type TutorProfileRow,
 } from "@/services/tutors/listing";
 import type { TutorProfile, TutorService } from "@/types";
+import { readRate } from "./rate";
 
 /**
  * Tutor queries.
@@ -103,8 +104,15 @@ export async function getOwnTutorProfile(): Promise<{
         .order("created_at", { ascending: false })
     : { data: [] };
 
+  const row = profile as (TutorProfile & {
+    rate_per_hour?: number | null;
+  }) | null;
+
   return {
-    profile: (profile as TutorProfile) ?? null,
+    // The rate column was renamed in 0028 — read whichever this row carries.
+    profile: row
+      ? ({ ...row, rate_per_semester: readRate(row) } as TutorProfile)
+      : null,
     services: (services as TutorService[]) ?? [],
   };
 }

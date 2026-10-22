@@ -336,8 +336,8 @@ export default async function CoursePage({
                             {profileIsAdmin(tutorProfileOwner) && <VerifiedBadge />}
                           </p>
                           <p className="text-xs text-slate-500">
-                            {tutorProfile.rate_per_hour != null
-                              ? `GH₵${tutorProfile.rate_per_hour.toLocaleString()}/semester`
+                            {tutorProfile.rate_per_semester != null
+                              ? `GH₵${tutorProfile.rate_per_semester.toLocaleString()}/semester`
                               : "Rates on request"}
                           </p>
                         </div>

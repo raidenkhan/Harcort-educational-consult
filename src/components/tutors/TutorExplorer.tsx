@@ -197,8 +197,8 @@ function TutorCard({
               Verified
             </Badge>
             <p className="text-xs text-slate-500">
-              {tp.rate_per_hour != null
-                ? `GH₵${tp.rate_per_hour.toLocaleString()}/semester`
+              {tp.rate_per_semester != null
+                ? `GH₵${tp.rate_per_semester.toLocaleString()}/semester`
                 : "Rates on request"}
             </p>
           </div>

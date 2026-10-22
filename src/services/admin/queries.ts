@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { readRate } from "@/services/tutors/rate";
 
 /**
  * Admin queries. Pages gate access with requireRole("admin"); reads run on
@@ -10,14 +11,16 @@ export interface PendingTutorRow {
   full_name: string;
   public_code: string | null;
   bio: string | null;
-  rate_per_hour: number | null;
+  rate_per_semester: number | null;
   created_at: string;
 }
 
 interface TutorProfileRow {
   id: string;
   bio: string | null;
-  rate_per_hour: number | null;
+  /** The rate under either column name (0028 renamed it). */
+  rate_per_semester?: number | null;
+  rate_per_hour?: number | null;
   created_at: string;
   profiles: { full_name: string; public_code: string | null } | { full_name: string; public_code: string | null }[];
 }
@@ -25,9 +28,12 @@ interface TutorProfileRow {
 export async function listPendingTutors(): Promise<PendingTutorRow[]> {
   const supabase = createAdminClient();
 
+  // `*` rather than a column list: naming `rate_per_semester` would break
+  // against a database where 0028 hasn't been applied yet (PostgREST errors
+  // on an unknown column), and the rate is read from whichever the row has.
   const { data } = await supabase
     .from("tutor_profiles")
-    .select("id, bio, rate_per_hour, created_at, profiles(full_name, public_code)")
+    .select("*, profiles(full_name, public_code)")
     .eq("verification_status", "pending")
     .order("created_at", { ascending: true });
 
@@ -36,7 +42,7 @@ export async function listPendingTutors(): Promise<PendingTutorRow[]> {
     full_name: Array.isArray(row.profiles) ? row.profiles[0]?.full_name : row.profiles?.full_name,
     public_code: Array.isArray(row.profiles) ? row.profiles[0]?.public_code ?? null : row.profiles?.public_code ?? null,
     bio: row.bio,
-    rate_per_hour: row.rate_per_hour,
+    rate_per_semester: readRate(row),
     created_at: row.created_at,
   }));
 }

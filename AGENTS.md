@@ -312,6 +312,7 @@ and all are safe to re-run:
 | `0025_page_views.sql` | First-party traffic log (`path`, `referrer_host`, `visitor_hash`, `created_at`) for the admin Performance tab — no IPs, no user agents, no query strings; deny-all RLS |
 | `0026_knust_course_curriculum.sql` | `courses.code` / `credits` / `semester`; seeds the KNUST Mechanical Engineering curriculum (Level 100→400, both semesters, 41 coded courses). Generic un-coded Mechanical rows are deleted only when nothing references them |
 | `0027_sms_messages.sql` | `sms_messages` — the log of every SMS attempt (`to_number`, `body`, `kind`, `sms_id`, `status`, `delivery_status`, `error`, `dedupe_key`). The UNIQUE index on `dedupe_key` is the atomic claim that stops a re-run from texting anybody twice. Plus `profiles.sms_opt_out` and `profiles.sms_verified_at`. Deny-all RLS |
+| `0028_rate_per_semester.sql` | Renames `tutor_profiles.rate_per_hour` → `rate_per_semester` — prices are per semester, and the column was the last place the old hourly framing survived. The app reads and writes both names, so it works before and after the migration is applied |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -358,11 +359,13 @@ Key security properties:
 - **Prices are PER SEMESTER.** Every price tag in the app reads
   `GH₵<amount>/semester` — the tutor's advertised rate, the per-course quote
   (`tutor_services.price`, what the student actually pays), and the engagement
-  totals. **Never "/hr" or "per hour".** ⚠️ The DB column is still named
-  `rate_per_hour` (and the form field `ratePerHour`) — the LABEL carries the
-  meaning until the column is renamed. A student books a tutor for a
-  semester, pays 50% up front and the rest by the final session; there is no
-  hourly billing anywhere in the product.
+  totals. **Never "/hr" or "per hour".** The rate column was renamed
+  `rate_per_hour` → `rate_per_semester` in 0028; the app still reads and
+  writes BOTH names so it can be deployed before that migration is applied
+  (`readRate` in `services/tutors/rate.ts`, and the write fallback in
+  `services/tutors/mutations.ts`). A student books a tutor for a semester,
+  pays 50% up front and the rest by the final session; there is no hourly
+  billing anywhere in the product.
 
 ---
 

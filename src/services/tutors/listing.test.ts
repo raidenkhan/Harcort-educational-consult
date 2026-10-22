@@ -40,7 +40,7 @@ function makeRow(overrides: Partial<TutorProfileRow> = {}): TutorProfileRow {
     profile_id: "p1",
     bio: "bio",
     qualifications: "BSc",
-    rate_per_hour: 50,
+    rate_per_semester: 50,
     verification_status: "approved",
     admin_notes: null,
     reviewed_at: null,

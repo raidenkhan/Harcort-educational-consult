@@ -29,7 +29,7 @@ export default async function TutorOverviewPage() {
           initial={{
             bio: tutor.profile?.bio ?? "",
             qualifications: tutor.profile?.qualifications ?? "",
-            ratePerHour: tutor.profile?.rate_per_hour?.toString() ?? "",
+            ratePerSemester: tutor.profile?.rate_per_semester?.toString() ?? "",
           }}
         />
       </Card>

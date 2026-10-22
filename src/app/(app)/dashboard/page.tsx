@@ -255,7 +255,7 @@ export default async function DashboardPage() {
                 <p className="mt-1 text-sm text-slate-600">
                   Semester rate:{" "}
                   <span className="font-semibold text-slate-900">
-                    GH₵{tutor.profile.rate_per_hour?.toLocaleString() ?? "—"}
+                    GH₵{tutor.profile.rate_per_semester?.toLocaleString() ?? "—"}
                   </span>{" "}
                   · {tutor.services.length} course(s) offered
                 </p>

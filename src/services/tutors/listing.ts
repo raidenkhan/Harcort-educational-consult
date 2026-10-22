@@ -1,4 +1,5 @@
 import type { Course, Profile, TutorProfile, TutorService } from "@/types";
+import { readRate } from "./rate";
 
 /**
  * Pure mapping of raw `tutor_profiles` rows (with embedded `profiles` and
@@ -29,7 +30,11 @@ function unwrapEmbed<T>(embed: T | T[] | null | undefined): T | null {
   return embed;
 }
 
-export interface TutorProfileRow extends TutorProfile {
+export interface TutorProfileRow extends Omit<TutorProfile, "rate_per_semester"> {
+  /** The rate under the CURRENT column name (0028). */
+  rate_per_semester?: number | null;
+  /** …and under the pre-0028 name, while the rename is still pending. */
+  rate_per_hour?: number | null;
   profiles: Profile | Profile[] | null;
   tutor_services:
     | (TutorService & { courses: Course | Course[] | null })[]
@@ -65,7 +70,7 @@ export function toTutorListings(rows: TutorProfileRow[]): TutorListing[] {
         profile_id: row.profile_id,
         bio: row.bio,
         qualifications: row.qualifications,
-        rate_per_hour: row.rate_per_hour,
+        rate_per_semester: readRate(row),
         verification_status: row.verification_status,
         admin_notes: row.admin_notes,
         reviewed_at: row.reviewed_at,

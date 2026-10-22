@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button";
 export function TutorProfileForm({
   initial,
 }: {
-  initial: { bio: string; qualifications: string; ratePerHour: string };
+  initial: { bio: string; qualifications: string; ratePerSemester: string };
 }) {
   const [state, formAction, pending] = useActionState<TutorFormState, FormData>(
     submitTutorProfile,
@@ -54,15 +54,15 @@ export function TutorProfileForm({
         />
       </Field>
 
-      <Field label="Semester rate (GH₵)" htmlFor="ratePerHour">
+      <Field label="Semester rate (GH₵)" htmlFor="ratePerSemester">
         <Input
-          id="ratePerHour"
-          name="ratePerHour"
+          id="ratePerSemester"
+          name="ratePerSemester"
           type="number"
           min={0}
           step="0.01"
           required
-          defaultValue={initial.ratePerHour}
+          defaultValue={initial.ratePerSemester}
           placeholder="e.g. 100"
         />
       </Field>
