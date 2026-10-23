@@ -185,10 +185,14 @@ mobile app.
   flows: session reminders (both parties), session scheduled/cancelled,
   tutor request sent/answered, payment received, installment due/overdue, and
   password-reset codes. `profiles.sms_opt_out` is the user's kill switch and
-  is checked before every message. `ARKESEL_SANDBOX=1` makes sends free and
-  undelivered — the same trick as Paystack's test mode. The reminder job runs
+  is checked before every message. `SMS_SANDBOX=1` (legacy name
+  `ARKESEL_SANDBOX=1`) makes sends free and
+   undelivered — the same trick as Paystack's test mode. The reminder job runs
   from `.github/workflows/reminders.yml` (every 15 min → `/api/sessions/remind`,
   `CRON_SECRET`-guarded) because Vercel's free plan only allows daily crons.
+  The layer is provider-neutral: `SMS_PROVIDER` picks the adapter
+  (`arkesel` today; `mnotify`/`hubtel` named but not yet wired), and the
+  neutral `SMS_*` env names fall back to the original `ARKESEL_*` ones.
 - **Tests + CI.** Vitest unit tests for pure logic (`src/**/*.test.ts`,
   node environment, `@` alias in `vitest.config.ts`): password hashing,
   sign-in throttle (extracted to `src/lib/auth/throttle.ts` with an injectable
@@ -384,12 +388,13 @@ APP_URL=                      # optional — public origin for email links (defa
 ANALYTICS_SALT=               # optional — extra salt for the page-view visitor hash (0025)
 PAYSTACK_SECRET_KEY=          # Paystack secret (sk_test_… / sk_live_…) — server only
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=  # only if a client-side Paystack popup is added
-ARKESEL_API_KEY=              # Arkesel SMS key (server only) — texts are a no-op without it
-ARKESEL_SENDER_ID=            # sender on the handset (≤11 chars) — must be approved in Ghana
-ARKESEL_SANDBOX=1             # 1 = not billed, not delivered (build); 0 = live texts
-ARKESEL_DAILY_CAP=            # max texts per day (default 200)
-ARKESEL_PER_NUMBER_CAP=       # max texts to one number per day (default 10)
-ARKESEL_MIN_BALANCE=          # stop sending below this credit balance (default 50)
+SMS_PROVIDER=arkesel          # sms provider: arkesel (default) | mnotify | hubtel
+SMS_API_KEY=                  # provider API key (server only) — falls back to ARKESEL_API_KEY
+SMS_SENDER_ID=                # sender on the handset (≤11 chars) — must be approved in Ghana
+SMS_SANDBOX=1                 # 1 = not billed, not delivered (build); 0 = live texts
+SMS_DAILY_CAP=                # max texts per day (default 200)
+SMS_PER_NUMBER_CAP=           # max texts to one number per day (default 10)
+SMS_MIN_BALANCE=              # stop sending below this credit balance (default 50)
 ```
 
 Paystack dashboard configuration: webhook `https://<APP_URL host>/api/payments/webhook`

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { CheckCircle2, Pause, Send } from "lucide-react";
 import {
   adminExecutePayout,
@@ -21,10 +21,16 @@ import { Input } from "@/components/ui/Fields";
  *
  * All three go through the 0011/0015 RPCs — the DB re-verifies admin
  * privilege and status legality, so these buttons can't do anything illegal.
+ *
+ * The transfer is deliberately TWO clicks: the first only arms a red confirm
+ * button showing the amount. A payout is the one action in the app that moves
+ * real money with nothing to reverse if the MoMo number is wrong, so a
+ * single-click submit is not good enough — this is the paywall for fat fingers.
  */
 export function AdminPayoutActions({
   payoutId,
   status,
+  amountDisplay,
 }: {
   payoutId: string;
   status:
@@ -34,7 +40,10 @@ export function AdminPayoutActions({
     | "held"
     | "paid"
     | "failed";
+  /** Pre-formatted amount, e.g. "GH₵1,200" — shown on the confirm button. */
+  amountDisplay: string;
 }) {
+  const [confirming, setConfirming] = useState(false);
   const [releaseState, releaseAction, releasePending] = useActionState<PaymentFormState, FormData>(
     adminReleasePayout,
     {},
@@ -65,15 +74,40 @@ export function AdminPayoutActions({
         </form>
       )}
 
-      {status === "approved" && (
-        <form action={execAction}>
-          <input type="hidden" name="payoutId" value={payoutId} />
-          <Button type="submit" disabled={execPending} className="w-full">
+      {status === "approved" &&
+        (confirming ? (
+          <div className="space-y-2">
+            <form action={execAction}>
+              <input type="hidden" name="payoutId" value={payoutId} />
+              <Button type="submit" variant="danger" disabled={execPending} className="w-full">
+                <Send className="mr-2 h-4 w-4" />
+                {execPending ? "Sending transfer…" : `Confirm — send ${amountDisplay}`}
+              </Button>
+            </form>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={execPending}
+              onClick={() => setConfirming(false)}
+              className="w-full"
+            >
+              Cancel
+            </Button>
+            <p className="text-xs text-amber-700">
+              Live transfers move real money to the tutor&apos;s MoMo number.
+            </p>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setConfirming(true)}
+            className="w-full"
+          >
             <Send className="mr-2 h-4 w-4" />
-            {execPending ? "Sending transfer…" : "Send MoMo transfer"}
+            Send MoMo transfer
           </Button>
-        </form>
-      )}
+        ))}
 
       <form action={holdAction} className="flex gap-2">
         <input type="hidden" name="payoutId" value={payoutId} />

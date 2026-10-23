@@ -6,10 +6,11 @@ import {
   type SmsMessageRow,
 } from "@/services/sms/queries";
 import {
-  arkeselApiKey,
   getSmsBalance,
   isSmsConfigured,
   lastBalanceFailure,
+  smsApiKey,
+  smsProvider,
   smsSandbox,
 } from "@/lib/sms";
 import { Card } from "@/components/ui/Card";
@@ -21,10 +22,10 @@ import { SmsTestButton } from "./SmsTestButton";
  *
  * Sections:
  *   1. Tiles — texts sent today, failures today, numbers on file, opted out.
- *   2. Account — Arkesel balance and the sender ID in use, plus a test text
+ *   2. Account — provider balance and the sender ID in use, plus a test text
  *      to the admin's own handset (the fastest proof the whole chain works).
  *   3. The log — every attempt, newest first, with the provider's own
- *      delivery verdict once Arkesel's batched report arrives.
+ *      delivery verdict once its batched report arrives.
  *
  * Sandbox mode is called out loudly: in sandbox nothing is billed AND
  * nothing is delivered, so a "sent" row means the code ran, not that a
@@ -81,7 +82,7 @@ export async function SmsConsole() {
   const configured = isSmsConfigured();
   const sandbox = smsSandbox();
   const balanceFailure = lastBalanceFailure();
-  const rawKey = arkeselApiKey();
+  const rawKey = smsApiKey();
   // Never print the secret — just enough to spot a paste accident.
   const maskedKey = rawKey
     ? `${rawKey.slice(0, 3)}…${rawKey.slice(-3)} (${rawKey.length} chars)`
@@ -152,14 +153,13 @@ export async function SmsConsole() {
       </div>
 
       <Card className="mt-6">
-        <h3 className="text-lg font-semibold text-slate-900">
-          Arkesel account
-        </h3>
+        <h3 className="text-lg font-semibold text-slate-900">SMS account</h3>
         {!configured ? (
           <p className="mt-2 text-sm text-slate-600">
-            No <code className="font-mono text-xs">ARKESEL_API_KEY</code> is
-            configured, so every text is a silent no-op. Add it to the Vercel
-            environment and redeploy.
+            No <code className="font-mono text-xs">SMS_API_KEY</code> is
+            configured (or the selected <code className="font-mono text-xs">SMS_PROVIDER</code>{" "}
+            isn&apos;t wired up yet), so every text is a silent no-op. Add the
+            key to the Vercel environment and redeploy.
           </p>
         ) : (
           <>
@@ -193,11 +193,11 @@ export async function SmsConsole() {
                 trailing space) is invisible in a dashboard but fatal to the
                 API — this makes it visible without printing the secret. */}
             <p className="mt-2 font-mono text-[11px] text-slate-400">
-              key: {maskedKey}
+              provider: {smsProvider()} · key: {maskedKey}
             </p>
             {!balance && (
               <p className="mt-3 text-sm text-amber-700">
-                Arkesel did not answer the balance lookup
+                The provider did not answer the balance lookup
                 {balanceFailure ? ` (${balanceFailure})` : ""} — the key may be
                 wrong, or the account may have no credit yet. Sending still
                 works, but the low-balance guard cannot fire.

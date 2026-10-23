@@ -3,13 +3,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { APP_URL } from "@/lib/email/client";
 
 /**
- * SMS notifications — Arkesel (https://arkesel.com), a no-op without a key.
+ * SMS notifications — provider-swappable, a no-op without a key.
  *
  * Mirrors the Resend email module (`src/lib/email/`): every send is
  * best-effort — it never throws and never blocks the caller — and anything
  * triggered from a server action runs after the response via Next's `after()`.
- * When `ARKESEL_API_KEY` is missing (local dev, CI) sending is a silent
+ * When the API key is missing (local dev, CI) sending is a silent
  * no-op, so the app never depends on SMS being configured.
+ *
+ * The provider is chosen with `SMS_PROVIDER` (default `arkesel`). Each one
+ * implements the small `SmsAdapter` interface below; everything else — the
+ * claim → caps → balance-guard → send → mark pipeline, the dedupe key, the
+ * opt-out — is shared, so switching provider is an env change plus one
+ * adapter, never a call-site change. Credentials are read from the neutral
+ * names first (SMS_API_KEY, SMS_SANDBOX, …) with the original ARKESEL_*
+ * names as fallback, so existing deployments keep working unchanged.
  *
  * Arkesel's v2 send API is one authenticated JSON POST:
  *   POST https://sms.arkesel.com/api/v2/sms/send
@@ -53,57 +61,87 @@ export type SmsKind =
   | "reset"
   | "test";
 
+/** The SMS providers the app knows about. */
+export type SmsProvider = "arkesel" | "mnotify" | "hubtel";
+
+/**
+ * Which provider to talk to — `SMS_PROVIDER` (default `arkesel`).
+ *
+ * A provider only becomes usable once its adapter is registered in ADAPTERS
+ * below; selecting one that isn't wired up makes every send fail loudly (and
+ * `isSmsConfigured()` false) rather than silently using the wrong API.
+ */
+export function smsProvider(): SmsProvider {
+  const raw = (process.env.SMS_PROVIDER ?? "").trim().toLowerCase();
+  return raw === "mnotify" || raw === "hubtel" ? raw : "arkesel";
+}
+
 /**
  * The API key, cleaned up.
  *
  * A key pasted into a dashboard field often arrives with a trailing space, a
- * carriage return, or the quotes the user typed around it — and Arkesel
+ * carriage return, or the quotes the user typed around it — and the provider
  * answers that with a bare "401 Invalid key", which looks exactly like a
  * wrong key. Trimming and stripping the quotes here makes the app immune to
  * that whole class of paste accident.
+ *
+ * Read from the neutral `SMS_API_KEY` with the original `ARKESEL_API_KEY` as
+ * fallback, so moving to another provider doesn't have to be a big-bang env
+ * change.
  */
-export function arkeselApiKey(): string {
-  return (process.env.ARKESEL_API_KEY ?? "")
+export function smsApiKey(): string {
+  return (process.env.SMS_API_KEY ?? process.env.ARKESEL_API_KEY ?? "")
     .trim()
     .replace(/^["']/, "")
     .replace(/["']$/, "")
     .trim();
 }
 
-/** True when an API key is configured — cheap guard before doing lookups. */
+/** True when a key is configured AND the selected provider is wired up. */
 export function isSmsConfigured(): boolean {
-  return arkeselApiKey().length > 0;
+  return smsApiKey().length > 0 && Boolean(smsAdapter());
 }
 
 /**
- * Sandbox mode: Arkesel accepts the request, does not bill it and does not
- * forward it to the mobile networks. Set ARKESEL_SANDBOX=1 to use it.
+ * Sandbox mode: the provider accepts the request, does not bill it and does
+ * not forward it to the mobile networks. Set SMS_SANDBOX=1 (or the original
+ * ARKESEL_SANDBOX=1) to use it.
  */
 export function smsSandbox(): boolean {
-  const raw = (process.env.ARKESEL_SANDBOX ?? "").trim().toLowerCase();
+  const raw = (
+    process.env.SMS_SANDBOX ?? process.env.ARKESEL_SANDBOX ?? ""
+  )
+    .trim()
+    .toLowerCase();
   return raw === "1" || raw === "true" || raw === "yes";
 }
 
 /** Sender ID shown on the handset (Arkesel caps this at 11 characters). */
 export const SMS_SENDER_ID = (
-  process.env.ARKESEL_SENDER_ID ?? "Harcourt"
+  process.env.SMS_SENDER_ID ?? process.env.ARKESEL_SENDER_ID ?? "Harcourt"
 ).slice(0, 11);
 
 /** Max texts the app may send in a day (all recipients, all reasons). */
 function dailyCap(): number {
-  const raw = Number(process.env.ARKESEL_DAILY_CAP);
+  const raw = Number(
+    process.env.SMS_DAILY_CAP ?? process.env.ARKESEL_DAILY_CAP,
+  );
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 200;
 }
 
 /** Stop sending when the account drops below this many credits. */
 function minBalance(): number {
-  const raw = Number(process.env.ARKESEL_MIN_BALANCE);
+  const raw = Number(
+    process.env.SMS_MIN_BALANCE ?? process.env.ARKESEL_MIN_BALANCE,
+  );
   return Number.isFinite(raw) && raw >= 0 ? Math.floor(raw) : 50;
 }
 
 /** Per-recipient texts per day — a stranger's number can't be spammed. */
 function perNumberCap(): number {
-  const raw = Number(process.env.ARKESEL_PER_NUMBER_CAP);
+  const raw = Number(
+    process.env.SMS_PER_NUMBER_CAP ?? process.env.ARKESEL_PER_NUMBER_CAP,
+  );
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 10;
 }
 
@@ -149,87 +187,35 @@ export function lastBalanceFailure(): string | null {
 }
 
 /**
- * The account balance.
+ * The account balance — dispatched to the active provider's adapter.
  *
- * Two documented endpoints, tried in order:
- *   1. GET /api/v2/clients/balance-details  (header `api-key`)
- *   2. GET /sms/api?action=check-balance&api_key=…&response=json  (the
- *      legacy one, which answers with `balance` / `main_balance`)
- *
- * Either is enough; a failure on both is surfaced to the admin with the
+ * Cached briefly (the check runs on the send path; the provider should not
+ * see a request per text), and a failure is surfaced to the admin with the
  * provider's own message rather than a silent null.
  */
 export async function getSmsBalance(force = false): Promise<SmsBalance | null> {
-  const apiKey = arkeselApiKey();
+  const apiKey = smsApiKey();
   if (!apiKey) return null;
 
   if (!force && balanceCache && Date.now() - balanceCache.at < BALANCE_TTL_MS) {
     return balanceCache.value;
   }
 
-  // ── 1. The v2 endpoint ─────────────────────────────────────────────────
-  try {
-    const res = await fetch(`${ARKESEL_BASE}${ARKESEL_BALANCE_PATH}`, {
-      // Arkesel authenticates with the "api-key" header — the same name the
-      // send endpoint uses. A differently-spelled header is a 401, and a
-      // missing balance would silently let the app send into a void.
-      headers: { "api-key": apiKey },
-      cache: "no-store",
-    });
-    const json = (await res.json().catch(() => null)) as {
-      status?: string;
-      message?: string;
-      data?: { sms_balance?: string | number; main_balance?: string | number };
-    } | null;
-
-    if (res.ok && json?.status === "success" && json.data) {
-      const value: SmsBalance = {
-        smsBalance: Number(json.data.sms_balance ?? 0),
-        mainBalance: String(json.data.main_balance ?? ""),
-      };
-      balanceCache = { at: Date.now(), value };
-      balanceFailure = null;
-      return value;
-    }
-    balanceFailure = `HTTP ${res.status} ${json?.status ?? ""} ${json?.message ?? ""}`.trim();
-    console.error(`[sms] balance check failed: ${balanceFailure}`);
-  } catch (err) {
-    balanceFailure = err instanceof Error ? err.message : "request failed";
-    console.error("[sms] balance check exception:", err);
+  const adapter = smsAdapter();
+  if (!adapter) {
+    balanceFailure = `SMS provider "${smsProvider()}" isn't wired up yet`;
+    console.error(`[sms] ${balanceFailure}`);
+    return null;
   }
 
-  // ── 2. The legacy endpoint ─────────────────────────────────────────────
-  try {
-    const url = new URL(`${ARKESEL_BASE}/sms/api`);
-    url.searchParams.set("action", "check-balance");
-    url.searchParams.set("api_key", apiKey);
-    url.searchParams.set("response", "json");
-
-    const res = await fetch(url, { cache: "no-store" });
-    const json = (await res.json().catch(() => null)) as {
-      code?: string;
-      message?: string;
-      balance?: number | string;
-      main_balance?: number | string;
-    } | null;
-
-    if (res.ok && json && (json.code === "ok" || json.balance !== undefined)) {
-      const value: SmsBalance = {
-        smsBalance: Number(json.balance ?? 0),
-        mainBalance: String(json.main_balance ?? ""),
-      };
-      balanceCache = { at: Date.now(), value };
-      balanceFailure = null;
-      return value;
-    }
-    console.error(
-      `[sms] legacy balance check failed: HTTP ${res.status} ${json?.code ?? ""} ${json?.message ?? ""}`,
-    );
-  } catch (err) {
-    console.error("[sms] legacy balance check exception:", err);
+  const { balance, failure } = await adapter.balance(apiKey);
+  if (balance) {
+    balanceCache = { at: Date.now(), value: balance };
+    balanceFailure = null;
+  } else {
+    balanceFailure = failure ?? "unknown failure";
   }
-
-  return null;
+  return balance;
 }
 
 // ---------------------------------------------------------------------------
@@ -240,7 +226,7 @@ export interface SendResult {
   ok: boolean;
   /** Why it failed (or why it was skipped). */
   error?: string;
-  /** Arkesel's message id — the key a delivery report comes back with. */
+  /** The provider's message id — the key a delivery report comes back with. */
   smsId?: string;
   /** Set when the message was deliberately not sent. */
   skipped?: boolean;
@@ -371,6 +357,166 @@ async function countToday(
   return count ?? 0;
 }
 
+// ---------------------------------------------------------------------------
+// Provider adapters
+// ---------------------------------------------------------------------------
+
+/**
+ * What a provider must do. Adding mnotify/hubtel later = implement both
+ * methods, register the adapter in ADAPTERS — the pipeline in `sendSms`
+ * (claim → caps → balance guard → send → mark) is shared and untouched.
+ */
+interface SmsAdapter {
+  send(input: {
+    apiKey: string;
+    /** Normalized recipient, international digits (233241234567). */
+    to: string;
+    message: string;
+    sender: string;
+    sandbox: boolean;
+    /** Absolute URL for delivery reports, or null when APP_URL is unset. */
+    callbackUrl: string | null;
+  }): Promise<SendResult>;
+  balance(
+    apiKey: string,
+  ): Promise<{ balance: SmsBalance | null; failure: string | null }>;
+}
+
+/** Arkesel — the provider Harcourt started on (sms.arkesel.com). */
+const arkeselAdapter: SmsAdapter = {
+  async send({ apiKey, to, message, sender, sandbox, callbackUrl }) {
+    try {
+      const res = await fetch(`${ARKESEL_BASE}${ARKESEL_SEND_PATH}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "api-key": apiKey,
+        },
+        body: JSON.stringify({
+          sender,
+          message,
+          recipients: [to],
+          use_case: "transactional",
+          ...(sandbox ? { sandbox: true } : {}),
+          ...(callbackUrl ? { callback_url: callbackUrl } : {}),
+        }),
+      });
+
+      const data = (await res
+        .json()
+        .catch(() => null)) as ArkeselSendResponse | null;
+
+      if (!res.ok || data?.status === "error") {
+        const reason = data?.message ?? `HTTP ${res.status}`;
+        console.error(`[sms] Arkesel send failed: ${reason}`);
+        return { ok: false, error: reason };
+      }
+
+      const { smsId, rejected } = extractSmsId(data?.data);
+      if (rejected.length > 0) {
+        const reason = `Arkesel rejected: ${rejected.join(", ")}`;
+        console.error(`[sms] ${reason}`);
+        return { ok: false, error: reason };
+      }
+
+      return { ok: true, smsId };
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "SMS send failed.";
+      console.error("[sms] Arkesel exception:", err);
+      return { ok: false, error: reason };
+    }
+  },
+
+  /**
+   * Two documented endpoints, tried in order:
+   *   1. GET /api/v2/clients/balance-details  (header `api-key`)
+   *   2. GET /sms/api?action=check-balance&api_key=…&response=json  (the
+   *      legacy one, which answers with `balance` / `main_balance`)
+   *
+   * Either is enough; a failure on both comes back as the provider's own
+   * message so the admin sees WHY there is no balance.
+   */
+  async balance(apiKey) {
+    let failure: string | null = null;
+
+    // ── 1. The v2 endpoint ───────────────────────────────────────────────
+    try {
+      const res = await fetch(`${ARKESEL_BASE}${ARKESEL_BALANCE_PATH}`, {
+        // Arkesel authenticates with the "api-key" header — the same name the
+        // send endpoint uses. A differently-spelled header is a 401, and a
+        // missing balance would silently let the app send into a void.
+        headers: { "api-key": apiKey },
+        cache: "no-store",
+      });
+      const json = (await res.json().catch(() => null)) as {
+        status?: string;
+        message?: string;
+        data?: {
+          sms_balance?: string | number;
+          main_balance?: string | number;
+        };
+      } | null;
+
+      if (res.ok && json?.status === "success" && json.data) {
+        return {
+          balance: {
+            smsBalance: Number(json.data.sms_balance ?? 0),
+            mainBalance: String(json.data.main_balance ?? ""),
+          },
+          failure: null,
+        };
+      }
+      failure = `HTTP ${res.status} ${json?.status ?? ""} ${json?.message ?? ""}`.trim();
+      console.error(`[sms] balance check failed: ${failure}`);
+    } catch (err) {
+      failure = err instanceof Error ? err.message : "request failed";
+      console.error("[sms] balance check exception:", err);
+    }
+
+    // ── 2. The legacy endpoint ───────────────────────────────────────────
+    try {
+      const url = new URL(`${ARKESEL_BASE}/sms/api`);
+      url.searchParams.set("action", "check-balance");
+      url.searchParams.set("api_key", apiKey);
+      url.searchParams.set("response", "json");
+
+      const res = await fetch(url, { cache: "no-store" });
+      const json = (await res.json().catch(() => null)) as {
+        code?: string;
+        message?: string;
+        balance?: number | string;
+        main_balance?: number | string;
+      } | null;
+
+      if (res.ok && json && (json.code === "ok" || json.balance !== undefined)) {
+        return {
+          balance: {
+            smsBalance: Number(json.balance ?? 0),
+            mainBalance: String(json.main_balance ?? ""),
+          },
+          failure: null,
+        };
+      }
+      console.error(
+        `[sms] legacy balance check failed: HTTP ${res.status} ${json?.code ?? ""} ${json?.message ?? ""}`,
+      );
+    } catch (err) {
+      console.error("[sms] legacy balance check exception:", err);
+    }
+
+    return { balance: null, failure };
+  },
+};
+
+/** Wired adapters, by provider. mnotify/hubtel land here when we pick one. */
+const ADAPTERS: Partial<Record<SmsProvider, SmsAdapter>> = {
+  arkesel: arkeselAdapter,
+};
+
+function smsAdapter(): SmsAdapter | null {
+  return ADAPTERS[smsProvider()] ?? null;
+}
+
 /**
  * Best-effort send to one number.
  *
@@ -386,10 +532,14 @@ export async function sendSms(opts: {
   dedupeKey?: string;
   now?: number;
 }): Promise<SendResult> {
-  const apiKey = arkeselApiKey();
-  if (!apiKey) {
-    console.log(`[sms] Arkesel not configured — no-op for ${opts.to}`);
-    return { ok: false, error: "SMS isn't configured (missing ARKESEL_API_KEY)." };
+  const apiKey = smsApiKey();
+  const adapter = smsAdapter();
+  if (!apiKey || !adapter) {
+    const reason = !apiKey
+      ? "SMS isn't configured (missing SMS_API_KEY)."
+      : `SMS provider "${smsProvider()}" isn't wired up yet.`;
+    console.log(`[sms] ${reason} — no-op for ${opts.to}`);
+    return { ok: false, error: reason };
   }
 
   const to = normalizeGhPhone(opts.to);
@@ -437,48 +587,21 @@ export async function sendSms(opts: {
   }
 
   // ── Send ────────────────────────────────────────────────────────────────
-  try {
-    const res = await fetch(`${ARKESEL_BASE}${ARKESEL_SEND_PATH}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "api-key": apiKey,
-      },
-      body: JSON.stringify({
-        sender: SMS_SENDER_ID,
-        message: opts.message,
-        recipients: [to],
-        use_case: "transactional",
-        ...(smsSandbox() ? { sandbox: true } : {}),
-        ...(APP_URL ? { callback_url: `${APP_URL}/api/sms/delivery` } : {}),
-      }),
-    });
+  const result = await adapter.send({
+    apiKey,
+    to,
+    message: opts.message,
+    sender: SMS_SENDER_ID,
+    sandbox: smsSandbox(),
+    callbackUrl: APP_URL ? `${APP_URL}/api/sms/delivery` : null,
+  });
 
-    const data = (await res.json().catch(() => null)) as ArkeselSendResponse | null;
-
-    if (!res.ok || data?.status === "error") {
-      const reason = data?.message ?? `HTTP ${res.status}`;
-      console.error(`[sms] Arkesel send failed: ${reason}`);
-      await markSend(claim.rowId, { status: "failed", error: reason });
-      return { ok: false, error: reason };
-    }
-
-    const { smsId, rejected } = extractSmsId(data?.data);
-    if (rejected.length > 0) {
-      const reason = `Arkesel rejected: ${rejected.join(", ")}`;
-      console.error(`[sms] ${reason}`);
-      await markSend(claim.rowId, { status: "failed", error: reason });
-      return { ok: false, error: reason };
-    }
-
-    await markSend(claim.rowId, { status: "sent", sms_id: smsId ?? null });
-    return { ok: true, smsId };
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : "SMS send failed.";
-    console.error("[sms] Arkesel exception:", err);
-    await markSend(claim.rowId, { status: "failed", error: reason });
-    return { ok: false, error: reason };
+  if (result.ok) {
+    await markSend(claim.rowId, { status: "sent", sms_id: result.smsId ?? null });
+  } else {
+    await markSend(claim.rowId, { status: "failed", error: result.error });
   }
+  return result;
 }
 
 /**

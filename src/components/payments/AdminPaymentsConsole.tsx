@@ -200,7 +200,11 @@ export async function AdminPaymentsConsole() {
                         </p>
                       )}
                     </div>
-                    <AdminPayoutActions payoutId={payout.id} status={payout.status} />
+                    <AdminPayoutActions
+                      payoutId={payout.id}
+                      status={payout.status}
+                      amountDisplay={formatGhs(payout.amount)}
+                    />
                   </Card>
                 </li>
               );
