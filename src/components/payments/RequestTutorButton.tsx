@@ -13,7 +13,6 @@ import { SessionModePicker } from "@/components/auth/SessionModePicker";
 import { CommitToCourseButton } from "./CommitToCourseButton";
 import { PaymentPlanRequestButton } from "./PaymentPlanRequestButton";
 import { formatGhs } from "@/lib/money";
-import { ADMIN_WHATSAPP_URL } from "@/lib/config";
 
 /**
  * "Request tutoring" CTA on a directory card.
@@ -22,10 +21,11 @@ import { ADMIN_WHATSAPP_URL } from "@/lib/config";
  * session format for THIS request (one-on-one vs group — 0024; a student may
  * choose differently for the next tutor), and an optional note.
  *
- * The moment the request is sent the dialog becomes the PAYWALL: the first
- * 50% is due to activate sessions, payable immediately (the tutor accepts to
- * schedule, not to unlock payment). A student who can't pay in full asks the
- * admin team from the same panel — in-site, with the context pre-filled.
+ * The moment the request is sent the dialog becomes the PAYWALL: the full
+ * semester fee is due to activate sessions (0029 — 100% upfront), payable
+ * immediately (the tutor accepts to schedule, not to unlock payment). A
+ * student who can't pay in full reaches the admin team from the same panel —
+ * WhatsApp first, or in-site with the context pre-filled.
  */
 export function RequestTutorButton({
   tutorProfileId,
@@ -75,7 +75,7 @@ export function RequestTutorButton({
         description={
           paywall
             ? undefined
-            : "Pick the course and how you want to learn. You pay the first 50% as soon as the request is sent."
+            : "Pick the course and how you want to learn. You pay the semester fee as soon as the request is sent."
         }
       >
         {!paywall && state?.error && (
@@ -100,11 +100,11 @@ export function RequestTutorButton({
                 {formatGhs(BigInt(paywall.duePesewas))} to start
               </h3>
               <p className="mt-1 text-sm leading-relaxed text-slate-700">
-                First 50% of{" "}
-                {formatGhs(BigInt(paywall.totalPesewas))} per semester for{" "}
+                Full semester fee of{" "}
+                {formatGhs(BigInt(paywall.totalPesewas))} for{" "}
                 <span className="font-medium">{paywall.courseName}</span> with{" "}
-                <span className="font-medium">{paywall.tutorName}</span>. The
-                remaining 50% falls due by your final session.
+                <span className="font-medium">{paywall.tutorName}</span> — paid
+                up front (0029: no installment split).
               </p>
               <p className="mt-1 text-xs leading-relaxed text-slate-500">
                 Paying now holds your place; the tutor then confirms the
@@ -121,17 +121,11 @@ export function RequestTutorButton({
             </div>
 
             <div className="mt-4 rounded-lg border border-slate-200 p-4">
-              <PaymentPlanRequestButton requestId={paywall.requestId} />
-              {ADMIN_WHATSAPP_URL && (
-                <a
-                  href={ADMIN_WHATSAPP_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-block text-xs font-medium text-slate-600 underline-offset-4 hover:underline"
-                >
-                  Or message the admin team on WhatsApp
-                </a>
-              )}
+              <PaymentPlanRequestButton
+                requestId={paywall.requestId}
+                courseName={paywall.courseName}
+                feeDisplay={formatGhs(BigInt(paywall.totalPesewas))}
+              />
             </div>
 
             <div className="mt-3 flex justify-end">

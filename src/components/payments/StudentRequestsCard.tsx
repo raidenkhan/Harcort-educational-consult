@@ -15,11 +15,11 @@ import { formatGhs } from "@/lib/money";
  * Student requests card — "My tutor requests" on the dashboard.
  *
  * Statuses and what each unlocks:
- *   pending  → the PAYWALL: the first 50% is due now (0024 — pay to
- *              activate, the tutor accepts to schedule). Withdraw stays
- *              available, and the paywall carries the ask-an-admin path for
- *              a student who can't pay in full.
- *   accepted → the engaged 50/50 plan, with the first unpaid installment's
+ *   pending  → the PAYWALL: the full semester fee is due now (0024 — pay to
+ *              activate, the tutor accepts to schedule; 0029 — 100% upfront).
+ *              Withdraw stays available, and the paywall carries the
+ *              ask-an-admin paths for a student who can't pay in full.
+ *   accepted → the engaged agreement, with the first unpaid installment's
  *              pay button (hidden if already paid/active)
  *   declined → closed, with the tutor's decision time
  *   withdrawn → history
@@ -29,10 +29,10 @@ import { formatGhs } from "@/lib/money";
  * installment wins.
  */
 
-/** Half of the tutor's quote, in pesewas — the paywall amount. */
-function duePesewas(priceInCedis: number | null): bigint | null {
+/** The tutor's full quote, in pesewas — the paywall amount (0029: 100%). */
+function totalPesewas(priceInCedis: number | null): bigint | null {
   if (!priceInCedis || priceInCedis <= 0) return null;
-  return BigInt(Math.floor(Math.round(priceInCedis * 100) / 2));
+  return BigInt(Math.round(priceInCedis * 100));
 }
 
 const STATUS_BADGE: Record<
@@ -88,7 +88,7 @@ export async function StudentRequestsCard() {
         <h2 className="text-lg font-semibold text-slate-900">My tutor requests</h2>
         <p className="mt-1 text-sm text-slate-600">
           When you request a tutor from the directory, the request appears
-          here with its payment wall — pay the first 50% to activate your
+          here with its payment wall — pay the semester fee to activate your
           sessions, or ask an admin for a plan.
         </p>
       </Card>
@@ -110,7 +110,7 @@ export async function StudentRequestsCard() {
         const alreadyEngaged = engagements.some(
           (e) => e.tutorName === request.tutorName && e.status !== "cancelled",
         );
-        const due = duePesewas(request.tutorServicePrice);
+        const due = totalPesewas(request.tutorServicePrice);
         return (
           <Card key={request.id}>
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -152,7 +152,8 @@ export async function StudentRequestsCard() {
                     Payment required
                   </p>
                   <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-700">
-                    Pay the first 50% ({formatGhs(due)}) to activate your
+                    Pay the full semester fee ({formatGhs(due)}) to activate
+                    your
                     sessions. The tutor confirms the timetable once you&apos;ve
                     paid. Payments go to Harcourt, never to the tutor.
                   </p>
@@ -165,7 +166,11 @@ export async function StudentRequestsCard() {
                     />
                   </div>
                   <div className="mt-4 border-t border-brand-200/70 pt-3">
-                    <PaymentPlanRequestButton requestId={request.id} />
+                    <PaymentPlanRequestButton
+                      requestId={request.id}
+                      courseName={request.courseName ?? undefined}
+                      feeDisplay={due !== null ? formatGhs(due) : undefined}
+                    />
                   </div>
                 </div>
               )}
@@ -175,7 +180,7 @@ export async function StudentRequestsCard() {
                 {request.payable ? (
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-sm text-emerald-800">
-                      Accepted! Pay the first 50% (
+                      Accepted! Pay the semester fee (
                       {formatGhs(request.payable.amount)}) to activate your
                       sessions.
                     </p>
@@ -196,12 +201,12 @@ export async function StudentRequestsCard() {
                 ) : request.tutorServiceId ? (
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-sm text-emerald-800">
-                      Accepted! Set up your 50/50 payment plan to activate your
+                      Accepted! Set up your payment to activate your
                       sessions.
                     </p>
                     <CommitToCourseButton
                       tutorServiceId={request.tutorServiceId}
-                      label="Set up & pay 50%"
+                      label="Set up & pay"
                       signedIn={Boolean(profile.id)}
                     />
                   </div>

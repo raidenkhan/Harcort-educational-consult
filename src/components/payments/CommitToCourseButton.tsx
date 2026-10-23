@@ -8,8 +8,9 @@ import type { PaymentFormState } from "@/services/payments/mutations";
 
 /**
  * "Pay & book" CTA on a directory card: one click creates (or re-enters)
- * the 50/50 payment agreement for this tutor's quoted course and redirects
- * straight into Paystack's hosted checkout for the first 50%.
+ * the payment agreement for this tutor's quoted course and redirects
+ * straight into Paystack's hosted checkout for the full semester fee
+ * (0029 — 100% upfront).
  *
  * Signed-out visitors get the auth modal instead — same session-aware
  * pattern as ContactTutorButton. After payment the student lands back on

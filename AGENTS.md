@@ -263,6 +263,21 @@ mobile app.
   matcher. Chat actions validate with Zod (`services/chat/schemas.ts`) and
   free-text fields gained max lengths. CI gained a `gitleaks` job over full
   history (`.github/workflows/ci.yml`).
+- **100% upfront + admin-recorded payments (0029).** The 50/50 split is gone:
+  `create_payment_engagement` now writes ONE installment for the full
+  semester fee, and the paywall copy says so everywhere. Students who can't
+  pay in full get TWO routes to the admin — WhatsApp (`adminWhatsappUrl`,
+  message pre-filled with course + fee) and the in-site payment-plan chat —
+  and the admin records each out-of-band payment from the admin console
+  (`admin_record_part_payment`): a `payments` row with a synthetic
+  `ADMIN-…` reference, applied to the installment's `paid_amount`, activating
+  the agreement immediately (recording one IS the admin approving the plan).
+  Paystack's webhook apply also tolerates partial amounts now; activation
+  still passes at ≥50% collected, and `request_payout` still refuses until
+  every installment is fully settled. The admin console gained a combined
+  payment log (Paystack + admin-recorded, source-badged) and the payout
+  transfer button became a two-step confirm (amount shown, real-money
+  warning) before the live-key switch.
 
 ---
 
@@ -330,6 +345,7 @@ and all are safe to re-run:
 | `0026_knust_course_curriculum.sql` | `courses.code` / `credits` / `semester`; seeds the KNUST Mechanical Engineering curriculum (Level 100→400, both semesters, 41 coded courses). Generic un-coded Mechanical rows are deleted only when nothing references them |
 | `0027_sms_messages.sql` | `sms_messages` — the log of every SMS attempt (`to_number`, `body`, `kind`, `sms_id`, `status`, `delivery_status`, `error`, `dedupe_key`). The UNIQUE index on `dedupe_key` is the atomic claim that stops a re-run from texting anybody twice. Plus `profiles.sms_opt_out` and `profiles.sms_verified_at`. Deny-all RLS |
 | `0028_rate_per_semester.sql` | Renames `tutor_profiles.rate_per_hour` → `rate_per_semester` — prices are per semester, and the column was the last place the old hourly framing survived. The app reads and writes both names, so it works before and after the migration is applied |
+| `0029_full_upfront_admin_payments.sql` | 100% upfront: engagements are created with ONE installment for the full semester fee (the idx check is relaxed to 1..12); `installments.paid_amount` tracks partial coverage; `payment_apply_verified_payment` accepts partial amounts and flips the installment to paid only when fully covered; new admin RPC `admin_record_part_payment` records money collected out-of-band (cash/personal MoMo to the admin) with a synthetic `ADMIN-…` reference, applying it to the agreement and activating it immediately (recording one IS approving the plan). `request_payout` is unchanged — it already requires every installment settled |
 | `0030_knust_mech_department_curriculum.sql` | Rebuilds the catalog from the department's OWN published structures (mech.knust.edu.gh HTML tables + the Marine/Automobile brochure PDFs): real codes/credits/semesters for Mechanical, Industrial, Marine and Automobile Engineering (Levels 100→400, incl. the Year-4 specialisation options). Replaces 0026's invented pairings (stale unreferenced rows are deleted); shared courses are seeded per programme; site-inconsistent duplicate codes (IE 356, AME 481, AME 496) keep one coded row + one NULL-coded row. Aerospace is listed by the department but publishes no structure — deliberately not seeded |
 
 Key security properties:
@@ -381,9 +397,13 @@ Key security properties:
   `rate_per_hour` → `rate_per_semester` in 0028; the app still reads and
   writes BOTH names so it can be deployed before that migration is applied
   (`readRate` in `services/tutors/rate.ts`, and the write fallback in
-  `services/tutors/mutations.ts`). A student books a tutor for a semester,
-  pays 50% up front and the rest by the final session; there is no hourly
-  billing anywhere in the product.
+  `services/tutors/mutations.ts`). **And it's 100% UPFRONT (0029):** a
+  student pays the full semester fee at the paywall; there is no 50/50 split
+  anywhere in the product. A student who can't pay in full reaches the admin
+  team — WhatsApp first (`adminWhatsappUrl`), or the in-site payment-plan
+  chat — and the admin records each out-of-band part payment against the
+  agreement (`admin_record_part_payment` / `RecordPartPaymentForm`), where it
+  feeds earnings, payouts and analytics like any Paystack charge.
 
 ---
 

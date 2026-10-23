@@ -10,8 +10,13 @@ import { formatGhs } from "@/lib/money";
 import { isOverdue } from "@/lib/time";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import {
+  listRecentPaymentsForAdmin,
+  type PaymentLogRow,
+} from "@/services/payments/queries";
 import { AdminPayoutActions } from "./AdminPayoutActions";
 import { AdminVerifyPayoutAccountButton } from "./AdminVerifyPayoutAccountButton";
+import { RecordPartPaymentForm } from "./RecordPartPaymentForm";
 
 /**
  * Admin payments console — the money oversight half of the admin page.
@@ -23,8 +28,9 @@ import { AdminVerifyPayoutAccountButton } from "./AdminVerifyPayoutAccountButton
  *      the MoMo transfer, or hold with a mandatory reason. Every action
  *      lands in payment_events + the tutors are emailed by the outbox.
  *   3. Engagements oversight — all agreements with installment progress
- *      and overdue flags, so the admin can see a struggling student before
- *      a payout request ever arrives.
+ *      and overdue flags, plus the 0029 record-a-part-payment form for money
+ *      that arrived outside Paystack, and the combined payment log (both
+ *      channels, newest first).
  */
 
 const PAYOUT_BADGE: Record<
@@ -107,10 +113,11 @@ function derive(rows: {
 export async function AdminPaymentsConsole() {
   await requireRole("admin");
 
-  const [engagements, payouts, accounts] = await Promise.all([
+  const [engagements, payouts, accounts, paymentLog] = await Promise.all([
     listAllEngagements(),
     listAllPayouts(),
     listPayoutAccountsForAdmin(),
+    listRecentPaymentsForAdmin(),
   ]);
   const d = derive({ engagements, payouts });
 
@@ -291,6 +298,61 @@ export async function AdminPaymentsConsole() {
                       }
                     >
                       {ENGAGEMENT_BADGE[engagement.status]?.label ?? engagement.status}
+                    </Badge>
+                  </div>
+                  {/* 0029 — record money that arrived outside Paystack. */}
+                  {(engagement.status === "active" ||
+                    engagement.status === "pending_payment") && (
+                    <RecordPartPaymentForm
+                      engagementId={engagement.id}
+                      remainingDisplay={`${formatGhs(engagement.remainingPesewas)} of ${formatGhs(engagement.agreedTotal)}`}
+                    />
+                  )}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Payment log — both channels in one ledger (0029) */}
+      <div className="mt-10">
+        <h3 className="text-lg font-semibold text-slate-900">Payment log</h3>
+        <p className="mt-1 max-w-xl text-sm text-slate-500">
+          Paystack charges and payments you recorded out-of-band, newest
+          first. Only webhook-verified (or admin-confirmed) money appears.
+        </p>
+        {paymentLog.length === 0 ? (
+          <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white/70 p-10 text-center text-sm text-slate-500">
+            No payments yet.
+          </div>
+        ) : (
+          <ul className="mt-4 space-y-2">
+            {paymentLog.map((payment: PaymentLogRow) => (
+              <li key={payment.id}>
+                <Card className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {formatGhs(payment.amount)} ·{" "}
+                      {payment.studentName || "Student"} ×{" "}
+                      {payment.tutorName || "Tutor"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {payment.courseTitle || "Course"} ·{" "}
+                      <span className="font-mono">{payment.reference}</span>
+                      {payment.note ? ` · ${payment.note}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={payment.source === "admin" ? "amber" : "green"}>
+                      {payment.source === "admin"
+                        ? "Recorded by admin"
+                        : "Paystack"}
+                    </Badge>
+                    <Badge
+                      tone={payment.status === "paid" ? "green" : "neutral"}
+                    >
+                      {payment.status}
                     </Badge>
                   </div>
                 </Card>

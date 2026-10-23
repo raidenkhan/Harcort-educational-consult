@@ -32,6 +32,20 @@ export const savePayoutAccountSchema = z.object({
     .max(12, "Enter a valid Ghana mobile number"),
 });
 
+/**
+ * Admin records a payment collected OUTSIDE Paystack (cash, personal MoMo,
+ * bank transfer) against a student's agreement. Amount arrives in cedis —
+ * the usual display unit — and is converted to pesewas server-side.
+ */
+export const recordPartPaymentSchema = z.object({
+  engagementId: uuid("Missing engagement"),
+  amountCedis: z.coerce
+    .number({ message: "Enter the amount collected" })
+    .positive("Enter an amount above zero")
+    .max(100000, "Amount looks too high"),
+  note: z.string().trim().max(280, "Keep the note under 280 characters").optional(),
+});
+
 export type CreateEngagementInput = z.infer<typeof createEngagementSchema>;
 export type InitializeInstallmentPaymentInput = z.infer<
   typeof initializeInstallmentPaymentSchema

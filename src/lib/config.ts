@@ -21,3 +21,13 @@ export const ADMIN_WHATSAPP_URL = adminWhatsappNumber
       "Hi Harcourt Educational Consult! I have a question about payments.",
     )}`
   : null;
+
+/**
+ * A wa.me link with a CUSTOM prefilled message (null until the number is
+ * configured) — the paywall uses this so a student who can't pay in full
+ * lands in the admin's WhatsApp with the context already typed.
+ */
+export function adminWhatsappUrl(message: string): string | null {
+  if (!adminWhatsappNumber) return null;
+  return `https://wa.me/${adminWhatsappNumber}?text=${encodeURIComponent(message)}`;
+}

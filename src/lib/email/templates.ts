@@ -312,17 +312,18 @@ export function paymentEngagementCreatedEmail(opts: {
   };
 }
 
-/** The 50% gate passed — sessions can be scheduled/attended against money. */
+/** Enough money has landed (0029: full payment, or an admin-recorded plan)
+ *  — sessions can be scheduled/attended against the agreement. */
 export function paymentEngagementActivatedEmail(opts: {
   audience: "tutor" | "admin";
 }): EmailMessage {
   const url = paymentUrl(opts.audience);
   return {
-    subject: "Agreement active — first 50% paid",
-    text: `The first installment (50%) was paid and the agreement is now active. ${url}`,
+    subject: "Agreement active — payment received",
+    text: `A payment was received and the agreement is now active. ${url}`,
     html: wrap(
       "Agreement active",
-      `${p(`The <strong>first 50%</strong> was paid — the payment agreement is now <strong>active</strong>.`)}${actionButton(url, opts.audience === "tutor" ? "Open my tutor page" : "Open the admin console")}`,
+      `${p(`A <strong>payment was received</strong> — the agreement is now <strong>active</strong>.`)}${actionButton(url, opts.audience === "tutor" ? "Open my tutor page" : "Open the admin console")}`,
     ),
   };
 }

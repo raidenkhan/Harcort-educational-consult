@@ -141,7 +141,15 @@ export async function getAnalyticsSnapshot(now = Date.now()): Promise<AnalyticsS
   const dayKeys = recentDays(now, TREND_DAYS);
   const todayKey = chatDayKey(now);
 
-  const [viewsRes, paymentsRes, payoutsRes, engagementsRes, requestsRes, sessionsRes, profilesRes, installmentsRes, tutorProfilesRes] =
+  // 0029: partial payments — ask for paid_amount, tolerating a database
+  // that hasn't caught up (the outstanding math falls back accordingly).
+  let installmentsRes = await supabase
+    .from("installments")
+    .select("amount, status, paid_amount");
+  if (installmentsRes.error && /paid_amount/i.test(installmentsRes.error.message ?? "")) {
+    installmentsRes = await supabase.from("installments").select("amount, status");
+  }
+  const [viewsRes, paymentsRes, payoutsRes, engagementsRes, requestsRes, sessionsRes, profilesRes, tutorProfilesRes] =
     await Promise.all([
       supabase
         .from("page_views")
@@ -157,7 +165,6 @@ export async function getAnalyticsSnapshot(now = Date.now()): Promise<AnalyticsS
         .from("tutoring_sessions")
         .select("status, scheduled_at, tutor_confirmed_at, student_confirmed_at, tutor_profile_id"),
       supabase.from("profiles").select("role, is_admin, created_at"),
-      supabase.from("installments").select("amount, status"),
       supabase.from("tutor_profiles").select("id, profiles(full_name)"),
     ]);
 
@@ -266,12 +273,17 @@ export async function getAnalyticsSnapshot(now = Date.now()): Promise<AnalyticsS
     }
   }
 
-  const outstandingFromStudents = rows<{ amount: unknown; status: string }>(
-    installmentsRes,
-    "installments",
-  )
+  const outstandingFromStudents = rows<{
+    amount: unknown;
+    status: string;
+    paid_amount?: unknown;
+  }>(installmentsRes, "installments")
     .filter((i) => i.status === "pending" || i.status === "overdue")
-    .reduce((sum, i) => sum + toBigint(i.amount), BigInt(0));
+    .reduce(
+      (sum, i) =>
+        sum + (toBigint(i.amount) - toBigint(i.paid_amount ?? 0)),
+      BigInt(0),
+    );
 
   const money: MoneySnapshot = {
     collectedAllTime,

@@ -279,12 +279,13 @@ async function resolvePaywall(
     courseName: course?.name ?? "your course",
     tutorName: tutor?.full_name ?? "your tutor",
     totalPesewas,
-    duePesewas: Math.floor(totalPesewas / 2),
+    // 0029: 100% upfront — the whole semester fee is due at the paywall.
+    duePesewas: totalPesewas,
   };
 }
 
 /**
- * Paywall fallback: the student can't pay the first 50% in full and asks the
+ * Paywall fallback: the student can't pay the full semester fee and asks the
  * admin team, from the site, for a payment plan. Creates (or re-enters) the
  * student's admin conversation and posts the context — the admin replies in
  * /chat, exactly like any other admin thread.
@@ -408,13 +409,13 @@ export async function requestPaymentPlan(
     (s: { price: unknown; course_id: string }) => s.course_id === request.course_id,
   );
   const totalPesewas = service ? Math.round(Number(service.price ?? 0) * 100) : 0;
-  const due = totalPesewas > 0 ? Math.floor(totalPesewas / 2) : null;
+  const due = totalPesewas > 0 ? totalPesewas : null;
 
   const lines = [
-    "Payment plan request — I can't pay the first 50% in full right now.",
+    "Payment plan request — I can't pay the full semester fee right now.",
     course?.name ? `Course: ${course.name}` : null,
     tutor?.full_name ? `Tutor: ${tutor.full_name}` : null,
-    due !== null ? `First payment due: ${formatGhs(BigInt(due))}` : null,
+    due !== null ? `Semester fee: ${formatGhs(BigInt(due))}` : null,
     `Student code: ${profile.public_code ?? profile.id.slice(0, 8)}`,
     parsed.data.note ? `Note: ${parsed.data.note}` : null,
   ].filter((line): line is string => Boolean(line));

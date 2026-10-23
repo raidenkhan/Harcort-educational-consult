@@ -5,28 +5,49 @@ import { useActionState } from "react";
 import { LifeBuoy, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Fields";
+import { adminWhatsappUrl } from "@/lib/config";
 import {
   requestPaymentPlan,
   type PaymentPlanFormState,
 } from "@/services/requests/mutations";
 
 /**
- * The paywall's escape hatch: a student who can't pay the first 50% in full
- * asks the admin team, from inside the site. The action opens (or re-enters)
- * the student's admin conversation in /chat with the course, tutor, amount
- * and their student code already filled in, so the admin can reply with a
- * plan without asking for context.
+ * The paywall's escape hatch: a student who can't pay the full semester fee
+ * reaches the admin team two ways (0029):
+ *
+ *   1. WHATSAPP — the primary channel. The link pre-fills the course, the
+ *      fee and their intent, so the admin gets context without asking.
+ *   2. IN-SITE — the action opens (or re-enters) the student's admin
+ *      conversation in /chat with the same context, for students who prefer
+ *      to stay in the app.
  */
 export function PaymentPlanRequestButton({
   requestId,
+  courseName,
+  feeDisplay,
   className,
 }: {
   requestId: string;
+  /** Prefilled into the WhatsApp message when known. */
+  courseName?: string;
+  /** Formatted semester fee, e.g. "GH₵1,200". */
+  feeDisplay?: string;
   className?: string;
 }) {
   const [state, formAction, pending] = useActionState<PaymentPlanFormState, FormData>(
     requestPaymentPlan,
     {},
+  );
+
+  const whatsappHref = adminWhatsappUrl(
+    [
+      "Hi Harcourt Educational Consult! I can't pay the full semester fee right now and would like to arrange a payment plan.",
+      courseName ? `Course: ${courseName}` : null,
+      feeDisplay ? `Semester fee: ${feeDisplay}` : null,
+      "Please let me know how we can sort this out.",
+    ]
+      .filter(Boolean)
+      .join("\n"),
   );
 
   if (state.conversationId) {
@@ -47,34 +68,44 @@ export function PaymentPlanRequestButton({
   }
 
   return (
-    <form action={formAction} className={className}>
-      <input type="hidden" name="requestId" value={requestId} />
-      <label htmlFor={`plan-note-${requestId}`} className="block text-sm font-medium text-slate-700">
+    <div className={className}>
+      <p className="text-sm font-semibold text-slate-800">
         Can&apos;t pay the full amount right now?
-      </label>
-      <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
-        Tell an admin what you can pay and when. Nothing moves until they agree
-        a plan with you.
       </p>
-      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+      <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
+        Talk to an admin — nothing moves until you&apos;ve agreed a plan
+        together.
+      </p>
+      {whatsappHref && (
+        <a
+          href={whatsappHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-emerald-700 active:scale-[0.98]"
+        >
+          <MessageCircle className="h-4 w-4" />
+          WhatsApp the admin team
+        </a>
+      )}
+      <form action={formAction} className="mt-3 flex flex-col gap-2 sm:flex-row">
         <Input
           id={`plan-note-${requestId}`}
           name="note"
           type="text"
           maxLength={300}
-          placeholder="e.g. I can pay GH₵100 this week and the rest next week"
+          placeholder="Or ask in the app — e.g. I can pay GH₵100 this week"
           className="min-w-0 flex-1"
         />
         <Button type="submit" variant="secondary" disabled={pending} className="shrink-0">
           <LifeBuoy className="h-4 w-4" />
-          {pending ? "Sending…" : "Ask an admin"}
+          {pending ? "Sending…" : "Ask an admin here"}
         </Button>
-      </div>
+      </form>
       {state.error && (
         <p className="mt-2 text-xs font-medium text-red-600" role="alert">
           {state.error}
         </p>
       )}
-    </form>
+    </div>
   );
 }

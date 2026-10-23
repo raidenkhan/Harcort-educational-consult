@@ -43,7 +43,7 @@ export async function TutorRequestsInbox() {
           </h2>
           <p className="mt-1 max-w-xl text-sm text-slate-600">
             Students who asked for your help. Accepting unlocks their payment
-            button; you schedule sessions once the first 50% lands.
+            button; you schedule sessions once the payment lands.
           </p>
         </div>
       </div>

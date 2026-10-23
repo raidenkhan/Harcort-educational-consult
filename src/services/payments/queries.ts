@@ -25,6 +25,9 @@ export interface InstallmentView {
   id: string;
   idx: number;
   amount: bigint;
+  /** How much has actually landed against this installment (0029 partial
+   *  payments). Equals `amount` once fully paid. */
+  paidAmount: bigint;
   dueAt: string;
   status: InstallmentStatus;
   wasOverdue: boolean;
@@ -100,6 +103,8 @@ interface EngagementRow {
     id: string;
     idx: number;
     amount: unknown;
+    /** 0029 — partial-payment accumulation. Absent before the migration. */
+    paid_amount?: unknown;
     due_at: string;
     status: string;
     was_overdue: boolean;
@@ -120,9 +125,14 @@ interface EngagementRow {
 function toEngagementView(row: EngagementRow): EngagementView {
   const total = toBigint(row.agreed_total);
   const installments = [...(row.installments ?? [])].sort((a, b) => a.idx - b.idx);
-  const paid = installments
-    .filter((i) => i.status === "paid")
-    .reduce<bigint>((acc, i) => acc + toBigint(i.amount), BigInt(0));
+  // 0029: a partially-paid installment carries paid_amount. Prefer it; fall
+  // back to the status-based sum for a database without the column yet.
+  const hasPartialTracking = installments.some((i) => i.paid_amount != null);
+  const paid = hasPartialTracking
+    ? installments.reduce<bigint>((acc, i) => acc + toBigint(i.paid_amount ?? 0), BigInt(0))
+    : installments
+        .filter((i) => i.status === "paid")
+        .reduce<bigint>((acc, i) => acc + toBigint(i.amount), BigInt(0));
   const fee = (total * BigInt(row.platform_fee_bps ?? 1000)) / BigInt(10000);
 
   return {
@@ -142,6 +152,7 @@ function toEngagementView(row: EngagementRow): EngagementView {
       id: i.id,
       idx: i.idx,
       amount: toBigint(i.amount),
+      paidAmount: hasPartialTracking ? toBigint(i.paid_amount ?? 0) : toBigint(i.status === "paid" ? i.amount : 0),
       dueAt: i.due_at,
       status: i.status as InstallmentStatus,
       wasOverdue: i.was_overdue,
@@ -151,7 +162,16 @@ function toEngagementView(row: EngagementRow): EngagementView {
   };
 }
 
-const ENGAGEMENT_SELECT = `
+const ENGAGEMENT_SELECT_V2 = `
+  id, status, agreed_total, platform_fee_bps, created_at, student_id,
+  installments(id, idx, amount, due_at, status, was_overdue, paid_at, paid_amount),
+  courses(name),
+  profiles!engagements_student_id_fkey(full_name, public_code),
+  tutor_profiles(profiles(full_name))
+`;
+
+/** Pre-0029 column set — the fallback when the database hasn't caught up. */
+const ENGAGEMENT_SELECT_BASE = `
   id, status, agreed_total, platform_fee_bps, created_at, student_id,
   installments(id, idx, amount, due_at, status, was_overdue, paid_at),
   courses(name),
@@ -159,20 +179,37 @@ const ENGAGEMENT_SELECT = `
   tutor_profiles(profiles(full_name))
 `;
 
+/**
+ * Engagement lists tolerate a database without 0029 yet: the v2 select asks
+ * for `paid_amount`; if PostgREST rejects the column, the query retries with
+ * the base set (the mapper reads whichever shape the rows carry).
+ */
+async function listEngagements(
+  filter: { field: string; value: string } | null,
+  label: string,
+): Promise<EngagementView[]> {
+  const supabase = createAdminClient();
+  const run = async (select: string) => {
+    let query = supabase.from("engagements").select(select);
+    if (filter) query = query.eq(filter.field, filter.value);
+    return query.order("created_at", { ascending: false });
+  };
+
+  let { data, error } = await run(ENGAGEMENT_SELECT_V2);
+  if (error && /paid_amount/i.test(error.message ?? "")) {
+    ({ data, error } = await run(ENGAGEMENT_SELECT_BASE));
+  }
+  if (error) throw new Error(`${label}: ${error.message}`);
+  return (data ?? []).map((row) => toEngagementView(row as unknown as EngagementRow));
+}
+
 // ---------------------------------------------------------------------------
 // Student view
 // ---------------------------------------------------------------------------
 
 /** The student's engagements (payment dashboard rows). */
 export async function listStudentEngagements(profile: Profile): Promise<EngagementView[]> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("engagements")
-    .select(ENGAGEMENT_SELECT)
-    .eq("student_id", profile.id)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(`listStudentEngagements: ${error.message}`);
-  return (data ?? []).map((row) => toEngagementView(row as unknown as EngagementRow));
+  return listEngagements({ field: "student_id", value: profile.id }, "listStudentEngagements");
 }
 
 // ---------------------------------------------------------------------------
@@ -191,13 +228,10 @@ export async function listTutorEngagements(profile: Profile): Promise<Engagement
   if (tutorError) throw new Error(`listTutorEngagements: ${tutorError.message}`);
   if (!tutorProfile) return []; // not a tutor (yet) — empty earnings view
 
-  const { data, error } = await supabase
-    .from("engagements")
-    .select(ENGAGEMENT_SELECT)
-    .eq("tutor_profile_id", (tutorProfile as { id: string }).id)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(`listTutorEngagements: ${error.message}`);
-  return (data ?? []).map((row) => toEngagementView(row as unknown as EngagementRow));
+  return listEngagements(
+    { field: "tutor_profile_id", value: (tutorProfile as { id: string }).id },
+    "listTutorEngagements",
+  );
 }
 
 /** Does the profile own an APPROVED tutor profile? (payout-account gate) */
@@ -321,13 +355,72 @@ export async function requirePaymentsAdmin(profile: Profile): Promise<void> {
 
 /** Every engagement, newest first (admin console). */
 export async function listAllEngagements(): Promise<EngagementView[]> {
+  return listEngagements(null, "listAllEngagements");
+}
+
+// ---------------------------------------------------------------------------
+// Payment log (admin console, 0029)
+// ---------------------------------------------------------------------------
+
+export interface PaymentLogRow {
+  id: string;
+  engagementId: string;
+  courseTitle: string;
+  studentName: string;
+  tutorName: string;
+  amount: bigint;
+  status: string;
+  /** "admin" = recorded out-of-band by an admin; "paystack" = webhook-verified. */
+  source: "paystack" | "admin";
+  reference: string;
+  /** Free-text note an admin left when recording an out-of-band payment. */
+  note: string | null;
+  createdAt: string;
+}
+
+/** The newest payments across every engagement — both channels in one log. */
+export async function listRecentPaymentsForAdmin(limit = 50): Promise<PaymentLogRow[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
-    .from("engagements")
-    .select(ENGAGEMENT_SELECT)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(`listAllEngagements: ${error.message}`);
-  return (data ?? []).map((row) => toEngagementView(row as unknown as EngagementRow));
+    .from("payments")
+    .select(
+      `id, engagement_id, amount, status, paystack_reference, paystack_status, raw_payload, created_at,
+       engagements(courses(name), profiles!engagements_student_id_fkey(full_name), tutor_profiles(profiles(full_name)))`,
+    )
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`listRecentPaymentsForAdmin: ${error.message}`);
+
+  return (data ?? []).map((raw) => {
+    const row = raw as {
+      id: string;
+      engagement_id: string;
+      amount: unknown;
+      status: string;
+      paystack_reference: string;
+      paystack_status: string | null;
+      raw_payload: { note?: string } | null;
+      created_at: string;
+      engagements?: {
+        courses?: { name: string } | null;
+        profiles?: { full_name: string } | null;
+        tutor_profiles?: { profiles?: { full_name: string } | null } | null;
+      } | null;
+    };
+    return {
+      id: row.id,
+      engagementId: row.engagement_id,
+      courseTitle: row.engagements?.courses?.name ?? "",
+      studentName: row.engagements?.profiles?.full_name ?? "",
+      tutorName: row.engagements?.tutor_profiles?.profiles?.full_name ?? "",
+      amount: toBigint(row.amount),
+      status: row.status,
+      source: row.paystack_status === "admin_recorded" ? "admin" : "paystack",
+      reference: row.paystack_reference,
+      note: row.raw_payload?.note ?? null,
+      createdAt: row.created_at,
+    };
+  });
 }
 
 /** Every payout (admin queue), pending/flagged first, then newest. */

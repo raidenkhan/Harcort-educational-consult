@@ -9,9 +9,11 @@ import type { Profile } from "@/types";
 import { profileIsAdmin } from "@/lib/auth/admin";
 import { scheduleOutboxDrain } from "@/lib/email/outbox";
 import { createTransferRecipient, initializeTransaction, isPaystackConfigured } from "./paystack";
+import { formatGhs } from "@/lib/money";
 import {
   createEngagementSchema,
   initializeInstallmentPaymentSchema,
+  recordPartPaymentSchema,
   savePayoutAccountSchema,
 } from "./schemas";
 
@@ -33,7 +35,7 @@ export type PaymentFormState = { error?: string; message?: string; checkoutUrl?:
 /** PostgREST RPC errors carry the Postgres message we raised. */
 function rpcError(err: { message?: string } | Error | null): string {
   const message = err instanceof Error ? err.message : (err?.message ?? "Payment action failed");
-  return message.replace(/^.*?(?=(forbidden|amount_mismatch|currency_mismatch|installment_not_payable|installment_not_found|engagement_exists|engagement_not_found|engagement_cancelled|sessions_incomplete|payments_outstanding|payout_account_unverified|payout_account_not_found|payout_exists|payout_not_found|payout_not_approvable|payout_not_cancellable|payout_not_holdable|payout_not_releasable|reason_required|not_completable|service_not_found|service_not_available))/, "").replace(/\s+/g, " ").trim();
+  return message.replace(/^.*?(?=(forbidden|amount_mismatch|amount_exceeds_outstanding|currency_mismatch|installment_not_payable|installment_not_found|engagement_exists|engagement_not_found|engagement_cancelled|sessions_incomplete|payments_outstanding|payout_account_unverified|payout_account_not_found|payout_exists|payout_not_found|payout_not_approvable|payout_not_cancellable|payout_not_holdable|payout_not_releasable|reason_required|not_completable|service_not_found|service_not_available))/, "").replace(/\s+/g, " ").trim();
 }
 
 /** Human-friendly copy for the Postgres guard messages. */
@@ -63,6 +65,9 @@ function friendlyError(error: string): string {
   if (error.startsWith("reason_required")) return "A reason is required.";
   if (error.startsWith("amount_mismatch")) {
     return "Payment amount doesn't match the agreement — contact support.";
+  }
+  if (error.startsWith("amount_exceeds_outstanding")) {
+    return "That amount is more than the outstanding balance on this agreement.";
   }
   return error;
 }
@@ -101,7 +106,7 @@ export async function createEngagement(
   revalidatePath("/admin", "layout");
   return {
     message:
-      "Agreement created — pay the first installment (50%) to activate your sessions.",
+      "Agreement created — pay the semester fee in full to activate your sessions.",
   };
 }
 
@@ -240,9 +245,10 @@ export async function initializeInstallmentPayment(
 /**
  * One-click pay from the request paywall: creates (or re-enters) the payment
  * agreement for the quoted course, then goes straight to Paystack for the
- * first 50%. The request may still be pending (0024 — pay to activate, the
- * tutor accepts to schedule); a declined request closed the paywall instead.
- * Reuses an existing open engagement so tapping twice never blocks.
+ * full semester fee (0029 — 100% upfront). The request may still be pending
+ * (0024 — pay to activate, the tutor accepts to schedule); a declined request
+ * closed the paywall instead. Reuses an existing open engagement so tapping
+ * twice never blocks.
  */
 export async function commitAndStartCheckout(
   _prev: PaymentFormState,
@@ -315,7 +321,7 @@ export async function commitAndStartCheckout(
   }
   if (!engagementId) return { error: "Could not create the payment agreement." };
 
-  // First payable installment (idx order) — normally #1, the 50% gate.
+  // First payable installment (idx order) — #1, the full semester fee.
   const { data: instRows } = await supabase
     .from("installments")
     .select("id, idx, status")
@@ -329,6 +335,58 @@ export async function commitAndStartCheckout(
   }
 
   return runCheckout(profile, engagementId, payable.id);
+}
+
+// ---------------------------------------------------------------------------
+// Admin-recorded part payments (0029 — money collected outside Paystack)
+// ---------------------------------------------------------------------------
+
+/**
+ * Admin records a payment a student made OUT OF BAND (cash, personal MoMo,
+ * bank transfer to the admin) against their agreement. The student pays the
+ * admin — never the tutor — so the ledger row carries a synthetic ADMIN-
+ * reference and the agreement (and through it the tutor's earnings) sees the
+ * money exactly like a Paystack payment. Recording one also activates the
+ * engagement: it IS the admin approving the plan.
+ */
+export async function recordPartPayment(
+  _prev: PaymentFormState,
+  formData: FormData,
+): Promise<PaymentFormState> {
+  const profile = await requireProfile();
+  if (!profileIsAdmin(profile)) {
+    return { error: "Only admins can record payments." };
+  }
+
+  const parsed = recordPartPaymentSchema.safeParse({
+    engagementId: formData.get("engagementId"),
+    amountCedis: formData.get("amountCedis"),
+    note: formData.get("note") || undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid request" };
+  }
+
+  const amountPesewas = Math.round(parsed.data.amountCedis * 100);
+  if (amountPesewas <= 0) return { error: "Enter an amount above zero." };
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc("admin_record_part_payment", {
+    actor_id: profile.id,
+    p_engagement_id: parsed.data.engagementId,
+    p_amount: amountPesewas,
+    p_note: parsed.data.note ?? null,
+  });
+  if (error) return { error: friendlyError(rpcError(error)) };
+  void data;
+
+  scheduleOutboxDrain();
+  revalidatePath("/admin", "layout");
+  revalidatePath("/dashboard");
+  revalidatePath("/tutor", "layout");
+  return {
+    message: `Recorded ${formatGhs(BigInt(amountPesewas))} — applied to the agreement.`,
+  };
 }
 
 // ---------------------------------------------------------------------------

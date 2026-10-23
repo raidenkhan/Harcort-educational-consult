@@ -35,10 +35,10 @@ export interface TutorRequestView {
    *  format the student never chose. */
   sessionMode?: SessionMode;
   /** The tutor's quoted price for this course in whole cedis (as stored on
-   *  tutor_services), used by the paywall to show the 50% due. */
+   *  tutor_services), used by the paywall to show the fee due. */
   tutorServicePrice: number | null;
   /** The tutor's bookable service (course offer) for this request — used by
-   *  the accepted-request "Pay 50%" CTA to create the agreement (0012 flow:
+   *  the accepted-request "Pay" CTA to create the agreement (0012 flow:
    *  request-first, pay-after-acceptance). Resolved from the tutor's active
    *  tutor_services; null when the tutor hasn't quoted this course yet. */
   tutorServiceId?: string;
