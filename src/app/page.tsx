@@ -16,7 +16,6 @@ import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { Container } from "@/components/ui/Container";
 import { Badge } from "@/components/ui/Badge";
-import { AnimatedGradient } from "@/components/ui/AnimatedGradient";
 import { Logo } from "@/components/ui/Logo";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
@@ -268,9 +267,24 @@ export default async function Home() {
               bendStrength={-0.5}
               mixBlendMode="screen"
             />
-            <div className="absolute inset-0 opacity-35">
-              <AnimatedGradient />
-            </div>
+            {/* 0032: STATIC gradient. The AnimatedGradient layer that sat
+                here (SVG goo filter + 40px blur + six infinitely-animating
+                blobs + a pointer-tracking blob) re-rasterized the entire
+                hero on every animation frame, which made scrolling the page
+                crawl on low-end machines. Until a simpler animation replaces
+                it, the hero ships as a static gradient — zero JS, zero
+                per-frame work. See components/ui/AnimatedGradient.tsx for
+                the palette this echoes. */}
+            <div
+              className="absolute inset-0 opacity-35"
+              style={{
+                backgroundImage: [
+                  "radial-gradient(620px circle at 22% 30%, rgba(97,11,150,0.55), transparent 70%)",
+                  "radial-gradient(760px circle at 78% 74%, rgba(175,136,227,0.42), transparent 70%)",
+                  "linear-gradient(40deg, rgb(28,15,43), rgb(76,8,120))",
+                ].join(", "),
+              }}
+            />
             <div className="absolute inset-0 bg-gradient-to-b from-petrol-950/55 via-transparent to-petrol-950/45" />
           </Parallax>
           {/* Readability scrim — pinned to the section, NOT inside the
