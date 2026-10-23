@@ -5,6 +5,7 @@ import { TutorProfileForm } from "@/components/tutor/TutorProfileForm";
 import { TutorServiceForm } from "@/components/tutor/TutorServiceForm";
 import { PhoneForm } from "@/components/auth/PhoneForm";
 import { SmsPreferenceForm } from "@/components/auth/SmsPreferenceForm";
+import { CopyProfileLink } from "@/components/tutor/CopyProfileLink";
 import { Card } from "@/components/ui/Card";
 import type { TutorService } from "@/types";
 
@@ -90,6 +91,21 @@ export default async function TutorOverviewPage() {
             </ul>
           )}
         </Card>
+
+        {/* 0031 — the tutor's shareable profile link. */}
+        {profile.public_code && (
+          <Card>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Your profile link
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Send this to any student — it opens your public profile with
+              your credentials and semester rates, and they can request you
+              straight from it.
+            </p>
+            <CopyProfileLink code={profile.public_code} />
+          </Card>
+        )}
       </div>
     </div>
   );

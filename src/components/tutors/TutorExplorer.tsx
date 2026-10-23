@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Search, GraduationCap, ShieldCheck, SearchX } from "lucide-react";
 import type { TutorListing } from "@/services/tutors/queries";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
@@ -184,9 +185,20 @@ function TutorCard({
         </span>
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5">
-            <span className="truncate font-semibold text-slate-900">
-              {profile.full_name || "Harcourt tutor"}
-            </span>
+            {/* 0031 — the card leads to the tutor's shareable profile page
+                when the profile carries a public code. */}
+            {profile.public_code ? (
+              <Link
+                href={`/tutors/${encodeURIComponent(profile.public_code)}`}
+                className="truncate font-semibold text-slate-900 transition hover:text-brand-700"
+              >
+                {profile.full_name || "Harcourt tutor"}
+              </Link>
+            ) : (
+              <span className="truncate font-semibold text-slate-900">
+                {profile.full_name || "Harcourt tutor"}
+              </span>
+            )}
             {/* Client component — use the raw flag (the isAdmin helper lives
                 in a server-only module). Post-0008 rows always carry it. */}
             {profile.is_admin && <VerifiedBadge />}

@@ -68,6 +68,39 @@ export const listApprovedTutors = unstable_cache(
 );
 
 /**
+ * One approved tutor by their public profile code (0031) — the shareable
+ * profile link (`/tutors/HC-T-…`) reads through this. Same visibility rule
+ * and the same defensive mapper as the directory: approved only, role not
+ * 'student', rows with a broken profiles embed dropped. Cached per code
+ * under the `tutors` tag, so admin approve/reject and profile edits
+ * invalidate it exactly like the directory.
+ */
+export async function getTutorByPublicCode(
+  code: string,
+): Promise<TutorListing | null> {
+  if (!code) return null;
+  return unstable_cache(
+    async () => {
+      const supabase = createAdminClient();
+      const { data, error } = await supabase
+        .from("tutor_profiles")
+        .select("*, profiles!inner(*), tutor_services(*, courses(*))")
+        .eq("verification_status", "approved")
+        .neq("profiles.role", "student")
+        .eq("profiles.public_code", code)
+        .limit(1);
+      if (error) {
+        throw new Error(`getTutorByPublicCode: ${error.message}`);
+      }
+      const rows = toTutorListings((data ?? []) as TutorProfileRow[]);
+      return rows[0] ?? null;
+    },
+    ["tutor-by-public-code", code],
+    { revalidate: 300, tags: ["tutors"] },
+  )();
+}
+
+/**
  * Non-throwing variant for public pages: a transient DB failure degrades
  * ONE request (logged, empty list) instead of 500ing the marketing page —
  * and because the cached fn throws on error, the empty result is never
