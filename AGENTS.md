@@ -157,6 +157,19 @@ mobile app.
   `coursesForTerm` / `levelLabel` live in `courseTaxonomy.ts` and are
   unit-tested; `CourseDirectory.tsx` renders the flow, and the home band plus
   the dashboard course cards now show code + credit hours.
+- **Catalog rebuilt from the department's own site (0030).** 0026's seed
+  turned out to be largely invented (e.g. "ME 159 Applied Electricity" — the
+  real ME 159 is Technical Drawing). 0030 re-seeds FOUR programmes —
+  Mechanical, Industrial, Marine and Automobile Engineering — straight from
+  mech.knust.edu.gh's published tables (HTML + the brochure PDFs the search
+  index exposed), codes/credits/semesters/levels exactly as printed, including
+  Mechanical's Year-4 specialisation options. `ENGINEERING_FIELDS` now leads
+  with those five department programmes (the other college fields stay
+  appended for existing tutors). Shared foundation courses are seeded PER
+  PROGRAMME (the directory browses programme → course); duplicate-code site
+  inconsistencies are handled with one coded + one NULL-coded row. Aerospace
+  Engineering is listed by the department but publishes no structure, so it
+  is deliberately unseeded.
 - **Admin Performance tab (0025).** `/admin/analytics` shows money in/out
   (collected, paid out, queued, platform fees, outstanding installments), the
   request funnel (acceptance rate, average response time), sessions vs dual
@@ -317,6 +330,7 @@ and all are safe to re-run:
 | `0026_knust_course_curriculum.sql` | `courses.code` / `credits` / `semester`; seeds the KNUST Mechanical Engineering curriculum (Level 100→400, both semesters, 41 coded courses). Generic un-coded Mechanical rows are deleted only when nothing references them |
 | `0027_sms_messages.sql` | `sms_messages` — the log of every SMS attempt (`to_number`, `body`, `kind`, `sms_id`, `status`, `delivery_status`, `error`, `dedupe_key`). The UNIQUE index on `dedupe_key` is the atomic claim that stops a re-run from texting anybody twice. Plus `profiles.sms_opt_out` and `profiles.sms_verified_at`. Deny-all RLS |
 | `0028_rate_per_semester.sql` | Renames `tutor_profiles.rate_per_hour` → `rate_per_semester` — prices are per semester, and the column was the last place the old hourly framing survived. The app reads and writes both names, so it works before and after the migration is applied |
+| `0030_knust_mech_department_curriculum.sql` | Rebuilds the catalog from the department's OWN published structures (mech.knust.edu.gh HTML tables + the Marine/Automobile brochure PDFs): real codes/credits/semesters for Mechanical, Industrial, Marine and Automobile Engineering (Levels 100→400, incl. the Year-4 specialisation options). Replaces 0026's invented pairings (stale unreferenced rows are deleted); shared courses are seeded per programme; site-inconsistent duplicate codes (IE 356, AME 481, AME 496) keep one coded row + one NULL-coded row. Aerospace is listed by the department but publishes no structure — deliberately not seeded |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in

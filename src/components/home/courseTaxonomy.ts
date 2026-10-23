@@ -11,15 +11,24 @@
 /**
  * The KNUST degree programmes the student-facing catalog shows (browse band,
  * directory, nav search, program picker). A program is a degree, not a
- * subject taught inside one: "Engineering Mathematics" / "Engineering
- * Sciences" are service subjects, so they stay in the DB for tutor offers but
- * are no longer presented as things a student can "study". The DB also holds
- * wider academic subjects (English, Business…) for the same reason —
- * management surfaces (admin console, tutor service form) see everything,
- * but every student-facing read filters through `engineeringCourses`.
+ * subject taught inside one. The five programmes of the KNUST Department of
+ * Mechanical Engineering lead the list — their curricula are seeded from the
+ * department's own published structures (migration 0030):
+ *   https://mech.knust.edu.gh/ug/bsc-mechanical-engineering (+ /undergraduate)
+ * Aerospace Engineering is listed by the department but has no published
+ * structure yet, so it carries no courses and stays out of the DB until a
+ * source exists. The other college fields stay for tutors already offering
+ * them; "Engineering Mathematics" / "Engineering Sciences" are service
+ * subjects — they stay in the DB for tutor offers but are never presented as
+ * things a student can "study". Every student-facing read filters through
+ * `engineeringCourses`.
  */
 export const ENGINEERING_FIELDS: readonly string[] = [
   "Mechanical Engineering",
+  "Industrial Engineering",
+  "Marine Engineering",
+  "Automobile Engineering",
+  "Aerospace Engineering",
   "Electrical & Electronic Engineering",
   "Computer Engineering",
   "Civil Engineering",
