@@ -3,6 +3,7 @@ import { listStudentEngagements } from "@/services/payments/queries";
 import { formatGhs } from "@/lib/money";
 import { accraDate, dueDateLabel, isOverdue } from "@/lib/time";
 import { promiseState } from "@/services/payments/plan";
+import { checkoutTotal } from "@/services/payments/fees";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { PayInstallmentButton } from "./PayInstallmentButton";
@@ -154,6 +155,11 @@ export async function StudentPaymentsCard() {
                   installment.outstanding > BigInt(0)
                     ? installment.outstanding
                     : BigInt(0);
+                // 0034 — the student covers Paystack's processing fee, so the
+                // button must name the amount that will leave their account,
+                // not the part that reaches the agreement. Same helper the
+                // checkout action uses, so the two cannot drift.
+                const checkout = checkoutTotal(outstanding);
                 return (
                   <li
                     key={installment.id}
@@ -178,6 +184,12 @@ export async function StudentPaymentsCard() {
                               {formatGhs(outstanding)} left
                             </>
                           )}
+                        {payable && checkout.feePesewas > BigInt(0) && (
+                          <>
+                            {" · "}
+                            {formatGhs(checkout.feePesewas)} Paystack fee
+                          </>
+                        )}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -188,7 +200,7 @@ export async function StudentPaymentsCard() {
                         <PayInstallmentButton
                           engagementId={engagement.id}
                           installmentId={installment.id}
-                          amountDisplay={formatGhs(outstanding)}
+                          amountDisplay={formatGhs(checkout.totalPesewas)}
                         />
                       ) : null}
                     </div>

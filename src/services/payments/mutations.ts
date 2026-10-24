@@ -23,6 +23,7 @@ import {
   setPaymentPromiseSchema,
 } from "./schemas";
 import { generatePaymentToken, hashPaymentToken, paymentLinkPath } from "./links";
+import { checkoutTotal } from "./fees";
 import { getPaymentLinkByToken } from "./queries";
 
 /**
@@ -251,36 +252,79 @@ async function runCheckout(
     .slice(0, 8)
     .toUpperCase()}`;
 
-  const { data: init, error: initError } = await supabase
-    .from("payments")
-    .insert({
-      engagement_id: engagementId,
-      installment_id: installmentId,
-      amount: String(amount), // BIGINT as string — BigInt breaks JSON.stringify
-      currency: inst.currency,
-      paystack_reference: reference,
-      status: "initialized",
-      initialized_by: profile.id,
-      // Only written by the 0032 link path, so a pre-0032 database never
-      // sees an unknown column.
-      ...(opts.paymentRequestId
-        ? { payment_request_id: opts.paymentRequestId }
-        : {}),
-    })
-    .select("id")
-    .single();
-  if (initError) return { error: `Could not start checkout: ${initError.message}` };
+  /**
+   * Paystack's processing fee is passed to the student (0034): the charge is
+   * `amount + fee`, Paystack keeps its fee, and the agreement receives exactly
+   * `amount` — so tutor earnings, payouts and the 0029 amount guards keep
+   * working on the net figure.
+   *
+   * The fee is computed HERE, server-side, from the published schedule
+   * (env-tunable, see fees.ts) and stored on the payment row. The webhook then
+   * verifies the gross charge against `amount + fee_amount` instead of
+   * re-deriving it from a config that may have changed since checkout.
+   *
+   * A database that hasn't applied 0034 has no `fee_amount` column. Rather
+   * than break checkout, fall back to absorbing the fee (charge = net), which
+   * is exactly the pre-0034 behaviour the webhook expects.
+   */
+  const checkout = checkoutTotal(BigInt(amount));
+  const paymentRow = {
+    engagement_id: engagementId,
+    installment_id: installmentId,
+    amount: String(amount), // BIGINT as string — BigInt breaks JSON.stringify
+    currency: inst.currency,
+    paystack_reference: reference,
+    status: "initialized",
+    initialized_by: profile.id,
+    // Only written by the 0032 link path, so a pre-0032 database never
+    // sees an unknown column.
+    ...(opts.paymentRequestId
+      ? { payment_request_id: opts.paymentRequestId }
+      : {}),
+  };
+
+  const insertPayment = (withFee: boolean) =>
+    supabase
+      .from("payments")
+      .insert({
+        ...paymentRow,
+        // Spread rather than a literal property: `fee_amount` is 0034, and the
+        // client's row type does not know it yet. Spread properties are exempt
+        // from TS excess-property checks, so this compiles before the types are
+        // regenerated — the same trick `payment_request_id` already uses.
+        ...(withFee ? { fee_amount: checkout.feePesewas.toString() } : {}),
+      })
+      .select("id")
+      .single();
+
+  let inserted = await insertPayment(true);
+  let feePesewas = checkout.feePesewas;
+  if (inserted.error && isMissingColumn(inserted.error)) {
+    // Pre-0034 database: absorb the fee so the stored row and the Paystack
+    // charge still agree (the webhook's expected gross is amount + 0).
+    feePesewas = BigInt(0);
+    inserted = await insertPayment(false);
+  }
+  if (inserted.error) {
+    return { error: `Could not start checkout: ${inserted.error.message}` };
+  }
+  const init = inserted.data as { id: string };
+  const chargePesewas = BigInt(amount) + feePesewas;
 
   try {
     const txn = await initializeTransaction({
       email,
-      amountPesewas: amount, // pesewas — server-derived, never client-sent
+      amountPesewas: Number(chargePesewas), // pesewas — server-derived
       reference,
       callbackUrl: `${APP_URL}${opts.returnPath ?? "/dashboard?payment=return"}`,
       metadata: {
         engagement_id: engagementId,
         installment_id: installmentId,
         installment_idx: inst.idx,
+        // What the ledger applies vs what the student is charged — useful
+        // when reconciling a charge in the Paystack dashboard.
+        course_amount: amount,
+        service_fee: Number(feePesewas),
         ...(opts.paymentRequestId
           ? { payment_request_id: opts.paymentRequestId }
           : {}),
@@ -299,7 +343,7 @@ async function runCheckout(
     await supabase
       .from("payments")
       .update({ status: "failed" })
-      .eq("id", (init as { id: string }).id);
+      .eq("id", init.id);
     return {
       error: err instanceof Error ? err.message : "Payment initialization failed",
     };

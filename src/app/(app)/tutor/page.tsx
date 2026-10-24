@@ -8,6 +8,7 @@ import { PhoneForm } from "@/components/auth/PhoneForm";
 import { SmsPreferenceForm } from "@/components/auth/SmsPreferenceForm";
 import { CopyProfileLink } from "@/components/tutor/CopyProfileLink";
 import { CopyServiceLink } from "@/components/tutor/CopyServiceLink";
+import { tutorSharePath } from "@/services/tutors/share";
 import { Card } from "@/components/ui/Card";
 
 /**
@@ -125,7 +126,10 @@ export default async function TutorOverviewPage() {
               above: the student lands on that offering with the request
               already set to it.
             </p>
-            <CopyProfileLink code={profile.public_code} />
+            <CopyProfileLink
+              code={profile.public_code}
+              path={tutorSharePath(profile.public_code)}
+            />
           </Card>
         )}
       </div>

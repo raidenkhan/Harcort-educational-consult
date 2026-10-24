@@ -10,6 +10,7 @@ import { accraDate } from "@/lib/time";
 import { formatGhs } from "@/lib/money";
 import { requireProfile } from "@/services/auth/queries";
 import { getPaymentLinkByToken } from "@/services/payments/queries";
+import { checkoutTotal } from "@/services/payments/fees";
 
 /**
  * /pay/[token] — the student's side of an admin-issued part-payment link.
@@ -176,6 +177,11 @@ export default async function PayLinkPage({
   const charge =
     link.amount > link.remainingPesewas ? link.remainingPesewas : link.amount;
   const balanceAfter = link.remainingPesewas - charge;
+  // 0034 — Paystack's processing fee is charged to the student on top, so the
+  // page must show the amount that will actually leave their account. The fee
+  // is computed here for display only; checkout stores its own copy on the
+  // payment row and the webhook verifies against that.
+  const checkout = checkoutTotal(charge);
 
   return shell(
     <>
@@ -217,7 +223,21 @@ export default async function PayLinkPage({
             {formatGhs(charge)}
           </dd>
         </div>
+        {checkout.feePesewas > BigInt(0) && (
+          <div className="flex items-baseline justify-between gap-4">
+            <dt className="text-slate-500">Paystack service fee</dt>
+            <dd className="font-medium tabular-nums text-slate-900">
+              {formatGhs(checkout.feePesewas)}
+            </dd>
+          </div>
+        )}
         <div className="flex items-baseline justify-between gap-4 border-t border-slate-200 pt-2.5">
+          <dt className="text-slate-500">Charged today</dt>
+          <dd className="font-semibold tabular-nums text-slate-900">
+            {formatGhs(checkout.totalPesewas)}
+          </dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-4">
           <dt className="text-slate-500">Balance after this payment</dt>
           <dd className="font-semibold tabular-nums text-slate-900">
             {formatGhs(balanceAfter)}
@@ -241,11 +261,15 @@ export default async function PayLinkPage({
         </p>
       )}
 
-      <PayLinkButton token={token} amountDisplay={formatGhs(charge)} />
+      <PayLinkButton
+        token={token}
+        amountDisplay={formatGhs(checkout.totalPesewas)}
+      />
 
       <p className="mt-4 text-center text-xs leading-relaxed text-slate-500">
-        Paid securely through Paystack. Payments go to Harcourt Educational
-        Consult — never send tuition money to a tutor directly.
+        Paid securely through Paystack. The service fee is what Paystack charges
+        to process the payment. Payments go to Harcourt Educational Consult —
+        never send tuition money to a tutor directly.
       </p>
     </>,
   );

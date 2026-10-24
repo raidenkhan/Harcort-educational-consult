@@ -40,7 +40,7 @@ export function SignInFields({ next }: { next?: string | null }) {
         </div>
       )}
 
-      <GoogleAuthBlock />
+      <GoogleAuthBlock next={next} />
 
       <form action={formAction} className="space-y-4">
         {next ? <input type="hidden" name="next" value={next} /> : null}
@@ -104,7 +104,7 @@ export function SignUpFields({ next }: { next?: string | null }) {
         </div>
       )}
 
-      <GoogleAuthBlock />
+      <GoogleAuthBlock next={next} />
 
       <form action={formAction} className="space-y-4">
         {next ? <input type="hidden" name="next" value={next} /> : null}

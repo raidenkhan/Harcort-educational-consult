@@ -500,14 +500,21 @@ export async function switchRoleAction(
  * admin is impossible.
  */
 export async function completeOnboardingAction(formData: FormData): Promise<void> {
+  // Where the user was headed before the Google round-trip (a tutor's course
+  // link, for instance). Same-site paths only — `safeNextPath` is the guard.
+  const next = safeNextPath(formData.get("next"));
+  const pickerPath = next
+    ? `/onboarding?next=${encodeURIComponent(next)}`
+    : "/onboarding";
+
   const parsed = switchRoleSchema.safeParse({ role: formData.get("role") });
   if (!parsed.success) {
-    redirect("/onboarding"); // malformed — stay on the picker
+    redirect(pickerPath); // malformed — stay on the picker
   }
 
   const profile = await requireProfile();
   if (profile.onboarding_completed_at) {
-    redirect("/dashboard"); // already done
+    redirect(next ?? "/dashboard"); // already done
   }
 
   const supabase = createAdminClient();
@@ -521,7 +528,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
     .eq("id", profile.id);
 
   if (error) {
-    redirect("/onboarding");
+    redirect(pickerPath);
   }
 
   revalidateTag("tutors", "max");
@@ -530,5 +537,5 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
   revalidatePath("/tutor", "layout");
   revalidatePath("/onboarding");
 
-  redirect("/dashboard");
+  redirect(next ?? "/dashboard");
 }

@@ -5,7 +5,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTutorByPublicCode } from "@/services/tutors/queries";
 import { formatPrices } from "@/services/tutors/pricing";
-import { courseParamMatches } from "@/services/tutors/share";
+import { courseParamMatches, tutorSharePath } from "@/services/tutors/share";
+import { SITE_NAME, siteUrl } from "@/lib/site";
 import { ServicePrice } from "@/components/tutors/ServicePrice";
 import { getCurrentProfile } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
@@ -33,20 +34,133 @@ import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
  */
 export const dynamic = "force-dynamic";
 
+/** One offering matched by a `?course=` value (code or row id). */
+function findFocusedOffering(
+  tutor: NonNullable<Awaited<ReturnType<typeof getTutorByPublicCode>>>,
+  wanted: string | null,
+) {
+  if (!wanted) return null;
+  const byId = new Map(tutor.courses.map((course) => [course.id, course]));
+  for (const service of tutor.services) {
+    const course = byId.get(service.course_id);
+    if (!course) continue;
+    if (
+      courseParamMatches({ id: course.id, code: course.code ?? null }, wanted)
+    ) {
+      return { service, course };
+    }
+  }
+  return null;
+}
+
+/** The cheapest fee across every format the tutor offers, in whole cedis. */
+function lowestOfferingPrice(
+  tutor: NonNullable<Awaited<ReturnType<typeof getTutorByPublicCode>>>,
+): number | null {
+  const prices = tutor.services
+    .flatMap((service) => {
+      const { oneOnOne, group } = formatPrices(service);
+      return [oneOnOne, group];
+    })
+    .filter((price): price is number => price != null);
+  if (prices.length > 0) return Math.min(...prices);
+  return tutor.tutorProfile.rate_per_semester;
+}
+
+/**
+ * Link previews.
+ *
+ * A tutor shares `/tutors/HC-T-…?course=ME%20255` in WhatsApp, and WhatsApp's
+ * crawler renders the OG title + description instead of the URL. The card
+ * therefore names the COURSE, not just the tutor — "ME 255 with Kofi Mensah —
+ * GH₵60/semester" is the thing a student is deciding about. Next's
+ * `htmlLimitedBots` list includes WhatsApp, so this metadata is awaited and
+ * blocking for that crawler (nothing streams past it).
+ *
+ * The canonical URL keeps `?course=` so Google treats the per-course link as
+ * the same page rather than a duplicate.
+ */
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ code: string }>;
+  searchParams: Promise<{ course?: string | string[] }>;
 }): Promise<Metadata> {
-  const { code } = await params;
-  const tutor = await getTutorByPublicCode(decodeURIComponent(code));
-  const name = tutor?.profile.full_name || "Harcourt tutor";
+  const [{ code }, query] = await Promise.all([params, searchParams]);
+  const tutor = await getTutorByPublicCode(code);
+
+  if (!tutor) {
+    return {
+      title: "Tutor not found — Harcourt",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const name = tutor.profile.full_name || "Harcourt tutor";
+  const wanted = typeof query.course === "string" ? query.course : null;
+  const focused = findFocusedOffering(tutor, wanted);
+  const price = lowestOfferingPrice(tutor);
+
+  const courseLabel = focused
+    ? focused.course.code
+      ? `${focused.course.code} — ${focused.course.name}`
+      : focused.course.name
+    : null;
+
+  const priceLabel = price != null ? `GH₵${price.toLocaleString()}` : null;
+
+  const title = courseLabel
+    ? `${courseLabel} with ${name}${priceLabel ? ` — ${priceLabel}/semester` : ""}`
+    : `${name} — verified tutor${priceLabel ? ` from ${priceLabel}/semester` : ""}`;
+
+  const description = courseLabel
+    ? `Book ${name} for ${courseLabel} at KNUST. Verified by Harcourt${
+        priceLabel ? `, ${priceLabel} per semester` : ""
+      }. Payments are handled by the Harcourt team, never the tutor.`
+    : tutor.tutorProfile.bio ??
+      `Book ${name} for KNUST engineering tutoring on Harcourt Educational Consult.`;
+
+  const canonicalPath = tutorSharePath(
+    tutor.profile.public_code ?? code,
+    focused
+      ? { id: focused.course.id, code: focused.course.code ?? null }
+      : null,
+  );
+
+  // Rendered by /api/og/tutor (ImageResponse) so every shared link gets a
+  // branded card with the tutor and course on it, even before anyone uploads
+  // a photo. The card's bundled font has no cedi glyph (U+20B5), so the IMAGE
+  // says "GHS 60/semester" while the title/description above keep GH₵ — a
+  // missing-glyph box is worse than the ISO code.
+  const ogPrice = price != null ? `GHS ${price.toLocaleString()}/semester` : "";
+  const ogImage = siteUrl(
+    `/api/og/tutor?${new URLSearchParams({
+      name,
+      ...(courseLabel ? { course: courseLabel } : {}),
+      ...(ogPrice ? { price: ogPrice } : {}),
+    }).toString()}`,
+  );
+
   return {
-    title: `${name} — tutor profile`,
-    description:
-      tutor?.tutorProfile.bio ??
-      `Book ${name} for KNUST engineering tutoring on Harcourt Educational Consult.`,
-    robots: { index: Boolean(tutor) },
+    title,
+    description,
+    alternates: { canonical: siteUrl(canonicalPath) },
+    openGraph: {
+      type: "profile",
+      siteName: SITE_NAME,
+      url: siteUrl(canonicalPath),
+      title,
+      description,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImage],
+    },
+    robots: { index: true, follow: true },
   };
 }
 
@@ -55,14 +169,17 @@ export default async function TutorProfilePage({
   searchParams,
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ course?: string | string[] }>;
+  searchParams: Promise<{ course?: string | string[]; request?: string | string[] }>;
 }) {
   const [{ code }, query, profile] = await Promise.all([
     params,
     searchParams,
     getCurrentProfile(),
   ]);
-  const tutor = await getTutorByPublicCode(decodeURIComponent(code));
+  // `getTutorByPublicCode` normalises the code (case, stray whitespace,
+  // half-encoded links), so a mangled share link still resolves instead of
+  // showing "page not found".
+  const tutor = await getTutorByPublicCode(code);
   if (!tutor) notFound();
 
   const { tutorProfile: tp, profile: tutorUser, services, courses } = tutor;
@@ -101,6 +218,17 @@ export default async function TutorProfilePage({
   const offerings = focused
     ? [focused, ...allOfferings.filter((o) => o !== focused)]
     : allOfferings;
+
+  /**
+   * Return-from-auth (`?course=…&request=1`, set by RequestTutorButton when a
+   * signed-out visitor taps Request): open the request dialog automatically on
+   * the course the link named — the whole point of sending them through auth
+   * instead of dropping them on the dashboard. `RequestTutorButton` then
+   * strips `request=1` so a refresh does not reopen it.
+   */
+  const wantsRequest =
+    (typeof query.request === "string" ? query.request : "") === "1";
+  const autoOpenCourseId = focused?.courseId ?? offerings[0]?.courseId;
 
   /**
    * "From" price: the cheapest format this tutor actually offers. The legacy
@@ -277,6 +405,14 @@ export default async function TutorProfilePage({
                         // button that is already set to the course the tutor
                         // sent — and every other row is right too.
                         defaultCourseId={o.courseId}
+                        // A signed-out student who taps Request comes back to
+                        // THIS row's course with the dialog open, rather than
+                        // to a generic dashboard.
+                        profilePath={tutorSharePath(
+                          tutorUser.public_code ?? code,
+                          { id: o.courseId, code: o.course.code ?? null },
+                        )}
+                        autoOpen={wantsRequest && o.courseId === autoOpenCourseId}
                         offerings={offerings.map((off) => ({
                           courseId: off.courseId,
                           name: off.course.name,

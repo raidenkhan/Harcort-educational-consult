@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
+import { safeNextPath } from "@/lib/auth/redirect";
 import { OnboardingForm } from "@/components/auth/OnboardingForm";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { Container } from "@/components/ui/Container";
@@ -13,12 +14,21 @@ import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
  * The session format (one-on-one vs group) is not asked here — it is chosen
  * when the student books a tutor.
  */
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
   const profile = await requireProfile();
+  const { next: rawNext } = await searchParams;
+  // A deep link that survived the Google round-trip (see the callback). Only a
+  // same-site path is accepted, so this can never become an open redirect.
+  const next = safeNextPath(typeof rawNext === "string" ? rawNext : null);
+  const after = next ?? "/dashboard";
 
   // Already onboarded, or an admin that can't self-pick a role — move on.
   if (profile.onboarding_completed_at || profileIsAdmin(profile)) {
-    redirect("/dashboard");
+    redirect(after);
   }
 
   return (
@@ -37,7 +47,7 @@ export default async function OnboardingPage() {
             later from your dashboard.
           </p>
 
-          <OnboardingForm />
+          <OnboardingForm next={next} />
 
           <p className="mt-4 text-center text-xs leading-relaxed text-slate-400">
             Tutors set up a profile that needs admin approval before appearing

@@ -15,7 +15,16 @@ import { cn } from "@/lib/cn";
 
 export type AuthTab = "sign-in" | "sign-up";
 
-const AuthModalContext = createContext<{ open: (tab: AuthTab) => void }>({
+/**
+ * `open(tab, next?)` — the optional `next` is a same-site path to land on after
+ * auth. It exists because a share link is opened signed-out: tapping Request on
+ * `/tutors/HC-T-…?course=ME%20255` must come back to THAT course with the
+ * request dialog open, not to a generic dashboard. The server validates the
+ * value with `safeNextPath`, so this is only a carrier.
+ */
+const AuthModalContext = createContext<{
+  open: (tab: AuthTab, next?: string | null) => void;
+}>({
   open: () => {},
 });
 
@@ -99,19 +108,25 @@ export function AuthModalProvider({ children }: { children: React.ReactNode }) {
     getNextUrlServerSnapshot,
   );
   const [tab, setTab] = useState<AuthTab | null>(null);
+  // A caller-supplied return path (see `open`). Null means "use ?next= from the
+  // URL", which is how the middleware and /pay/[token] arrive.
+  const [nextOverride, setNextOverride] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
   const isOpen = tab !== null || urlTab !== null;
   const activeTab: AuthTab = tab ?? urlTab ?? "sign-in";
+  const activeNext = nextOverride ?? nextPath;
 
-  const open = useCallback((next: AuthTab) => {
+  const open = useCallback((next: AuthTab, after?: string | null) => {
     triggerRef.current = document.activeElement as HTMLElement | null;
+    setNextOverride(after ?? null);
     setTab(next);
   }, []);
 
   const close = useCallback(() => {
     setTab(null);
+    setNextOverride(null);
     clearAuthFromUrl();
   }, []);
 
@@ -223,7 +238,7 @@ export function AuthModalProvider({ children }: { children: React.ReactNode }) {
                 : "Join Harcourt as a student or a tutor."}
             </p>
 
-            {activeTab === "sign-in" ? <SignInFields next={nextPath} /> : <SignUpFields next={nextPath} />}
+            {activeTab === "sign-in" ? <SignInFields next={activeNext} /> : <SignUpFields next={activeNext} />}
 
             <p className="mt-6 text-center text-sm text-slate-500">
               {activeTab === "sign-in" ? (

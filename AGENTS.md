@@ -430,6 +430,54 @@ mobile app.
   error a tutor hit. They now go through `optionalLine()` (preprocess →
   `.optional()`), `createSessionSchema`'s `topic`/`location` go through
   `optionalText()`, and `tutors/schemas.test.ts` pins the null and blank shapes.
+- **Share links that survive real chat apps, and previews that name the
+  course.** Two complaints, one root cause each. (1) **"the first links lead
+  to 'this page was not found'"** — `/tutors/[code]` compared the URL segment
+  to `profiles.public_code` exactly, so the variants a messaging app produces
+  (`/tutors/hc-t-epbrrc` lowercased, `/tutors/HC-T-EPBRRC%20` with the space
+  WhatsApp appends when it auto-links a sentence) queried Postgres with a value
+  that cannot match and rendered the not-found UI.
+  `normalizeTutorCode()` in `services/tutors/share.ts` now decodes safely
+  (a truncated `%` escape must not 500), strips every whitespace class
+  (including NBSP/zero-width) and upper-cases, and `getTutorByPublicCode`
+  normalises **before** the `unstable_cache` key so all variants share one
+  entry. `/tutors/[code]/not-found.tsx` replaces the bare Next 404 with an
+  explanation and a directory link. (2) **A WhatsApp preview showed a bare
+  URL** because the profile had no Open Graph tags.
+  `generateMetadata` now emits `og:*` + `twitter:summary_large_image` + a
+  canonical, and names the **course** when the link carries `?course=`
+  ("ME 255 — Thermodynamics with Kofi Mensah — GH₵60/semester"). The image is
+  rendered by `/api/og/tutor` (`ImageResponse`) from query params only — no DB
+  read, `immutable` caching — and uses **`GHS` not `GH₵`** because the card's
+  bundled font has no cedi glyph (U+20B5 renders as a box). `SITE_URL` now
+  falls back to `VERCEL_PROJECT_PRODUCTION_URL` / `VERCEL_URL` before
+  localhost, so a deployment without `APP_URL` still emits real origins in
+  canonicals and image URLs.
+- **Return-to-course after auth, and semester-grouped student courses.** A
+  signed-out student who taps **Request** on a per-course share link used to
+  land on `/dashboard` after signing in, with no way back to the course they
+  were looking at. `RequestTutorButton` now builds
+  `/tutors/HC-T-…?course=<course>&request=1` and hands it to the auth modal
+  (`open(tab, next)` — the modal's `nextOverride`; the form posts it and
+  `safeNextPath` validates it), so after sign-in they land on **that tutor's
+  that course** with the request dialog already open. The marker is stripped
+  from the URL after it fires so a refresh does not reopen it. Separately, the
+  student dashboard's "Courses for your program" list was one flat year; it now
+  uses `groupCoursesForPicker` for "Level 200 · Semester 1 / Semester 2 / Both
+  semesters" headings with per-section counts — the same vocabulary as
+  `/courses`.
+- **Paystack fees are charged to the student (0034).** Paystack deducts its
+  processing fee from what it collects, so a GH₵60 course netted Harcourt
+  GH₵58.83. Checkout now charges `course fee + Paystack fee` and the agreement
+  receives exactly the course fee, so tutor earnings, payouts and the 0029
+  amount guards stay net. Ghana's published schedule is **1.95%, no flat fee,
+  no cap**, encoded in `services/payments/fees.ts` (`checkoutTotal`,
+  `paystackFeeConfig`; env-tunable, pure + unit-tested) and shown on the
+  paywall, `/pay/[token]`, and the dashboard pay button. The fee is stored on
+  the payment row (`payments.fee_amount`) at checkout and the webhook verifies
+  the gross charge against **that row**, then passes the **net** to
+  `payment_apply_verified_payment`. A database without 0034 detects the missing
+  column and absorbs the fee (charge = net) instead of breaking checkout.
 
 ---
 
@@ -509,6 +557,7 @@ and all are safe to re-run:
 | `0031_tutor_pricing_and_course_approval.sql` | `tutor_services.price_group` + `price_one_on_one` (both nullable = format not offered), backfilled from `price` so live group requests stay payable; a check keeps at least one usable price. `courses.is_approved` (default TRUE; seeded rows stay public) + `created_by_profile_id` for tutor-added courses, which are created FALSE and hidden until an admin approves; a case-insensitive unique index on `(subject, code)` dedupes a tutor adding a course that already exists |
 | `0032_payment_plans_and_links.sql` | `engagements.expected_full_payment_at` (the promised date the balance is settled). `payment_requests` — admin-issued, single-use part-payment links: SHA-256-hashed token, amount in pesewas, `open`/`paid`/`cancelled`, expiry, deny-all RLS. `payments.payment_request_id` ties the Paystack charge to its link so the webhook can mark it paid in the same transaction. `payment_apply_verified_payment` still re-checks the amount under a lock |
 | `0033_knust_mech_brochure_corrections.sql` | The department's brochure is authoritative: adds `EE 252 Electrical Engineering Machines` (Y3S2, 2 cr) and `ME 496 Human Factors and Ergonomics` (Y4S2, 3 cr) — the two courses 0030 dropped because their codes were duplicated in the printed tables |
+| `0034_payment_fee_passthrough.sql` | `payments.fee_amount` — the Paystack processing fee (pesewas) the student paid ON TOP of `amount`; the charge is `amount + fee_amount`, while `amount` stays the money applied to the installment. Also fixes `payment_apply_verified_payment`'s idempotency guard: it returned early for ANY row with the reference, so the `initialized` row written at checkout made the function mark the payment paid without ever crediting the installment. It now short-circuits only an already-`paid` row |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -591,6 +640,16 @@ Key security properties:
   agree; a pre-0031 row shows one `/semester` price, not the same number
   twice. Read amounts with `servicePrice()`/`formatPrices()` in
   `services/tutors/pricing.ts` — they tolerate the legacy `price` column.
+- **Paystack's fee is the student's (0034).** `checkoutTotal(net)` in
+  `services/payments/fees.ts` grosses up: the charge is `net + fee`, the
+  agreement gets exactly `net`. Never charge the net and hope the fee comes out
+  of Harcourt's margin. The fee is computed server-side at checkout, stored on
+  `payments.fee_amount`, and the webhook verifies `verified === amount + fee`
+  from **that row** (not from current config), then passes the **net** to
+  `payment_apply_verified_payment`. Display the total the student will actually
+  pay (`chargePesewas` / `checkout.totalPesewas`), and show the fee line
+  separately. Read the rate through `paystackFeeConfig()`; the defaults are
+  Paystack Ghana's published 1.95%, no flat fee, no cap.
 
 ---
 
@@ -609,6 +668,10 @@ APP_URL=                      # optional — public origin for email links (defa
 ANALYTICS_SALT=               # optional — extra salt for the page-view visitor hash (0025)
 PAYSTACK_SECRET_KEY=          # Paystack secret (sk_test_… / sk_live_…) — server only
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=  # only if a client-side Paystack popup is added
+PAYSTACK_FEE_PASSTHROUGH=1    # 0034 — charge Paystack's fee to the student (0 = absorb it)
+PAYSTACK_FEE_PERCENT=1.95     # Ghana schedule; override if Paystack changes pricing
+PAYSTACK_FEE_FIXED_PESEWAS=0  # flat component (Ghana 0; Nigeria 10000 = NGN 100)
+PAYSTACK_FEE_CAP_PESEWAS=     # optional cap on the fee passed to the student
 SMS_PROVIDER=arkesel          # sms provider: arkesel (default) | mnotify | hubtel
 SMS_API_KEY=                  # provider API key (server only) — falls back to ARKESEL_API_KEY
 SMS_SENDER_ID=                # sender on the handset (≤11 chars) — must be approved in Ghana

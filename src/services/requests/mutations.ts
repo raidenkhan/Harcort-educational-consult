@@ -14,6 +14,7 @@ import {
   type SessionMode,
 } from "@/services/auth/sessionFormat";
 import { servicePrice, type PricedService } from "@/services/tutors/pricing";
+import { checkoutTotal } from "@/services/payments/fees";
 import {
   paymentPlanRequestSchema,
   sendRequestSchema,
@@ -37,6 +38,10 @@ export interface RequestPaywall {
   totalPesewas: number;
   /** The full semester fee, due up front (0029) — what the paywall charges. */
   duePesewas: number;
+  /** Paystack's processing fee, added on top and paid by the student (0034). */
+  feePesewas: number;
+  /** What Paystack actually charges: duePesewas + feePesewas. */
+  chargePesewas: number;
 }
 
 export type RequestFormState = {
@@ -331,6 +336,11 @@ async function resolvePaywall(
   const totalPesewas = Math.round(amount * 100);
   if (totalPesewas <= 0) return null;
 
+  // 0034 — the student also covers Paystack's processing fee, so the paywall
+  // must show the exact amount their card/MoMo will be charged. Computed with
+  // the same helper checkout uses; the row stores the result at init.
+  const checkout = checkoutTotal(BigInt(totalPesewas));
+
   return {
     requestId,
     tutorServiceId: row.id,
@@ -339,6 +349,8 @@ async function resolvePaywall(
     totalPesewas,
     // 0029: 100% upfront — the whole semester fee is due at the paywall.
     duePesewas: totalPesewas,
+    feePesewas: Number(checkout.feePesewas),
+    chargePesewas: Number(checkout.totalPesewas),
   };
 }
 

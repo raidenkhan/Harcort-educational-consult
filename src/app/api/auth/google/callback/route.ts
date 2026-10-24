@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeNextPath } from "@/lib/auth/redirect";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
 import {
   exchangeGoogleCode,
@@ -29,17 +30,24 @@ export async function GET(request: NextRequest) {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
 
-  const bounce = (reason: string) =>
-    NextResponse.redirect(
-      new URL(`/?auth=sign-in&google_error=${reason}`, request.url),
-    );
+  // The deep link captured when the flow started. Read once, delete before any
+  // branch so a failed attempt cannot leave a stale target behind.
+  const cookieStore = await cookies();
+  const next = safeNextPath(cookieStore.get("google_oauth_next")?.value);
+  cookieStore.delete("google_oauth_next");
+
+  const bounce = (reason: string) => {
+    const params = new URLSearchParams({ auth: "sign-in", google_error: reason });
+    // Keep the destination across a retry — the student is mid-flow, not lost.
+    if (next) params.set("next", next);
+    return NextResponse.redirect(new URL(`/?${params}`, request.url));
+  };
 
   if (!isGoogleConfigured() || !code || !state) {
     return bounce("invalid_request");
   }
 
   // CSRF: the state must match the cookie we set before redirecting to Google.
-  const cookieStore = await cookies();
   const expectedState = cookieStore.get("google_oauth_state")?.value;
   cookieStore.delete("google_oauth_state");
   if (!expectedState || expectedState !== state) {
@@ -77,7 +85,9 @@ export async function GET(request: NextRequest) {
 
   // Brand-new Google accounts (onboarding_completed_at null — the RPC stamps
   // it when it LINKS an existing account) land on a one-time role pick;
-  // returning accounts go straight to the dashboard.
+  // returning accounts go straight to their destination. Either way a deep
+  // link captured at the start of the flow wins over /dashboard — the
+  // /onboarding picker forwards it to the role action.
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("onboarding_completed_at")
@@ -89,8 +99,8 @@ export async function GET(request: NextRequest) {
   // gate on their next Google sign-in).
   const destination =
     profileError || profile?.onboarding_completed_at
-      ? "/dashboard"
-      : "/onboarding";
+      ? (next ?? "/dashboard")
+      : `/onboarding${next ? `?next=${encodeURIComponent(next)}` : ""}`;
 
   return NextResponse.redirect(new URL(destination, request.url));
 }

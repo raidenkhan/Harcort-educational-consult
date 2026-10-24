@@ -3,12 +3,26 @@
  * social links. Every SEO surface (metadata, sitemap, robots, manifest,
  * JSON-LD) imports from here so they can never drift apart.
  *
- * APP_URL (from .env.local) is the public origin, e.g. https://harcourt.com.gh.
- * In dev it defaults to http://localhost:3000 so sitemap/OG URLs resolve.
+ * `APP_URL` (from .env.local) is the public origin, e.g. https://harcourt.com.gh.
+ *
+ * Fallbacks matter in production: `APP_URL` is optional, and a Vercel
+ * deployment that never set it would otherwise emit `http://localhost:3000`
+ * into every canonical URL, sitemap entry and Open Graph image — which is
+ * exactly what WhatsApp's crawler would fetch. Vercel exposes its own
+ * production domain, so use that before localhost.
  */
 
+const vercelHost =
+  process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL ?? "";
+
 export const SITE_URL =
-  process.env.APP_URL?.replace(/\/+$/, "") || "http://localhost:3000";
+  process.env.APP_URL?.replace(/\/+$/, "") ||
+  (vercelHost
+    ? `https://${vercelHost
+        .replace(/^https?:\/\//, "")
+        .replace(/\/+$/, "")}`
+    : "") ||
+  "http://localhost:3000";
 
 export const SITE_NAME = "Harcourt Educational Consult";
 

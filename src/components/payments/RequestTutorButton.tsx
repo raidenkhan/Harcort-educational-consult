@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Send, ShieldCheck } from "lucide-react";
-import { AuthTrigger } from "@/components/auth/AuthTrigger";
+import { useAuthModal } from "@/components/auth/AuthModal";
 import { sendTutorRequest } from "@/services/requests/mutations";
 import type { RequestFormState } from "@/services/requests/mutations";
 import { Button } from "@/components/ui/Button";
@@ -57,6 +57,8 @@ export function RequestTutorButton({
   signedIn,
   className,
   defaultCourseId,
+  profilePath,
+  autoOpen = false,
 }: {
   tutorProfileId: string;
   offerings: TutorOffering[];
@@ -66,8 +68,18 @@ export function RequestTutorButton({
    *  and a profile row both name one, so the form never starts on the wrong
    *  course. */
   defaultCourseId?: string;
+  /** The tutor's public profile path (`/tutors/HC-T-…`). A signed-out visitor
+   *  who taps Request is sent through auth and lands back HERE, on this
+   *  course, with the dialog open — not on a generic dashboard. */
+  profilePath?: string;
+  /** `?request=1` on the profile URL: open the dialog as soon as it mounts
+   *  (set by the post-sign-in redirect). */
+  autoOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const { open: openAuth } = useAuthModal();
+  // A return-from-auth URL carries `?request=1`, so the dialog is open on the
+  // FIRST render — no flash of the closed button.
+  const [open, setOpen] = useState(autoOpen);
   const [state, formAction, pending] = useActionState<RequestFormState, FormData>(
     sendTutorRequest,
     {},
@@ -82,13 +94,46 @@ export function RequestTutorButton({
   const [courseId, setCourseId] = useState(initial?.courseId ?? "");
   const [mode, setMode] = useState<SessionMode>(modesFor(initial)[0]);
 
-  // Signed-out visitors get the auth modal — same session-aware pattern
-  // as ContactTutorButton.
+  /**
+   * Return-from-sign-in: the auth form posts a `next` path that comes back to
+   * this page with `?course=…&request=1`. The dialog is already open (state
+   * above); drop the marker so a refresh — or a URL the student copies out of
+   * the address bar — does not re-open it.
+   */
+  useEffect(() => {
+    if (!autoOpen) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("request") !== "1") return;
+    url.searchParams.delete("request");
+    window.history.replaceState(
+      null,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }, [autoOpen]);
+
+  // Signed-out visitors go through auth and come back to this exact course.
+  // The auth form validates `next` server-side (safeNextPath) — this only
+  // builds a same-site path.
   if (!signedIn) {
     return (
-      <AuthTrigger tab="sign-up" className={className}>
+      <button
+        type="button"
+        className={className}
+        onClick={() => {
+          const target = new URL(
+            profilePath ?? window.location.pathname,
+            window.location.origin,
+          );
+          if (initial?.courseId) {
+            target.searchParams.set("course", initial.courseId);
+          }
+          target.searchParams.set("request", "1");
+          openAuth("sign-up", `${target.pathname}${target.search}`);
+        }}
+      >
         Request
-      </AuthTrigger>
+      </button>
     );
   }
 
@@ -146,23 +191,31 @@ export function RequestTutorButton({
                 Request sent — payment required
               </p>
               <h3 className="mt-2 font-display text-xl font-bold tracking-[-0.01em] text-slate-900">
-                {formatGhs(BigInt(paywall.duePesewas))} to start
+                {formatGhs(BigInt(paywall.chargePesewas))} to start
               </h3>
               <p className="mt-1 text-sm leading-relaxed text-slate-700">
                 Full semester fee of{" "}
                 {formatGhs(BigInt(paywall.totalPesewas))} for{" "}
                 <span className="font-medium">{paywall.courseName}</span> with{" "}
-                <span className="font-medium">{paywall.tutorName}</span> — paid
-                up front (0029: no installment split).
+                <span className="font-medium">{paywall.tutorName}</span>
+                {paywall.feePesewas > 0 && (
+                  <>
+                    , plus a{" "}
+                    {formatGhs(BigInt(paywall.feePesewas))} Paystack service
+                    fee
+                  </>
+                )}{" "}
+                — paid up front (0029: no installment split).
               </p>
               <p className="mt-1 text-xs leading-relaxed text-slate-500">
                 Paying now holds your place; the tutor then confirms the
-                timetable. Payments go to Harcourt, never to the tutor.
+                timetable. Payments go to Harcourt, never to the tutor. The
+                service fee is what Paystack charges to process the payment.
               </p>
               <div className="mt-4">
                 <CommitToCourseButton
                   tutorServiceId={paywall.tutorServiceId}
-                  label={`Pay ${formatGhs(BigInt(paywall.duePesewas))} now`}
+                  label={`Pay ${formatGhs(BigInt(paywall.chargePesewas))} now`}
                   signedIn
                   className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-brand-600 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-brand-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                 />

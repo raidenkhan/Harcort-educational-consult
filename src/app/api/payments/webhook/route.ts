@@ -134,33 +134,46 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
 
   // Our row (written at checkout init) supplies the engagement/installment
-  // mapping — never the payload. `payment_request_id` (0032) is read in a
-  // separate, tolerant pass so a pre-0032 database still reconciles.
-  const readPayment = (withLink: boolean) => {
-    const columns = withLink
-      ? "id, engagement_id, installment_id, status, amount, payment_request_id"
-      : "id, engagement_id, installment_id, status, amount";
-    return supabase
+  // mapping — never the payload. `fee_amount` (0034) and
+  // `payment_request_id` (0032) are read tolerantly: a database that hasn't
+  // applied one of those migrations must still reconcile.
+  const baseColumns = ["id", "engagement_id", "installment_id", "status", "amount"];
+  const optionalColumns = ["fee_amount", "payment_request_id"];
+
+  const readPayment = (columns: string[]) =>
+    supabase
       .from("payments")
-      .select(columns)
+      .select(columns.join(", "))
       .eq("paystack_reference", reference)
       .maybeSingle();
-  };
 
-  const firstRead = await readPayment(true);
-  let paymentRow = firstRead.data;
-  if (firstRead.error && isMissingColumn(firstRead.error)) {
-    const retry = await readPayment(false);
-    paymentRow = retry.data;
+  let columns = [...baseColumns, ...optionalColumns];
+  let paymentResult = await readPayment(columns);
+  while (
+    paymentResult.error &&
+    isMissingColumn(paymentResult.error) &&
+    columns.length > baseColumns.length
+  ) {
+    // PostgREST names the column it couldn't find ("Could not find the
+    // 'fee_amount' column…"). Drop it and retry; if the message doesn't name
+    // one, fall back to the columns every version has.
+    const message = paymentResult.error.message ?? "";
+    const missing = optionalColumns.filter((column) => message.includes(column));
+    columns =
+      missing.length > 0
+        ? columns.filter((column) => !missing.includes(column))
+        : baseColumns;
+    paymentResult = await readPayment(columns);
   }
 
-  const row = paymentRow as
+  const row = paymentResult.data as
     | {
         id: string;
         engagement_id: string;
         installment_id: string;
         status: string;
         amount: string | number;
+        fee_amount?: string | number | null;
         payment_request_id?: string | null;
       }
     | null;
@@ -183,8 +196,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, verifyStatus: txn.status });
     }
 
-    // Amount comes from the VERIFY response, not the webhook body.
+    // Amount comes from the VERIFY response, not the webhook body. Since
+    // 0034 the student is charged the course amount PLUS Paystack's fee; the
+    // stored row is the authority on both, and the agreement receives only
+    // the course amount (so the 0029 guards and tutor earnings stay net).
     const verifiedAmount = BigInt(txn.amount);
+    const courseAmount = pesewasFrom(row.amount);
+    const feeAmount = pesewasFrom(row.fee_amount);
+    if (verifiedAmount !== courseAmount + feeAmount) {
+      // A charge we cannot map exactly is never applied on a guess. Ack so
+      // Paystack stops retrying, and log loudly for reconciliation.
+      console.error(
+        `[payments] amount mismatch for ${reference}: expected ${courseAmount + feeAmount} (course ${courseAmount} + fee ${feeAmount}), verified ${verifiedAmount}`,
+      );
+      return NextResponse.json({ received: true, refused: "amount_mismatch" });
+    }
 
     const { data: appliedId, error: applyError } = await supabase.rpc(
       "payment_apply_verified_payment",
@@ -192,7 +218,7 @@ export async function POST(request: NextRequest) {
         p_engagement_id: row.engagement_id,
         p_installment_id: row.installment_id,
         p_paystack_reference: reference,
-        p_amount: verifiedAmount.toString(),
+        p_amount: courseAmount.toString(),
         p_currency: txn.currency,
         p_paystack_status: txn.status,
         p_raw: JSON.parse(rawBody) as object,
@@ -226,7 +252,9 @@ export async function POST(request: NextRequest) {
 
     // Text the student that the money landed. Best-effort — the money is
     // already applied either way, and a failed text never rolls that back.
-    await textPaymentReceived(supabase, row.engagement_id, verifiedAmount);
+    // The amount is the course portion (what the ledger applied), not the
+    // gross that included Paystack's fee.
+    await textPaymentReceived(supabase, row.engagement_id, courseAmount);
 
     return NextResponse.json({ received: true, payment: appliedId });
   } catch (err) {
@@ -238,8 +266,9 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Tell the student their payment landed. The amount comes from Paystack's
- * verified response, never from the webhook body.
+ * Tell the student their payment landed. The amount is the course portion of
+ * the verified charge (0034) — the part that was applied to their agreement,
+ * not the gross that included Paystack's fee.
  */
 async function textPaymentReceived(
   supabase: ReturnType<typeof createAdminClient>,
@@ -261,7 +290,17 @@ async function textPaymentReceived(
 
   notifySmsToProfiles(
     [row.student_id],
-    `Harcourt: we received your payment of ${formatGhs(amountPesewas)}. Thank you.`,
+    `Harcourt: we received your payment of ${formatGhs(amountPesewas)} toward your course fee. Thank you.`,
     "payment",
   );
+}
+
+/**
+ * PostgREST serializes BIGINT as a JSON number (or a string when it is very
+ * large), and `BigInt("250.00")` throws — normalise through Number first.
+ * Money here is whole pesewas, far inside the safe-integer range.
+ */
+function pesewasFrom(value: string | number | null | undefined): bigint {
+  if (value == null) return BigInt(0);
+  return BigInt(Math.round(Number(value)));
 }

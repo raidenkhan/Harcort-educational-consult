@@ -24,10 +24,36 @@ export function tutorSharePath(
   publicCode: string,
   course?: ShareableCourse | null,
 ): string {
-  const base = `/tutors/${encodeURIComponent(publicCode)}`;
+  const base = `/tutors/${encodeURIComponent(normalizeTutorCode(publicCode))}`;
   if (!course) return base;
   const ref = course.code?.trim() || course.id;
   return `${base}?course=${encodeURIComponent(ref)}`;
+}
+
+/**
+ * Normalise a tutor's public code (`HC-T-EPBRRC`).
+ *
+ * Why this exists: the code reaches the app from places we do not control — a
+ * WhatsApp message where the link was lowercased or auto-capitalised, a
+ * copied link with a trailing space (`HC-T-EPBRRC%20`), a phone keyboard that
+ * inserts a non-breaking space. Postgres compares `public_code` exactly, so
+ * every one of those variants used to render the not-found page. The codes are
+ * upper-case ASCII with single hyphens, so collapsing to that shape is lossless
+ * for a real code and forgiving for a mangled one.
+ *
+ * A malformed percent-escape (a link truncated mid-encode) must not throw —
+ * `decodeURIComponent` would, and the page would 500 instead of showing a
+ * friendly "not found". The raw value is used in that case.
+ */
+export function normalizeTutorCode(value: unknown): string {
+  if (typeof value !== "string") return "";
+  let decoded = value;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    decoded = value;
+  }
+  return decoded.replace(/[\s\u00a0\u200b]+/g, "").trim().toUpperCase();
 }
 
 /**

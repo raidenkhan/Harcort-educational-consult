@@ -92,7 +92,7 @@ function GoogleG() {
   );
 }
 
-export function GoogleAuthBlock() {
+export function GoogleAuthBlock({ next }: { next?: string | null }) {
   const googleError = useSyncExternalStore(
     subscribeToGoogleError,
     getGoogleErrorSnapshot,
@@ -101,6 +101,14 @@ export function GoogleAuthBlock() {
   const message = googleError
     ? (ERROR_MESSAGES[googleError] ?? "Google sign-in failed. Try again.")
     : null;
+
+  // A deep link (a tutor's course share link, a payment page) has to survive
+  // the Google round-trip too, so it rides along as a query param the route
+  // stashes in an httpOnly cookie. Validated server-side by safeNextPath on
+  // both ends — this href is only a carrier.
+  const href = next
+    ? `/api/auth/google?next=${encodeURIComponent(next)}`
+    : "/api/auth/google";
 
   return (
     <div className="mt-5">
@@ -111,7 +119,7 @@ export function GoogleAuthBlock() {
       )}
 
       <a
-        href="/api/auth/google"
+        href={href}
         onClick={clearGoogleError}
         className="flex w-full items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-50 active:scale-[0.96]"
       >

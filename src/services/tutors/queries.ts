@@ -8,6 +8,7 @@ import {
 } from "@/services/tutors/listing";
 import type { Course, TutorProfile, TutorService } from "@/types";
 import { readRate } from "./rate";
+import { normalizeTutorCode } from "./share";
 
 /**
  * Tutor queries.
@@ -78,7 +79,12 @@ export const listApprovedTutors = unstable_cache(
 export async function getTutorByPublicCode(
   code: string,
 ): Promise<TutorListing | null> {
-  if (!code) return null;
+  // Normalise BEFORE the cache key: a lowercased or space-suffixed link
+  // (`hc-t-epbrrc`, `HC-T-EPBRRC%20`) is the same tutor, so it must hit the
+  // same cache entry as the canonical code rather than minting a new one (and
+  // then querying Postgres with a value that cannot match).
+  const normalized = normalizeTutorCode(code);
+  if (!normalized) return null;
   return unstable_cache(
     async () => {
       const supabase = createAdminClient();
@@ -87,7 +93,7 @@ export async function getTutorByPublicCode(
         .select("*, profiles!inner(*), tutor_services(*, courses(*))")
         .eq("verification_status", "approved")
         .neq("profiles.role", "student")
-        .eq("profiles.public_code", code)
+        .eq("profiles.public_code", normalized)
         .limit(1);
       if (error) {
         throw new Error(`getTutorByPublicCode: ${error.message}`);
@@ -95,7 +101,7 @@ export async function getTutorByPublicCode(
       const rows = toTutorListings((data ?? []) as TutorProfileRow[]);
       return rows[0] ?? null;
     },
-    ["tutor-by-public-code", code],
+    ["tutor-by-public-code", normalized],
     { revalidate: 300, tags: ["tutors"] },
   )();
 }

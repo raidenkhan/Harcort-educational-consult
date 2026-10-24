@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
+import { safeNextPath } from "@/lib/auth/redirect";
 import {
   buildGoogleAuthUrl,
   getGoogleOAuthClient,
@@ -35,6 +36,22 @@ export async function GET(request: NextRequest) {
     path: "/",
     maxAge: 600, // 10 minutes to complete the flow
   });
+
+  // Where to land after the round-trip. A share link opened signed-out sends
+  // `/tutors/HC-T-…?course=…&request=1` here; without this cookie the student
+  // would finish Google sign-in on /dashboard and lose the course. The cookie
+  // is httpOnly and validated again on the way out (safeNextPath), so it is
+  // never a trusted redirect target — only a carrier.
+  const next = safeNextPath(request.nextUrl.searchParams.get("next"));
+  if (next) {
+    cookieStore.set("google_oauth_next", next, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 600,
+    });
+  }
 
   const authUrl = buildGoogleAuthUrl(getGoogleOAuthClient(origin), state);
   return NextResponse.redirect(authUrl);

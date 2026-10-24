@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search, GraduationCap, ShieldCheck, SearchX } from "lucide-react";
 import type { TutorListing } from "@/services/tutors/queries";
 import { formatPrices } from "@/services/tutors/pricing";
+import { tutorSharePath } from "@/services/tutors/share";
 import { ServicePrice } from "@/components/tutors/ServicePrice";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { RequestTutorButton } from "@/components/payments/RequestTutorButton";
@@ -165,17 +166,18 @@ function TutorCard({
   signedIn: boolean;
 }) {
   const { tutorProfile: tp, profile, services, courses } = tutor;
-  const courseNames = new Map(courses.map((c) => [c.id, c.name]));
+  const courseById = new Map(courses.map((c) => [c.id, c]));
   // 0031 — each offering carries one price per session format. Blank formats
   // are dropped here; the request dialog disables them.
   const offerings = services
     .map((s) => {
-      const name = courseNames.get(s.course_id);
-      if (!name) return null;
+      const course = courseById.get(s.course_id);
+      if (!course) return null;
       return {
         serviceId: s.id,
         courseId: s.course_id,
-        name,
+        name: course.name,
+        course,
         service: s,
         prices: formatPrices(s),
       };
@@ -272,6 +274,17 @@ function TutorCard({
               </span>
               <RequestTutorButton
                 tutorProfileId={tp.id}
+                // Each row's Request button is about THAT course, and a
+                // signed-out visitor comes back to it after auth.
+                defaultCourseId={o.courseId}
+                profilePath={
+                  profile.public_code
+                    ? tutorSharePath(profile.public_code, {
+                        id: o.courseId,
+                        code: o.course.code ?? null,
+                      })
+                    : undefined
+                }
                 offerings={offeringsForRequest}
                 signedIn={signedIn}
                 className="inline-flex h-7 shrink-0 items-center rounded-md bg-brand-600 px-2.5 text-[11px] font-semibold text-white shadow-xs transition hover:bg-brand-700 active:scale-[0.96]"

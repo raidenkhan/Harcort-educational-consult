@@ -3,7 +3,7 @@ import { CalendarClock } from "lucide-react";
 import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
 import { getOwnTutorProfile } from "@/services/tutors/queries";
 import { listCourses } from "@/services/courses/queries";
-import { sortFields, groupCoursesByYear, engineeringCourses } from "@/components/home/courseTaxonomy";
+import { sortFields, groupCoursesForPicker, engineeringCourses } from "@/components/home/courseTaxonomy";
 import {
   listSessionsForStudent,
   listSessionsForTutor,
@@ -81,7 +81,12 @@ export default async function DashboardPage() {
         (c) => profile.year == null || c.year == null || c.year === profile.year,
       )
     : [];
-  const yearBuckets = groupCoursesByYear(yearCourses);
+  // Grouped by TERM, not one flat list: a KNUST year carries roughly eight
+  // courses per semester, so "all of Level 200 at once" buries the structure
+  // the student is actually working in. The buckets are
+  // "Level 200 · Semester 1" / "… Semester 2" / "… Both semesters", the same
+  // vocabulary as the /courses directory and the tutor's course picker.
+  const courseBuckets = groupCoursesForPicker(yearCourses);
 
   const studentTimetable =
     profile.role === "student" ? splitStudentTimetable(studentSessions) : null;
@@ -164,13 +169,17 @@ export default async function DashboardPage() {
                   </p>
                 ) : (
                   <div className="mt-4 space-y-8">
-                    {yearBuckets.map((bucket) => (
-                      <div key={bucket.label}>
-                        {yearBuckets.length > 1 && (
+                    {courseBuckets.map((bucket) => (
+                      <div key={bucket.key}>
+                        <div className="flex flex-wrap items-baseline gap-2">
                           <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                             {bucket.label}
                           </h4>
-                        )}
+                          <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">
+                            {bucket.items.length}{" "}
+                            {bucket.items.length === 1 ? "course" : "courses"}
+                          </span>
+                        </div>
                         <ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                           {bucket.items.map((course) => (
                             <li key={course.id} className="h-full">
