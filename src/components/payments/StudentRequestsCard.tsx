@@ -73,7 +73,18 @@ function withPayable(
   });
 }
 
-export async function StudentRequestsCard() {
+export async function StudentRequestsCard({
+  hideWhenEmpty = false,
+}: {
+  /**
+   * Render nothing instead of the "how this works" placeholder when the
+   * student has no requests. The dashboard puts this card at the TOP (urgent
+   * first), where the placeholder would only push the courses down to say
+   * that nothing is waiting — a student with nothing pending should land on
+   * their courses instead.
+   */
+  hideWhenEmpty?: boolean;
+}) {
   const profile = await requireProfile();
   const [requests, engagements] = await Promise.all([
     listStudentRequests(profile),
@@ -83,6 +94,7 @@ export async function StudentRequestsCard() {
   const rows = withPayable(requests, engagements);
 
   if (rows.length === 0) {
+    if (hideWhenEmpty) return null;
     return (
       <Card className="border-dashed">
         <h2 className="text-lg font-semibold text-slate-900">My tutor requests</h2>

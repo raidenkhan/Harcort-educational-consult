@@ -251,7 +251,16 @@ mobile app.
   Everything runs after the response via Next's `after()` so sending never
   slows the primary action; when `RESEND_API_KEY` is unset every send is a
   silent no-op. Env: `RESEND_API_KEY`, `EMAIL_FROM` (verified-domain sender),
-  `APP_URL`.
+  `APP_URL`. **`deliver()` must read the SDK result, not just the absence of a
+  throw:** resend-node v6 RESOLVES on an API error with `{ data: null, error }`,
+  so the old `await client.emails.send(...)` made every rejection look like
+  success — `/forgot-password` told students a code had been sent when the
+  send had been refused. The returned error is logged raw and mapped by
+  `lib/email/errors.ts` (`emailErrorReason`, unit-tested) because Resend's
+  own wording for an unverified domain names the account owner's address, and
+  that string reaches the student. `onboarding@resend.dev` only delivers to
+  that owner's inbox — a verified domain (`EMAIL_FROM`) is what turns student
+  email on.
 - **SMS notifications (Arkesel).** `src/lib/sms.ts` — the text-message twin of
   the email module, and the only channel that reliably reaches a Ghanaian
   student. Every send is logged to `sms_messages` (0027) with the provider's
@@ -478,6 +487,42 @@ mobile app.
   the gross charge against **that row**, then passes the **net** to
   `payment_apply_verified_payment`. A database without 0034 detects the missing
   column and absorbs the fee (charge = net) instead of breaking checkout.
+- **Tutor profile photos.** Tutors upload a photo from the dashboard's "About
+  you" card (`AvatarUploadForm` → `uploadTutorAvatarAction`); it is validated
+  (JPG/PNG/WebP, ≤2 MB), resized to a 512×512 cover WebP with `sharp`, stored
+  in the PUBLIC `tutor-avatars` bucket and written to **`profiles.avatar_url`**
+  — the column Google sign-in already fills, so no migration was needed. The
+  upload runs server-side (no Supabase key in the browser); the browser reads
+  it through `next/image` (the Supabase host is in `images.remotePatterns`, so
+  the CSP `img-src 'self'` still holds). `components/ui/TutorAvatar` renders
+  the photo or a monogram fallback, and only shows an IMAGE for our own bucket
+  URLs (`isTutorAvatarUrl` in `lib/supabase/storage.ts`) — a Google avatar URL
+  is not in the image allowlist, so it falls back to initials rather than a
+  broken `<img>`. The bucket is created on first use (`ensureTutorAvatarBucket`),
+  and replaced photos delete their old object. Avatars show on the `/tutors`
+  directory cards, the `/tutors/[code]` profile and the tutor dashboard.
+- **Explicit session-format choice on the tutor's course form.** A course
+  offering's per-format prices (`price_one_on_one` / `price_group`, 0031) used
+  to mean "leave the price blank = not offered", which was easy to miss. The
+  tutor's course form now asks **how the course is offered — One-on-one /
+  Group / Both** — up front and renders only the matching price field(s); the
+  unoffered format is stored NULL so the request dialog greys it out with
+  "Not offered for this course." (the student-side wiring from 0031 already
+  did that). Re-adding a course with a format left out removes that format from
+  the offer.
+- **Student dashboard: requests first.** The student dashboard now leads with
+  **My tutor requests** (it carries the paywall and "pay now"), then the
+  payment ground-rules note, then "Courses for your program", then the money
+  view. `StudentRequestsCard` gained `hideWhenEmpty` so a student with no
+  requests lands on their courses instead of an explanatory placeholder.
+- **Resend send-failure honesty.** `deliver()` now reads the SDK result
+  instead of assuming success: resend-node v6 RESOLVES on an API error with
+  `{ data: null, error }` (it does not throw), so the old code returned null
+  for every rejection and `/forgot-password` claimed a code had been emailed
+  when it had not. The error is logged raw and mapped by `lib/email/errors.ts`
+  (`emailErrorReason`, unit-tested) because Resend's own wording names the
+  account owner's address. `onboarding@resend.dev` only reaches that owner's
+  inbox — a verified domain (`EMAIL_FROM`) is what turns student email on.
 
 ---
 

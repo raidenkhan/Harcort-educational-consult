@@ -13,6 +13,7 @@ import { signOutAction } from "@/services/auth/actions";
 import { RequestTutorButton } from "@/components/payments/RequestTutorButton";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
+import { TutorAvatar } from "@/components/ui/TutorAvatar";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Container } from "@/components/ui/Container";
@@ -303,9 +304,7 @@ export default async function TutorProfilePage({
           <Container className="relative py-10">
             <Card className="mx-auto max-w-3xl p-6 sm:p-8">
               <div className="flex flex-wrap items-start gap-4">
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-slate-900 font-display text-xl font-bold text-white">
-                  {name.charAt(0).toUpperCase()}
-                </span>
+                <TutorAvatar name={name} src={tutorUser.avatar_url} size={56} />
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2">
                     <span className="font-display text-2xl font-bold tracking-tight text-slate-900">

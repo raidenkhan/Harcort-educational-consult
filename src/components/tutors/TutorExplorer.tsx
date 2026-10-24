@@ -12,6 +12,7 @@ import { RequestTutorButton } from "@/components/payments/RequestTutorButton";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
+import { TutorAvatar } from "@/components/ui/TutorAvatar";
 import { cn } from "@/lib/cn";
 
 /**
@@ -206,9 +207,11 @@ function TutorCard({
   return (
     <Card hover className="flex flex-col">
       <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-slate-900 text-sm font-bold text-white">
-          {(profile.full_name || "T").charAt(0).toUpperCase()}
-        </span>
+        <TutorAvatar
+          name={profile.full_name || "Tutor"}
+          src={profile.avatar_url}
+          size={44}
+        />
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5">
             {/* 0031 — the card leads to the tutor's shareable profile page

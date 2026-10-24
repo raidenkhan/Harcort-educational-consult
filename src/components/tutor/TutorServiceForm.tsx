@@ -9,6 +9,7 @@ import {
 import { Field } from "@/components/ui/Field";
 import { Select, Input } from "@/components/ui/Fields";
 import { Button } from "@/components/ui/Button";
+import { cn } from "@/lib/cn";
 import {
   groupCoursesForPicker,
   levelLabel,
@@ -20,17 +21,44 @@ import type { Course } from "@/types";
 /**
  * Add (or re-price) a course offering (0031).
  *
- * Two prices, both optional: one-on-one and group (per student). A blank
- * format means "I don't teach this course that way" — the request dialog hides
- * it and the paywall refuses it, instead of quietly charging the other price.
- * The server enforces at least one, so the form says so rather than relying on
- * a `required` attribute that can only mark one input.
+ * The tutor picks how the course is offered — one-on-one, group, or both —
+ * and only the matching price field(s) render. An unoffered format is stored
+ * as NULL, so the request dialog disables it and the paywall refuses it,
+ * instead of quietly charging the other price. The server still enforces at
+ * least one price as a backstop (the form's `required` can only mark one
+ * input, and the format choice is the source of truth).
  *
  * The catalog picker is programme → course (grouped Level 100 · Semester 1 …),
  * because "ME 255" is how a tutor knows their own course. A course the
  * catalog doesn't have yet can be added by code; it is unpublished until an
  * admin approves it, but the tutor can price and teach it immediately.
  */
+
+/** The three ways a course can be offered. "both" is the default — most
+ *  tutors take a cohort and also do solo sessions. */
+type FormatChoice = "one_on_one" | "group" | "both";
+
+const FORMAT_CHOICES: ReadonlyArray<{
+  value: FormatChoice;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "one_on_one",
+    label: "One-on-one",
+    description: "Just you and the student, alone.",
+  },
+  {
+    value: "group",
+    label: "Group / cohort",
+    description: "A group of students learning together.",
+  },
+  {
+    value: "both",
+    label: "Both",
+    description: "Offer it both ways, at two prices.",
+  },
+];
 export function TutorServiceForm({ courses }: { courses: Course[] }) {
   const [state, formAction, pending] = useActionState<TutorFormState, FormData>(
     addTutorService,
@@ -40,6 +68,7 @@ export function TutorServiceForm({ courses }: { courses: Course[] }) {
   const subjects = sortFields(Array.from(new Set(courses.map((c) => c.subject))));
   const [subject, setSubject] = useState(subjects[0] ?? "");
   const [addingCourse, setAddingCourse] = useState(false);
+  const [formats, setFormats] = useState<FormatChoice>("both");
 
   const subjectCourses = courses.filter((c) => c.subject === subject);
   const groups = groupCoursesForPicker(subjectCourses);
@@ -197,39 +226,81 @@ export function TutorServiceForm({ courses }: { courses: Course[] }) {
         </>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field
-          label="One-on-one (GH₵ / semester)"
-          htmlFor="priceOneOnOne"
-          hint="Per student. Leave blank if you don't offer it."
-        >
-          <Input
-            id="priceOneOnOne"
-            name="priceOneOnOne"
-            type="number"
-            min={0}
-            step="0.01"
-            placeholder="e.g. 400"
-          />
-        </Field>
-        <Field
-          label="Group (GH₵ / semester)"
-          htmlFor="priceGroup"
-          hint="Per student in the group. Leave blank if you don't offer it."
-        >
-          <Input
-            id="priceGroup"
-            name="priceGroup"
-            type="number"
-            min={0}
-            step="0.01"
-            placeholder="e.g. 250"
-          />
-        </Field>
+      {/* How the course is offered. Picking a format here IS the choice of
+          what a student can request; the unoffered format is stored NULL and
+          the request dialog greys it out with "Not offered for this course." */}
+      <fieldset>
+        <legend className="block text-sm font-medium text-slate-700">
+          How do you offer this course?
+        </legend>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {FORMAT_CHOICES.map((choice) => {
+            const active = formats === choice.value;
+            return (
+              <button
+                key={choice.value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setFormats(choice.value)}
+                className={cn(
+                  "rounded-md border px-3 py-2.5 text-left transition",
+                  active
+                    ? "border-brand-600 bg-brand-50/60 ring-2 ring-brand-600/15"
+                    : "border-slate-200 bg-white hover:border-slate-300",
+                )}
+              >
+                <span className="block text-sm font-semibold text-slate-900">
+                  {choice.label}
+                </span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-slate-500">
+                  {choice.description}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      <div className={cn("grid gap-3", formats === "both" && "sm:grid-cols-2")}>
+        {(formats === "one_on_one" || formats === "both") && (
+          <Field
+            label="One-on-one price (GH₵ / semester)"
+            htmlFor="priceOneOnOne"
+            hint="Per student."
+          >
+            <Input
+              id="priceOneOnOne"
+              name="priceOneOnOne"
+              type="number"
+              min={0}
+              step="0.01"
+              required
+              placeholder="e.g. 400"
+            />
+          </Field>
+        )}
+        {(formats === "group" || formats === "both") && (
+          <Field
+            label="Group price (GH₵ / semester)"
+            htmlFor="priceGroup"
+            hint="Per student in the group."
+          >
+            <Input
+              id="priceGroup"
+              name="priceGroup"
+              type="number"
+              min={0}
+              step="0.01"
+              required
+              placeholder="e.g. 250"
+            />
+          </Field>
+        )}
       </div>
       <p className="text-xs text-slate-500">
-        Set at least one price. Re-adding a course you already teach updates
-        its prices.
+        Re-adding a course you already teach updates its prices — a format you
+        leave out is removed from your offer, so pick “Both” if you still take
+        it both ways.
       </p>
 
       <Button variant="dark" type="submit" disabled={pending}>

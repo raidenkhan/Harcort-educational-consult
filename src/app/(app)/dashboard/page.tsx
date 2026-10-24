@@ -120,6 +120,17 @@ export default async function DashboardPage() {
           }
         />
 
+        {/* Urgent first: an open request is the thing a student most needs to
+            see — it carries the paywall and the "pay now" button. The ground
+            rules note sits right after it because it explains that payment
+            policy, then the courses follow. */}
+        {profile.role === "student" && (
+          <div className="mt-10">
+            <StudentRequestsCard hideWhenEmpty />
+          </div>
+        )}
+        {profile.role === "student" && <PaymentGroundRules className="mt-8" />}
+
         {/* Your program — per-program personalization (board flow: Program →
             Year → Course → Materials → Tutors). Students pick what they study
             and the year they're in; the dashboard leads with that program's
@@ -222,16 +233,6 @@ export default async function DashboardPage() {
               </div>
             )}
           </section>
-        )}
-
-        {/* Payment ground rules — the admin-only-payments policy, front and center. */}
-        {profile.role === "student" && <PaymentGroundRules className="mt-8" />}
-
-        {/* Requests first (request-first flow), then the money view. */}
-        {profile.role === "student" && (
-          <div className="mt-10">
-            <StudentRequestsCard />
-          </div>
         )}
 
         {/* The money view: engagements + semester fee + pay buttons. */}

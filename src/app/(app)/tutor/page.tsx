@@ -4,6 +4,7 @@ import { listCourses } from "@/services/courses/queries";
 import { ServicePrice } from "@/components/tutors/ServicePrice";
 import { TutorProfileForm } from "@/components/tutor/TutorProfileForm";
 import { TutorServiceForm } from "@/components/tutor/TutorServiceForm";
+import { AvatarUploadForm } from "@/components/tutor/AvatarUploadForm";
 import { PhoneForm } from "@/components/auth/PhoneForm";
 import { SmsPreferenceForm } from "@/components/auth/SmsPreferenceForm";
 import { CopyProfileLink } from "@/components/tutor/CopyProfileLink";
@@ -28,12 +29,24 @@ export default async function TutorOverviewPage() {
     <div className="mt-10 grid gap-8 lg:grid-cols-2">
       <Card>
         <h2 className="text-lg font-semibold text-slate-900">About you</h2>
-        <TutorProfileForm
-          initial={{
-            bio: tutor.profile?.bio ?? "",
-            qualifications: tutor.profile?.qualifications ?? "",
-          }}
-        />
+        <p className="mt-1 text-sm text-slate-500">
+          Your photo, bio and qualifications are what students see on your card
+          and profile.
+        </p>
+        <div className="mt-4">
+          <AvatarUploadForm
+            name={profile.full_name}
+            currentUrl={profile.avatar_url ?? null}
+          />
+        </div>
+        <div className="mt-6 border-t border-slate-100 pt-5">
+          <TutorProfileForm
+            initial={{
+              bio: tutor.profile?.bio ?? "",
+              qualifications: tutor.profile?.qualifications ?? "",
+            }}
+          />
+        </div>
       </Card>
 
       <div className="space-y-6">

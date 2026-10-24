@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { EMAIL_FROM, getEmailClient, isEmailConfigured, APP_URL } from "./client";
+import { emailErrorReason } from "./errors";
 import { adminEmails, emailsForProfiles } from "./recipients";
 import {
   attendanceConfirmedEmail,
@@ -22,25 +23,34 @@ import {
  */
 
 /** Best-effort send; returns the error string (or null) instead of throwing.
- *  Also consumed by the notification-outbox drain (lib/email/outbox.ts). */
+ *  Also consumed by the notification-outbox drain (lib/email/outbox.ts).
+ *
+ *  ⚠️ The Resend SDK RESOLVES on an API error — it returns `{ data, error }`
+ *  and only throws on a network/SDK fault. Reading just the absence of a throw
+ *  made every rejection (unverified domain, quota, revoked key) look like
+ *  success, so /forgot-password told the student a code was on its way when
+ *  nothing had left. Both paths now return a reason.
+ */
 export async function deliver(to: string, message: EmailMessage): Promise<string | null> {
   const client = getEmailClient();
   if (!client) return "Email isn't configured (missing RESEND_API_KEY).";
   try {
-    await client.emails.send({
+    const { error } = await client.emails.send({
       from: EMAIL_FROM,
       to,
       subject: message.subject,
       text: message.text,
       html: message.html,
     });
-    return null;
+    if (!error) return null;
+    // Server log keeps the real thing (statusCode, Resend's wording); the user
+    // gets a mapped sentence — see errors.ts for why the raw one can't ship.
+    console.error(`[email] failed to send "${message.subject}" to ${to}`, error);
+    return emailErrorReason(error);
   } catch (err) {
-    const reason =
-      (err as { response?: { data?: { message?: string } } })?.response?.data
-        ?.message ?? (err as Error).message;
+    // Network failure or an unexpected SDK throw.
     console.error(`[email] failed to send "${message.subject}" to ${to}`, err);
-    return reason || "Unknown email error";
+    return emailErrorReason(err as { name?: string; message?: string });
   }
 }
 

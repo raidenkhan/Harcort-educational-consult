@@ -12,6 +12,25 @@ import type { NextConfig } from "next";
  */
 const isDev = process.env.NODE_ENV !== "production";
 
+/** The Supabase storage host for tutor avatars, as a next/image remote
+ *  pattern — derived from env, so it can't drift from the DB project. */
+function supabaseStorageRemotePattern() {
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!raw) return [];
+  try {
+    const url = new URL(raw);
+    return [
+      {
+        protocol: (url.protocol === "http:" ? "http" : "https") as "http" | "https",
+        hostname: url.hostname,
+        pathname: "/storage/v1/object/public/**",
+      },
+    ];
+  } catch {
+    return [];
+  }
+}
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   // 'unsafe-eval' is Turbopack's dev-time requirement only — never in prod.
@@ -54,8 +73,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
-  // YouTube thumbnails for the Harcourt University lesson cards on the
-  // landing page (served straight from i.ytimg.com — no proxy needed).
+  // Remote images are proxied through /_next/image (same-origin), so the CSP
+  // `img-src 'self'` never has to list third-party hosts. YouTube thumbnails
+  // for the lesson cards, and Supabase storage for tutor avatars (0035).
   images: {
     remotePatterns: [
       {
@@ -63,6 +83,10 @@ const nextConfig: NextConfig = {
         hostname: "i.ytimg.com",
         pathname: "/vi/**",
       },
+      // Tutor profile photos live in a public Supabase storage bucket. The
+      // host is derived from env so it never drifts from the DB project; when
+      // the URL is unset (a CI build without secrets) the pattern is skipped.
+      ...supabaseStorageRemotePattern(),
     ],
   },
   // Hide the stack we run on and never ship browser source maps to production.
