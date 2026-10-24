@@ -10,6 +10,7 @@ import {
 import { notifySmsToProfiles } from "@/lib/sms";
 import { sessionWhen } from "@/lib/time";
 import { requireProfile } from "@/services/auth/queries";
+import { optionalText } from "@/lib/forms";
 import { createSessionSchema } from "./schemas";
 import type { TutoringSession } from "@/types";
 
@@ -39,8 +40,10 @@ export async function createSession(
     studentId: formData.get("studentId"),
     scheduledAt: formData.get("scheduledAt"),
     durationMinutes: formData.get("durationMinutes"),
-    topic: formData.get("topic"),
-    location: formData.get("location"),
+    // `optionalText` — an absent control posts null, which `.optional()`
+    // rejects with Zod's developer message instead of "no topic".
+    topic: optionalText(formData.get("topic")),
+    location: optionalText(formData.get("location")),
   });
   if (!parsed.success) {
     return {

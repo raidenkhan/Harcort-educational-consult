@@ -7,6 +7,22 @@ import {
 
 /** Validation schemas for tutor onboarding. */
 
+/** A blank form field means "not set", not zero — and not an error. */
+const blankToUndefined = (value: unknown) =>
+  value === "" || value === null || value === undefined ? undefined : value;
+
+/**
+ * Optional free text: an absent control (`null`) and a blank input (`""`) both
+ * mean "not provided".
+ *
+ * A bare `.optional()` accepts `undefined` only, so a field the form doesn't
+ * render fails with Zod's developer message — "Invalid input: expected string,
+ * received null" — which is exactly what a tutor saw when saving a course
+ * while the "add a new course" fields were hidden.
+ */
+const optionalLine = (max: number, message: string) =>
+  z.preprocess(blankToUndefined, z.string().trim().max(max, message).optional());
+
 export const tutorProfileSchema = z.object({
   bio: z
     .string()
@@ -18,15 +34,21 @@ export const tutorProfileSchema = z.object({
     .trim()
     .min(5, "List your qualifications / experience")
     .max(2000, "Keep your qualifications under 2000 characters"),
-  ratePerSemester: z.coerce
-    .number({ message: "Enter a valid semester rate" })
-    .min(0, "Rate cannot be negative")
-    .max(100000, "Rate looks too high"),
+  /**
+   * The profile-wide advertised rate is no longer asked for: a tutor prices
+   * each course they teach, per session format (0031), and that is what
+   * students are charged. The column survives for legacy rows, so the field is
+   * optional and a save that omits it leaves the stored value untouched.
+   */
+  ratePerSemester: z.preprocess(
+    blankToUndefined,
+    z.coerce
+      .number({ message: "Enter a valid semester rate" })
+      .min(0, "Rate cannot be negative")
+      .max(100000, "Rate looks too high")
+      .optional(),
+  ),
 });
-
-/** A blank form field means "not set", not zero — and not an error. */
-const blankToUndefined = (value: unknown) =>
-  value === "" || value === null || value === undefined ? undefined : value;
 
 const optionalMoney = z.preprocess(
   blankToUndefined,
@@ -54,22 +76,18 @@ export const tutorServiceSchema = z
   .object({
     courseId: optionalUuid,
 
-    // Only used when the tutor adds a course the catalog doesn't have.
-    newCourseCode: z
-      .string()
-      .trim()
-      .max(COURSE_CODE_MAX, "That code is too long")
-      .optional(),
-    newCourseName: z
-      .string()
-      .trim()
-      .max(160, "Keep the course name under 160 characters")
-      .optional(),
-    newCourseSubject: z
-      .string()
-      .trim()
-      .max(120, "Keep the programme name under 120 characters")
-      .optional(),
+    // Only used when the tutor adds a course the catalog doesn't have. All
+    // three are optional AND null-safe: the form omits them entirely when the
+    // tutor picks an existing course.
+    newCourseCode: optionalLine(COURSE_CODE_MAX, "That code is too long"),
+    newCourseName: optionalLine(
+      160,
+      "Keep the course name under 160 characters",
+    ),
+    newCourseSubject: optionalLine(
+      120,
+      "Keep the programme name under 120 characters",
+    ),
     newCourseYear: z.preprocess(
       blankToUndefined,
       z.coerce

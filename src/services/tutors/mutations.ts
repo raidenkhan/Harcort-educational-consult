@@ -47,6 +47,7 @@ export async function submitTutorProfile(
     bio: parsed.data.bio,
     qualifications: parsed.data.qualifications,
   };
+  const rate = parsed.data.ratePerSemester;
 
   /**
    * Write the advertised rate to whichever column this database has.
@@ -55,16 +56,22 @@ export async function submitTutorProfile(
    * separately from the migration, so the write tries the new column and, if
    * Postgres says it doesn't exist yet, retries against the old one — the
    * profile saves either way.
+   *
+   * The field is gone from the UI (a tutor prices each course instead), so a
+   * save that carries no rate must leave the stored value alone rather than
+   * nulling it — an old tutor's advertised rate still shows on their card.
    */
+  const payload = (column: "rate_per_semester" | "rate_per_hour") =>
+    rate == null ? base : { ...base, [column]: rate };
+
   const write = async (column: "rate_per_semester" | "rate_per_hour") =>
     existing
       ? await supabase
           .from("tutor_profiles")
-          .update({ ...base, [column]: parsed.data.ratePerSemester })
+          .update(payload(column))
           .eq("id", (existing as { id: string }).id)
       : await supabase.from("tutor_profiles").insert({
-          ...base,
-          [column]: parsed.data.ratePerSemester,
+          ...payload(column),
           profile_id: profile.id,
         });
 

@@ -414,6 +414,22 @@ mobile app.
   tutor dashboard has a **Copy link** button on each service row
   (`CopyServiceLink`), and every row's Request button now opens on **its own**
   course (it used to default to whichever offering happened to be first).
+- **No more profile-wide semester rate.** The tutor dashboard used to ask for
+  one on the left (About you) while the right column asked for a one-on-one and
+  a group price per course — two ways to say the same thing, and the left one
+  won on the public card. The field is gone; a tutor prices each course, per
+  format, and the public "From GH₵…/semester" headline is now the **cheapest
+  format they actually offer** (`TutorExplorer`, `/tutors/[code]`), with
+  `tutor_profiles.rate_per_semester` kept only as a fallback for rows that
+  predate 0031. `submitTutorProfile` omits the column when the form carries no
+  rate, so saving a bio can never wipe a legacy rate.
+  **And the "received null" class is closed where it was still open:** the
+  three `newCourse*` fields in `tutorServiceSchema` were `.optional()` but not
+  null-safe, so saving a course while the "add a new course" panel was hidden
+  posted `null` for them and failed with Zod's developer message — the exact
+  error a tutor hit. They now go through `optionalLine()` (preprocess →
+  `.optional()`), `createSessionSchema`'s `topic`/`location` go through
+  `optionalText()`, and `tutors/schemas.test.ts` pins the null and blank shapes.
 
 ---
 
@@ -545,13 +561,16 @@ Key security properties:
 - **Errors:** never expose raw DB errors to users beyond `error.message` in
   form states.
 - **Prices are PER SEMESTER.** Every price tag in the app reads
-  `GH₵<amount>/semester` — the tutor's advertised rate, the per-course quote
-  (what the student actually pays), and the engagement totals. **Never "/hr"
+  `GH₵<amount>/semester` — the per-course quote (what the student actually
+  pays) and the engagement totals. **Never "/hr"
   or "per hour".** The rate column was renamed `rate_per_hour` →
   `rate_per_semester` in 0028; the app still reads and writes BOTH names so it
   can be deployed before that migration is applied (`readRate` in
   `services/tutors/rate.ts`, and the write fallback in
-  `services/tutors/mutations.ts`). **And it's 100% UPFRONT (0029):** a
+  `services/tutors/mutations.ts`). That profile-wide rate is now **legacy** —
+  the tutor dashboard no longer asks for one (each course carries its own
+  one-on-one and group price), so it is only a fallback for pre-0031 rows; the
+  public "From GH₵…" headline comes from the cheapest offering. **And it's 100% UPFRONT (0029):** a
   student pays the full semester fee at the paywall; there is no 50/50 split
   anywhere in the product. A student who can't pay in full reaches the admin
   team — WhatsApp first (`adminWhatsappUrl`), or the in-site payment-plan

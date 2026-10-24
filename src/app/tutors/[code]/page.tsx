@@ -102,6 +102,19 @@ export default async function TutorProfilePage({
     ? [focused, ...allOfferings.filter((o) => o !== focused)]
     : allOfferings;
 
+  /**
+   * "From" price: the cheapest format this tutor actually offers. The legacy
+   * profile-wide rate (no longer asked for on the dashboard) is only a
+   * fallback, so a tutor priced per course never shows a stale number.
+   */
+  const offeringPrices = allOfferings
+    .flatMap((o) => [o.prices.oneOnOne, o.prices.group])
+    .filter((price): price is number => price != null);
+  const lowestPrice =
+    offeringPrices.length > 0
+      ? Math.min(...offeringPrices)
+      : tp.rate_per_semester;
+
   return (
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
       <FloatingNav
@@ -180,9 +193,9 @@ export default async function TutorProfilePage({
                     <Badge tone="brand">
                       {offerings.length} course{offerings.length === 1 ? "" : "s"} offered
                     </Badge>
-                    {tp.rate_per_semester != null && (
+                    {lowestPrice != null && (
                       <span className="text-sm font-medium text-slate-600">
-                        From GH₵{tp.rate_per_semester.toLocaleString()}/semester
+                        From GH₵{lowestPrice.toLocaleString()}/semester
                       </span>
                     )}
                   </div>

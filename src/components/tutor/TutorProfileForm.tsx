@@ -6,13 +6,13 @@ import {
   type TutorFormState,
 } from "@/services/tutors/mutations";
 import { Field } from "@/components/ui/Field";
-import { Textarea, Input } from "@/components/ui/Fields";
+import { Textarea } from "@/components/ui/Fields";
 import { Button } from "@/components/ui/Button";
 
 export function TutorProfileForm({
   initial,
 }: {
-  initial: { bio: string; qualifications: string; ratePerSemester: string };
+  initial: { bio: string; qualifications: string };
 }) {
   const [state, formAction, pending] = useActionState<TutorFormState, FormData>(
     submitTutorProfile,
@@ -61,19 +61,6 @@ export function TutorProfileForm({
           maxLength={2000}
           defaultValue={initial.qualifications}
           placeholder="Degrees, certifications, years of teaching…"
-        />
-      </Field>
-
-      <Field label="Semester rate (GH₵)" htmlFor="ratePerSemester">
-        <Input
-          id="ratePerSemester"
-          name="ratePerSemester"
-          type="number"
-          min={0}
-          step="0.01"
-          required
-          defaultValue={initial.ratePerSemester}
-          placeholder="e.g. 100"
         />
       </Field>
 

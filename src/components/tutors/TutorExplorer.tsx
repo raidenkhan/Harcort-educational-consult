@@ -188,6 +188,19 @@ function TutorCard({
     priceGroup: o.prices.group,
   }));
 
+  /**
+   * The card's headline price. A tutor prices each course per format (0031),
+   * so the honest number is the cheapest format they actually offer — the
+   * legacy profile rate is only a fallback for rows that predate per-course
+   * pricing (the tutor dashboard no longer asks for one).
+   */
+  const offeringPrices = offerings
+    .flatMap((o) => [o.prices.oneOnOne, o.prices.group])
+    .filter((price): price is number => price != null);
+  const lowestOffering =
+    offeringPrices.length > 0 ? Math.min(...offeringPrices) : null;
+  const headlineRate = lowestOffering ?? tp.rate_per_semester;
+
   return (
     <Card hover className="flex flex-col">
       <div className="flex items-center gap-3">
@@ -220,8 +233,8 @@ function TutorCard({
               Verified
             </Badge>
             <p className="text-xs text-slate-500">
-              {tp.rate_per_semester != null
-                ? `GH₵${tp.rate_per_semester.toLocaleString()}/semester`
+              {headlineRate != null
+                ? `${lowestOffering != null ? "From " : ""}GH₵${headlineRate.toLocaleString()}/semester`
                 : "Rates on request"}
             </p>
           </div>

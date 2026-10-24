@@ -253,11 +253,11 @@ export default async function DashboardPage() {
               </h2>
               {tutor.profile ? (
                 <p className="mt-1 text-sm text-slate-600">
-                  Semester rate:{" "}
                   <span className="font-semibold text-slate-900">
-                    GH₵{tutor.profile.rate_per_semester?.toLocaleString() ?? "—"}
+                    {tutor.services.length}
                   </span>{" "}
-                  · {tutor.services.length} course(s) offered
+                  course{tutor.services.length === 1 ? "" : "s"} offered — each
+                  with its own one-on-one and group price per semester.
                 </p>
               ) : (
                 <p className="mt-1 text-sm text-slate-600">
