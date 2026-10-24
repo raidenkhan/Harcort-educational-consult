@@ -207,11 +207,25 @@ function TutorCard({
   return (
     <Card hover className="flex flex-col">
       <div className="flex items-center gap-3">
-        <TutorAvatar
-          name={profile.full_name || "Tutor"}
-          src={profile.avatar_url}
-          size={44}
-        />
+        {profile.public_code ? (
+          <Link
+            href={`/tutors/${encodeURIComponent(profile.public_code)}`}
+            aria-label={`View ${profile.full_name || "tutor"}'s profile`}
+            className="shrink-0 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+          >
+            <TutorAvatar
+              name={profile.full_name || "Tutor"}
+              src={profile.avatar_url}
+              size={44}
+            />
+          </Link>
+        ) : (
+          <TutorAvatar
+            name={profile.full_name || "Tutor"}
+            src={profile.avatar_url}
+            size={44}
+          />
+        )}
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5">
             {/* 0031 — the card leads to the tutor's shareable profile page

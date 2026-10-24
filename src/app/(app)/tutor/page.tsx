@@ -1,14 +1,11 @@
 import { requireRole } from "@/services/auth/queries";
 import { getOwnTutorProfile } from "@/services/tutors/queries";
 import { listCourses } from "@/services/courses/queries";
-import { ServicePrice } from "@/components/tutors/ServicePrice";
-import { TutorProfileForm } from "@/components/tutor/TutorProfileForm";
-import { TutorServiceForm } from "@/components/tutor/TutorServiceForm";
-import { AvatarUploadForm } from "@/components/tutor/AvatarUploadForm";
+import { TutorProfileCard } from "@/components/tutor/TutorProfileCard";
+import { TutorCoursesManager } from "@/components/tutor/TutorCoursesManager";
 import { PhoneForm } from "@/components/auth/PhoneForm";
 import { SmsPreferenceForm } from "@/components/auth/SmsPreferenceForm";
 import { CopyProfileLink } from "@/components/tutor/CopyProfileLink";
-import { CopyServiceLink } from "@/components/tutor/CopyServiceLink";
 import { tutorSharePath } from "@/services/tutors/share";
 import { Card } from "@/components/ui/Card";
 
@@ -27,39 +24,20 @@ export default async function TutorOverviewPage() {
 
   return (
     <div className="mt-10 grid gap-8 lg:grid-cols-2">
-      <Card>
-        <h2 className="text-lg font-semibold text-slate-900">About you</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Your photo, bio and qualifications are what students see on your card
-          and profile.
-        </p>
-        <div className="mt-4">
-          <AvatarUploadForm
-            name={profile.full_name}
-            currentUrl={profile.avatar_url ?? null}
-          />
-        </div>
-        <div className="mt-6 border-t border-slate-100 pt-5">
-          <TutorProfileForm
-            initial={{
-              bio: tutor.profile?.bio ?? "",
-              qualifications: tutor.profile?.qualifications ?? "",
-            }}
-          />
-        </div>
-      </Card>
+      <TutorProfileCard
+        name={profile.full_name}
+        avatarUrl={profile.avatar_url ?? null}
+        status={tutor.profile?.verification_status ?? null}
+        bio={tutor.profile?.bio ?? null}
+        qualifications={tutor.profile?.qualifications ?? null}
+      />
 
       <div className="space-y-6">
-        <Card>
-          <h2 className="text-lg font-semibold text-slate-900">
-            Courses you teach
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Add the courses you&apos;re willing to tutor, with your price per
-            semester. Students request these directly.
-          </p>
-          <TutorServiceForm courses={courses} />
-        </Card>
+        <TutorCoursesManager
+          courses={courses}
+          services={tutor.services}
+          publicCode={profile.public_code ?? null}
+        />
 
         <Card>
           <h2 className="text-lg font-semibold text-slate-900">
@@ -76,53 +54,6 @@ export default async function TutorOverviewPage() {
           <div className="mt-6 border-t border-slate-100 pt-5">
             <SmsPreferenceForm optedOut={profile.sms_opt_out ?? false} />
           </div>
-        </Card>
-
-        <Card>
-          <h2 className="text-lg font-semibold text-slate-900">
-            Your services
-          </h2>
-          {tutor.services.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">No courses added yet.</p>
-          ) : (
-            <ul className="mt-3 divide-y divide-slate-100">
-              {tutor.services.map((service) => {
-                return (
-                  <li key={service.id} className="py-3 text-sm">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="font-medium text-slate-800">
-                        {service.course?.code && (
-                          <span className="mr-2 font-mono text-xs text-slate-400">
-                            {service.course.code}
-                          </span>
-                        )}
-                        {service.course?.name ?? "Unknown course"}
-                      </span>
-                      {service.course?.is_approved === false && (
-                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                          awaiting review
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-                      <ServicePrice service={service} />
-                    </div>
-                    {profile.public_code && service.course && (
-                      <div className="mt-2">
-                        <CopyServiceLink
-                          publicCode={profile.public_code}
-                          course={{
-                            id: service.course.id,
-                            code: service.course.code ?? null,
-                          }}
-                        />
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
         </Card>
 
         {/* 0031 — the tutor's shareable profile link. */}

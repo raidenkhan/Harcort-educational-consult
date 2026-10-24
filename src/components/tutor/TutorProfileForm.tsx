@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import {
   submitTutorProfile,
   type TutorFormState,
@@ -11,13 +11,21 @@ import { Button } from "@/components/ui/Button";
 
 export function TutorProfileForm({
   initial,
+  onSaved,
 }: {
   initial: { bio: string; qualifications: string };
+  /** Called once after a successful save — the profile card closes its edit
+   *  modal and refreshes so the read-only view shows the new copy. */
+  onSaved?: () => void;
 }) {
   const [state, formAction, pending] = useActionState<TutorFormState, FormData>(
     submitTutorProfile,
     {},
   );
+
+  useEffect(() => {
+    if (state?.message) onSaved?.();
+  }, [state?.message, onSaved]);
 
   return (
     <form action={formAction} className="mt-4 space-y-4">

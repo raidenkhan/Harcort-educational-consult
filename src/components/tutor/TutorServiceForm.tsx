@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import {
   addTutorService,
@@ -19,7 +19,7 @@ import {
 import type { Course } from "@/types";
 
 /**
- * Add (or re-price) a course offering (0031).
+ * Add or EDIT a course offering (0031).
  *
  * The tutor picks how the course is offered — one-on-one, group, or both —
  * and only the matching price field(s) render. An unoffered format is stored
@@ -27,6 +27,11 @@ import type { Course } from "@/types";
  * instead of quietly charging the other price. The server still enforces at
  * least one price as a backstop (the form's `required` can only mark one
  * input, and the format choice is the source of truth).
+ *
+ * In EDIT mode (`initial` is set) the course is fixed (shown as a locked
+ * label) and the tutor only changes how it's offered and its price — leaving
+ * a format out removes it from the offer. `addTutorService` already re-prices
+ * an existing (tutor, course) pair, so "edit" is the same action.
  *
  * The catalog picker is programme → course (grouped Level 100 · Semester 1 …),
  * because "ME 255" is how a tutor knows their own course. A course the
@@ -59,19 +64,60 @@ const FORMAT_CHOICES: ReadonlyArray<{
     description: "Offer it both ways, at two prices.",
   },
 ];
-export function TutorServiceForm({ courses }: { courses: Course[] }) {
+
+/** What the edit form is pre-filled from. */
+export type ServiceToEdit = {
+  courseId: string;
+  courseName: string;
+  courseCode: string | null;
+  priceOneOnOne: number | null;
+  priceGroup: number | null;
+};
+
+/** The format choice implied by which prices the course already has. */
+function formatFrom(service: ServiceToEdit): FormatChoice {
+  const one = service.priceOneOnOne != null;
+  const group = service.priceGroup != null;
+  if (one && group) return "both";
+  if (one) return "one_on_one";
+  if (group) return "group";
+  return "both"; // broken row — DB check makes this impossible in practice
+}
+
+export function TutorServiceForm({
+  courses,
+  initial,
+  onCancel,
+  onSaved,
+}: {
+  courses: Course[];
+  /** Set to edit an existing service; omit to add a new one. */
+  initial?: ServiceToEdit;
+  /** "Cancel" for edit mode — returns the parent to the add/list view. */
+  onCancel?: () => void;
+  /** Called once after a successful save (parent refreshes + exits edit). */
+  onSaved?: () => void;
+}) {
   const [state, formAction, pending] = useActionState<TutorFormState, FormData>(
     addTutorService,
     {},
   );
 
+  useEffect(() => {
+    if (state?.message) onSaved?.();
+  }, [state?.message, onSaved]);
+
   const subjects = sortFields(Array.from(new Set(courses.map((c) => c.subject))));
   const [subject, setSubject] = useState(subjects[0] ?? "");
   const [addingCourse, setAddingCourse] = useState(false);
-  const [formats, setFormats] = useState<FormatChoice>("both");
+  const [formats, setFormats] = useState<FormatChoice>(
+    initial ? formatFrom(initial) : "both",
+  );
 
   const subjectCourses = courses.filter((c) => c.subject === subject);
   const groups = groupCoursesForPicker(subjectCourses);
+
+  const editing = Boolean(initial);
 
   return (
     <form action={formAction} className="mt-4 space-y-4">
@@ -86,7 +132,20 @@ export function TutorServiceForm({ courses }: { courses: Course[] }) {
         </div>
       )}
 
-      {addingCourse ? (
+      {editing ? (
+        <>
+          <input type="hidden" name="courseId" value={initial!.courseId} />
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Course
+            </p>
+            <p className="mt-0.5 font-medium text-slate-900">
+              {initial!.courseCode ? `${initial!.courseCode} · ` : ""}
+              {initial!.courseName}
+            </p>
+          </div>
+        </>
+      ) : addingCourse ? (
         <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -275,6 +334,7 @@ export function TutorServiceForm({ courses }: { courses: Course[] }) {
               min={0}
               step="0.01"
               required
+              defaultValue={initial?.priceOneOnOne ?? ""}
               placeholder="e.g. 400"
             />
           </Field>
@@ -292,20 +352,34 @@ export function TutorServiceForm({ courses }: { courses: Course[] }) {
               min={0}
               step="0.01"
               required
+              defaultValue={initial?.priceGroup ?? ""}
               placeholder="e.g. 250"
             />
           </Field>
         )}
       </div>
       <p className="text-xs text-slate-500">
-        Re-adding a course you already teach updates its prices — a format you
-        leave out is removed from your offer, so pick “Both” if you still take
-        it both ways.
+        {editing
+          ? "A format you leave out is removed from your offer."
+          : "Re-adding a course you already teach updates its prices — a format you leave out is removed, so pick “Both” if you still take it both ways."}
       </p>
 
-      <Button variant="dark" type="submit" disabled={pending}>
-        {pending ? "Saving…" : addingCourse ? "Add course" : "Save course"}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="dark" type="submit" disabled={pending}>
+          {pending
+            ? "Saving…"
+            : editing
+              ? "Save changes"
+              : addingCourse
+                ? "Add course"
+                : "Save course"}
+        </Button>
+        {editing && onCancel && (
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
+      </div>
     </form>
   );
 }

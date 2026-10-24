@@ -510,6 +510,17 @@ mobile app.
   "Not offered for this course." (the student-side wiring from 0031 already
   did that). Re-adding a course with a format left out removes that format from
   the offer.
+- **Tutor hub: read-only profile + editable courses.** The Overview tab no
+  longer shows the bio/qualifications/photo as inline forms. `TutorProfileCard`
+  renders the profile READ-ONLY (avatar, name, verified badge, bio,
+  qualifications) with an "Edit profile" button that opens a modal containing
+  the photo uploader and the bio form — so the nice view is never a form until
+  the tutor chooses to edit. Courses live in one `TutorCoursesManager` card:
+  the add/edit form (with the One-on-one/Group/Both selector) plus a "Your
+  services" list where each row has an **Edit** button that loads that course
+  into the form (course locked, format + prices editable — `addTutorService`
+  already re-prices the existing (tutor, course) pair). On the public `/tutors`
+  cards the tutor's **avatar now links to their profile** like the name does.
 - **Student dashboard: requests first.** The student dashboard now leads with
   **My tutor requests** (it carries the paywall and "pay now"), then the
   payment ground-rules note, then "Courses for your program", then the money

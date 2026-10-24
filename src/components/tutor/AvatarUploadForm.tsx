@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import {
   uploadTutorAvatarAction,
@@ -21,9 +21,13 @@ import { Button } from "@/components/ui/Button";
 export function AvatarUploadForm({
   name,
   currentUrl,
+  onSaved,
 }: {
   name: string;
   currentUrl: string | null;
+  /** Called once after a successful upload — the parent refreshes so the
+   *  read-only profile card picks up the new photo. */
+  onSaved?: () => void;
 }) {
   const [state, formAction, pending] = useActionState<AvatarFormState, FormData>(
     uploadTutorAvatarAction,
@@ -31,6 +35,10 @@ export function AvatarUploadForm({
   );
   const [preview, setPreview] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (state?.message) onSaved?.();
+  }, [state?.message, onSaved]);
 
   const savedUrl = state?.url ?? currentUrl;
 
