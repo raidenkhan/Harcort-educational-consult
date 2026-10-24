@@ -34,18 +34,49 @@ function mapStatus(arkeselStatus: string): string {
 
 async function handle(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const ids = searchParams.getAll("sms_id").filter(Boolean);
-  const statuses = searchParams.getAll("status").filter(Boolean);
+  const ids = [...searchParams.getAll("sms_id")];
+  const statuses = [...searchParams.getAll("status")];
 
-  if (ids.length === 0) {
+  // Arkesel documents the report as query parameters, but the webhook
+  // configured in their dashboard has been seen to POST the same pair as a
+  // body (form-encoded or JSON). Read both, so a report is never dropped on
+  // the floor just because it arrived in the other shape.
+  if (ids.filter(Boolean).length === 0 && request.method === "POST") {
+    try {
+      const type = request.headers.get("content-type") ?? "";
+      if (type.includes("application/json")) {
+        const body = (await request.json()) as
+          | Record<string, unknown>
+          | Record<string, unknown>[]
+          | null;
+        const rows = Array.isArray(body) ? body : body ? [body] : [];
+        for (const row of rows) {
+          const id = row?.sms_id ?? row?.smsId ?? row?.id;
+          const status = row?.status;
+          if (typeof id === "string" && id) ids.push(id);
+          if (typeof status === "string" && status) statuses.push(status);
+        }
+      } else if (type.includes("form")) {
+        const form = await request.formData();
+        ids.push(...form.getAll("sms_id").map(String).filter(Boolean));
+        statuses.push(...form.getAll("status").map(String).filter(Boolean));
+      }
+    } catch {
+      // A body we cannot read is not an error — fall through and answer 200
+      // so the provider does not retry a report we already handled.
+    }
+  }
+
+  const cleanIds = ids.filter(Boolean);
+  if (cleanIds.length === 0) {
     return NextResponse.json({ received: true, ignored: "no sms_id" });
   }
 
   const supabase = createAdminClient();
   let updated = 0;
 
-  for (let i = 0; i < ids.length; i++) {
-    const smsId = ids[i];
+  for (let i = 0; i < cleanIds.length; i++) {
+    const smsId = cleanIds[i];
     const raw = (statuses[i] ?? statuses[0] ?? "").trim().toUpperCase();
     if (!raw) continue;
 

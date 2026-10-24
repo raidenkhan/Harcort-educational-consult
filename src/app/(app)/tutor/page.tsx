@@ -7,6 +7,7 @@ import { TutorServiceForm } from "@/components/tutor/TutorServiceForm";
 import { PhoneForm } from "@/components/auth/PhoneForm";
 import { SmsPreferenceForm } from "@/components/auth/SmsPreferenceForm";
 import { CopyProfileLink } from "@/components/tutor/CopyProfileLink";
+import { CopyServiceLink } from "@/components/tutor/CopyServiceLink";
 import { Card } from "@/components/ui/Card";
 
 /**
@@ -90,9 +91,20 @@ export default async function TutorOverviewPage() {
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                       <ServicePrice service={service} />
                     </div>
+                    {profile.public_code && service.course && (
+                      <div className="mt-2">
+                        <CopyServiceLink
+                          publicCode={profile.public_code}
+                          course={{
+                            id: service.course.id,
+                            code: service.course.code ?? null,
+                          }}
+                        />
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -109,7 +121,10 @@ export default async function TutorOverviewPage() {
             <p className="mt-1 text-sm text-slate-600">
               Send this to any student — it opens your public profile with
               your credentials and semester rates, and they can request you
-              straight from it.
+              straight from it. For one course, copy that course&apos;s own
+              link from <span className="font-medium">Your services</span>{" "}
+              above: the student lands on that offering with the request
+              already set to it.
             </p>
             <CopyProfileLink code={profile.public_code} />
           </Card>

@@ -382,6 +382,38 @@ mobile app.
   The benchmark scripts live outside the repo (they need a running prod
   build); re-create them from this note if the hero is ever retuned — the
   performance contract at the top of `FloatingLines.tsx` lists the knobs.
+- **Sandbox honesty, per-course share links, and the "received null" fix.**
+  Three separate complaints, one release. (1) **SMS "sent but never
+  delivered"** was not a bug in the send path: production was running Arkesel
+  in **sandbox**, which returns a real-looking UUID for a message it throws
+  away, so the log said `sent` and no handset ever rang. `SendResult` now
+  carries `sandbox`, a sandbox send is logged as `skipped` with
+  `delivery_status = 'SANDBOX'` (0027's check allows both — no migration),
+  it does **not** count toward the daily cap, `/admin/sms` shows a red-flag
+  banner, a per-row "Sandbox — not delivered" badge, a `sandboxToday` count
+  and the sender ID, and the test button reports the sandbox as an error
+  instead of a success. Fix is still env-only: unset `SMS_SANDBOX` (or `0`)
+  in Vercel. (2) **"received null"** was Zod's developer message
+  (`Invalid input: expected string, received null`) leaking to a user, which
+  happens when a REQUIRED control is missing from the `FormData` (posted
+  before hydration, a password manager calling `form.submit()`, an extension
+  that dropped an input). `formText()` in `lib/forms.ts` collapses that to
+  `""` so the schema's own human message wins; it is applied at every auth
+  entry point (sign-in, sign-up, reset redemption) and the tutor profile
+  form. Sign-in also now names the real problem for a Google-only account
+  ("This account signs in with Google…") instead of "invalid email or
+  password", and `signUpAction` refuses a null profile id rather than
+  creating a session for null. `src/app/error.tsx` is new: an unexpected
+  exception now shows a retry card with the error digest instead of Next's
+  raw 500 screen. (3) **Share links are per course as well as per tutor** —
+  `/tutors/HC-T-…` still opens the whole profile, and `?course=` (the course
+  **code** when it has one, the row id otherwise) opens that offering first,
+  highlights it and preselects it in the request dialog; an unknown value
+  falls back to the plain profile instead of 404ing. `services/tutors/share.ts`
+  (`tutorSharePath`, `courseParamMatches`, unit-tested) owns the rule, the
+  tutor dashboard has a **Copy link** button on each service row
+  (`CopyServiceLink`), and every row's Request button now opens on **its own**
+  course (it used to default to whichever offering happened to be first).
 
 ---
 

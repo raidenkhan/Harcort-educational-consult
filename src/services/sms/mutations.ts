@@ -48,5 +48,16 @@ export async function sendTestSmsAction(): Promise<SmsActionState> {
   }
 
   revalidatePath("/admin/sms");
+
+  // Sandbox is the one case where the API says yes and the handset stays
+  // silent — the exact reason a "sent" message can never arrive. Say so
+  // instead of reporting a delivery that did not happen.
+  if (result.sandbox) {
+    return {
+      error:
+        "Arkesel is in SANDBOX mode: it accepted the text and returned a message id, but it is never forwarded to a phone. Remove SMS_SANDBOX (or set it to 0) in the Vercel environment, redeploy, then try again.",
+    };
+  }
+
   return { message: `Test text sent to ${phone}.` };
 }

@@ -230,7 +230,23 @@ export interface SendResult {
   smsId?: string;
   /** Set when the message was deliberately not sent. */
   skipped?: boolean;
+  /**
+   * Accepted by the provider's SANDBOX: the API answers with a real-looking
+   * message id, nothing is billed and nothing ever reaches a handset. Callers
+   * that report back to a human must check this — a sandbox send is not a
+   * delivered text.
+   */
+  sandbox?: boolean;
 }
+
+/**
+ * Written to the send log instead of a delivery status when sandbox mode
+ * swallowed the message. Arkesel's sandbox returns a genuine UUID, so a row
+ * marked "sent" would be a lie — the exact confusion that made three test
+ * texts look delivered when the network had never seen them.
+ */
+const SANDBOX_NOTE =
+  "Sandbox mode: the provider accepted the message but never forwards it to a handset. Set SMS_SANDBOX=0 to send real texts.";
 
 interface ArkeselSendResponse {
   status?: string;
@@ -319,7 +335,13 @@ async function claimSend(params: {
 
 async function markSend(
   rowId: number,
-  patch: { status: string; sms_id?: string | null; error?: string | null },
+  patch: {
+    status: string;
+    sms_id?: string | null;
+    error?: string | null;
+    /** The provider's own verdict, verbatim (e.g. SANDBOX). */
+    deliveryStatus?: string | null;
+  },
 ): Promise<void> {
   const supabase = createAdminClient();
   const { error } = await supabase
@@ -328,6 +350,7 @@ async function markSend(
       status: patch.status,
       sms_id: patch.sms_id ?? null,
       error: patch.error ?? null,
+      delivery_status: patch.deliveryStatus ?? null,
     })
     .eq("id", rowId);
   if (error) console.error(`[sms] could not update the send log: ${error.message}`);
@@ -587,20 +610,32 @@ export async function sendSms(opts: {
   }
 
   // ── Send ────────────────────────────────────────────────────────────────
+  const sandbox = smsSandbox();
   const result = await adapter.send({
     apiKey,
     to,
     message: opts.message,
     sender: SMS_SENDER_ID,
-    sandbox: smsSandbox(),
+    sandbox,
     callbackUrl: APP_URL ? `${APP_URL}/api/sms/delivery` : null,
   });
 
   if (result.ok) {
-    await markSend(claim.rowId, { status: "sent", sms_id: result.smsId ?? null });
-  } else {
-    await markSend(claim.rowId, { status: "failed", error: result.error });
+    // Sandbox hands back a real UUID for a message the network never sees.
+    // Logging that as "sent" would make the console claim a delivery that
+    // cannot happen, so it is recorded as skipped with the reason attached —
+    // and it does not eat the daily cap (which ignores skipped rows).
+    await markSend(claim.rowId, {
+      status: sandbox ? "skipped" : "sent",
+      sms_id: result.smsId ?? null,
+      error: sandbox ? SANDBOX_NOTE : null,
+      deliveryStatus: sandbox ? "SANDBOX" : null,
+    });
+    if (sandbox) console.warn(`[sms] ${SANDBOX_NOTE} (${to})`);
+    return sandbox ? { ...result, sandbox: true } : result;
   }
+
+  await markSend(claim.rowId, { status: "failed", error: result.error });
   return result;
 }
 

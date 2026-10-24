@@ -32,23 +32,33 @@ export function TutorProfileForm({
         </div>
       )}
 
-      <Field label="Bio" htmlFor="bio">
+      <Field
+        label="Bio"
+        htmlFor="bio"
+        hint="Up to 2000 characters — this is the first thing students read."
+      >
         <Textarea
           id="bio"
           name="bio"
           rows={3}
           required
+          maxLength={2000}
           defaultValue={initial.bio}
           placeholder="A short intro students will see on your profile…"
         />
       </Field>
 
-      <Field label="Qualifications & experience" htmlFor="qualifications">
+      <Field
+        label="Qualifications & experience"
+        htmlFor="qualifications"
+        hint="Up to 2000 characters — degrees, certifications, years of teaching."
+      >
         <Textarea
           id="qualifications"
           name="qualifications"
-          rows={2}
+          rows={3}
           required
+          maxLength={2000}
           defaultValue={initial.qualifications}
           placeholder="Degrees, certifications, years of teaching…"
         />

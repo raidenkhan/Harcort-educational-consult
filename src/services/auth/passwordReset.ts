@@ -9,6 +9,7 @@ import { phonesForProfiles, sendSms } from "@/lib/sms";
 import { hashPassword } from "@/lib/auth/password";
 import { requireRole } from "@/services/auth/queries";
 import { resetRedeemSchema, resetRequestSchema } from "./schemas";
+import { formText } from "@/lib/forms";
 
 /**
  * Password reset — self-service by email, with an admin out-of-band fallback.
@@ -270,9 +271,9 @@ export async function redeemResetCode(
   formData: FormData,
 ): Promise<ResetFormState> {
   const parsed = resetRedeemSchema.safeParse({
-    email: formData.get("email"),
-    code: formData.get("code"),
-    password: formData.get("password"),
+    email: formText(formData.get("email")),
+    code: formText(formData.get("code")),
+    password: formText(formData.get("password")),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Please check your details." };

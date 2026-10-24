@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyTutorApplication } from "@/lib/email/notify";
 import { isMissingColumn } from "@/lib/postgres";
 import { normalizeCourseCode } from "@/services/courses/codes";
+import { formText } from "@/lib/forms";
 import { requireProfile } from "@/services/auth/queries";
 import { tutorProfileSchema, tutorServiceSchema } from "./schemas";
 
@@ -25,8 +26,8 @@ export async function submitTutorProfile(
   if (profile.role !== "tutor") return { error: "Only tutor accounts can do this." };
 
   const parsed = tutorProfileSchema.safeParse({
-    bio: formData.get("bio"),
-    qualifications: formData.get("qualifications"),
+    bio: formText(formData.get("bio")),
+    qualifications: formText(formData.get("qualifications")),
     ratePerSemester: formData.get("ratePerSemester"),
   });
   if (!parsed.success) {

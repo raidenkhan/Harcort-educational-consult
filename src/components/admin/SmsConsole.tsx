@@ -12,6 +12,7 @@ import {
   smsApiKey,
   smsProvider,
   smsSandbox,
+  SMS_SENDER_ID,
 } from "@/lib/sms";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -132,6 +133,18 @@ export async function SmsConsole() {
         )}
       </div>
 
+      {sandbox && (
+        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <strong>Texts cannot reach a phone right now.</strong> The app is
+          calling Arkesel in sandbox mode: the API accepts each message and
+          returns a message id, then throws it away. Nothing is billed and
+          nothing is delivered, so a “sent” entry here would be false. Remove{" "}
+          <code className="font-mono text-xs">SMS_SANDBOX</code> (or set it to{" "}
+          <code className="font-mono text-xs">0</code>) in the Vercel
+          environment, redeploy, and send the test again.
+        </p>
+      )}
+
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {tiles.map((tile) => (
           <Card key={tile.label} className="flex items-center gap-4">
@@ -152,6 +165,15 @@ export async function SmsConsole() {
         ))}
       </div>
 
+      {stats.sandboxToday > 0 && (
+        <p className="mt-3 text-sm text-amber-700">
+          {stats.sandboxToday} send{stats.sandboxToday === 1 ? "" : "s"} today
+          stopped at the sandbox — Arkesel accepted{" "}
+          {stats.sandboxToday === 1 ? "it" : "them"} and never delivered. Those
+          are not counted above.
+        </p>
+      )}
+
       <Card className="mt-6">
         <h3 className="text-lg font-semibold text-slate-900">SMS account</h3>
         {!configured ? (
@@ -163,7 +185,7 @@ export async function SmsConsole() {
           </p>
         ) : (
           <>
-            <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+            <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
                   SMS credits left
@@ -178,6 +200,17 @@ export async function SmsConsole() {
                 </dt>
                 <dd className="font-display text-lg font-semibold text-slate-900">
                   {balance ? balance.mainBalance || "—" : "Unavailable"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Sender ID
+                </dt>
+                <dd className="font-display text-lg font-semibold text-slate-900">
+                  {SMS_SENDER_ID}
+                </dd>
+                <dd className="mt-0.5 text-[11px] text-slate-400">
+                  must be approved in Arkesel
                 </dd>
               </div>
               <div>
@@ -219,10 +252,15 @@ export async function SmsConsole() {
         ) : (
           <ul className="mt-3 space-y-2">
             {messages.map((message: SmsMessageRow) => {
-              const badge = STATUS_BADGE[message.status] ?? {
-                label: message.status,
-                tone: "neutral" as const,
-              };
+              // A sandbox row is logged as "skipped" with the provider's
+              // verdict SANDBOX — show it as such rather than as a delivery.
+              const sandboxed = message.deliveryStatus === "SANDBOX";
+              const badge = sandboxed
+                ? { label: "Sandbox — not delivered", tone: "amber" as const }
+                : (STATUS_BADGE[message.status] ?? {
+                    label: message.status,
+                    tone: "neutral" as const,
+                  });
               return (
                 <li key={message.id}>
                   <Card className="flex flex-wrap items-start justify-between gap-4">
@@ -232,7 +270,7 @@ export async function SmsConsole() {
                           {KIND_LABEL[message.kind] ?? message.kind}
                         </span>
                         <Badge tone={badge.tone}>{badge.label}</Badge>
-                        {message.deliveryStatus && (
+                        {message.deliveryStatus && !sandboxed && (
                           <Badge tone="neutral">{message.deliveryStatus}</Badge>
                         )}
                       </div>

@@ -25,6 +25,11 @@ export interface SmsStats {
   today: number;
   /** Failures today. */
   failedToday: number;
+  /**
+   * Sends today that only reached the provider's SANDBOX — accepted, never
+   * delivered. Counted separately so "sent today" can never absorb them.
+   */
+  sandboxToday: number;
   /** Total sends logged, all time. */
   total: number;
   /** How many numbers are opted out. */
@@ -73,31 +78,38 @@ export async function smsStats(now: number): Promise<SmsStats> {
   const supabase = createAdminClient();
   const dayStart = new Date(now).toISOString().slice(0, 10) + "T00:00:00.000Z";
 
-  const [today, failedToday, total, optedOut, withPhone] = await Promise.all([
-    supabase
-      .from("sms_messages")
-      .select("id", { count: "exact", head: true })
-      .gte("created_at", dayStart)
-      .neq("status", "skipped"),
-    supabase
-      .from("sms_messages")
-      .select("id", { count: "exact", head: true })
-      .gte("created_at", dayStart)
-      .eq("status", "failed"),
-    supabase.from("sms_messages").select("id", { count: "exact", head: true }),
-    supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .eq("sms_opt_out", true),
-    supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .not("phone", "is", null),
-  ]);
+  const [today, failedToday, sandboxToday, total, optedOut, withPhone] =
+    await Promise.all([
+      supabase
+        .from("sms_messages")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", dayStart)
+        .neq("status", "skipped"),
+      supabase
+        .from("sms_messages")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", dayStart)
+        .eq("status", "failed"),
+      supabase
+        .from("sms_messages")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", dayStart)
+        .eq("delivery_status", "SANDBOX"),
+      supabase.from("sms_messages").select("id", { count: "exact", head: true }),
+      supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("sms_opt_out", true),
+      supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .not("phone", "is", null),
+    ]);
 
   return {
     today: today.count ?? 0,
     failedToday: failedToday.count ?? 0,
+    sandboxToday: sandboxToday.count ?? 0,
     total: total.count ?? 0,
     optedOut: optedOut.count ?? 0,
     withPhone: withPhone.count ?? 0,

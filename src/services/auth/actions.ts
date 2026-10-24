@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DUMMY_HASH, hashPassword, verifyPassword } from "@/lib/auth/password";
-import { optionalText } from "@/lib/forms";
+import { optionalText, formText } from "@/lib/forms";
 import {
   createSession,
   revokeSession,
@@ -149,7 +149,7 @@ export async function signUpAction(
   const yearText = optionalText(formData.get("year"));
   const parsed = signUpSchema.safeParse({
     email: optionalText(formData.get("email")),
-    password: formData.get("password"),
+    password: formText(formData.get("password")),
     fullName: optionalText(formData.get("fullName")),
     role: optionalText(formData.get("role")),
     // `optionalText` collapses both an unrendered control (null) and a blank
@@ -185,7 +185,17 @@ export async function signUpAction(
   }
 
   // Instant session — no email confirmation involved.
-  const token = await createSession(profileId as string);
+  if (!profileId) {
+    // The RPC answered without an error and without an id. Creating a session
+    // for null would throw a NOT NULL violation and 500 the page; say
+    // something a person can act on instead.
+    console.error("[auth] register_user returned no profile id");
+    return {
+      error: "We couldn't finish creating your account. Please try again.",
+    };
+  }
+
+  const token = await createSession(profileId);
   await setSessionCookie(token);
 
   revalidateTag("tutors", "max");
@@ -199,8 +209,11 @@ export async function signInAction(
   formData: FormData,
 ): Promise<AuthFormState> {
   const parsed = signInSchema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
+    // `formText` — a required control can still post as null (a form sent
+    // before hydration, a password manager calling form.submit()), and Zod's
+    // "expected string, received null" is not a message a person can act on.
+    email: formText(formData.get("email")),
+    password: formText(formData.get("password")),
   });
 
   if (!parsed.success) {
@@ -222,6 +235,16 @@ export async function signInAction(
     .select("profile_id, password_hash")
     .eq("email", parsed.data.email.trim().toLowerCase())
     .maybeSingle();
+
+  // A Google-created account has no password_hash (0009). Answering "invalid
+  // email or password" leaves that user stuck forever — they keep retyping a
+  // password that was never set. Name the real problem instead.
+  if (credential && !credential.password_hash) {
+    return {
+      error:
+        "This account signs in with Google. Use “Continue with Google” — or reset your password to set one.",
+    };
+  }
 
   const passwordOk = await verifyPassword(
     parsed.data.password,

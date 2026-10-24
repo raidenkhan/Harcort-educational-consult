@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTutorByPublicCode } from "@/services/tutors/queries";
 import { formatPrices } from "@/services/tutors/pricing";
+import { courseParamMatches } from "@/services/tutors/share";
 import { ServicePrice } from "@/components/tutors/ServicePrice";
 import { getCurrentProfile } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
@@ -51,11 +52,14 @@ export async function generateMetadata({
 
 export default async function TutorProfilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ code: string }>;
+  searchParams: Promise<{ course?: string | string[] }>;
 }) {
-  const [{ code }, profile] = await Promise.all([
+  const [{ code }, query, profile] = await Promise.all([
     params,
+    searchParams,
     getCurrentProfile(),
   ]);
   const tutor = await getTutorByPublicCode(decodeURIComponent(code));
@@ -64,7 +68,7 @@ export default async function TutorProfilePage({
   const { tutorProfile: tp, profile: tutorUser, services, courses } = tutor;
   const name = tutorUser.full_name || "Harcourt tutor";
   const courseNames = new Map(courses.map((c) => [c.id, c]));
-  const offerings = services
+  const allOfferings = services
     .map((s) => {
       const course = courseNames.get(s.course_id);
       if (!course) return null;
@@ -77,6 +81,26 @@ export default async function TutorProfilePage({
       };
     })
     .filter((o): o is NonNullable<typeof o> => o !== null);
+
+  /**
+   * Per-course link (`/tutors/HC-T-…?course=ME%20255`, see share.ts): open the
+   * offering the tutor meant first, and pre-select it in the request dialog.
+   * A param that matches nothing — a typo, or a course the tutor has since
+   * dropped — falls back to the plain profile rather than 404ing: the link
+   * still works, it just stops being specific.
+   */
+  const wanted = typeof query.course === "string" ? query.course : null;
+  const focused = wanted
+    ? allOfferings.find((o) =>
+        courseParamMatches(
+          { id: o.courseId, code: o.course.code ?? null },
+          wanted,
+        ),
+      )
+    : undefined;
+  const offerings = focused
+    ? [focused, ...allOfferings.filter((o) => o !== focused)]
+    : allOfferings;
 
   return (
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
@@ -189,6 +213,18 @@ export default async function TutorProfilePage({
               <h2 className="mt-8 font-display text-lg font-semibold text-slate-900">
                 Courses & semester rates
               </h2>
+              {focused && (
+                <p className="mt-3 rounded-md border border-brand-200 bg-brand-50/60 px-4 py-3 text-sm leading-relaxed text-brand-900">
+                  You opened this tutor&apos;s link for{" "}
+                  <span className="font-semibold">
+                    {focused.course.code
+                      ? `${focused.course.code} — ${focused.course.name}`
+                      : focused.course.name}
+                  </span>
+                  . It&apos;s listed first below, with its own request button —
+                  open it and the form is already set to that course.
+                </p>
+              )}
               {offerings.length === 0 ? (
                 <p className="mt-3 rounded-md border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500">
                   This tutor hasn&apos;t published course rates yet — reach out and
@@ -199,7 +235,11 @@ export default async function TutorProfilePage({
                   {offerings.map((o) => (
                     <li
                       key={o.serviceId}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-4 py-3 shadow-xs"
+                      className={`flex flex-wrap items-center justify-between gap-3 rounded-md border bg-white px-4 py-3 shadow-xs ${
+                        o.courseId === focused?.courseId
+                          ? "border-brand-300 ring-2 ring-brand-600/15"
+                          : "border-slate-200"
+                      }`}
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-800">
@@ -219,6 +259,11 @@ export default async function TutorProfilePage({
                       </div>
                       <RequestTutorButton
                         tutorProfileId={tp.id}
+                        // Each row's button opens on THAT course. A per-course
+                        // link (?course=) therefore lands the student on a
+                        // button that is already set to the course the tutor
+                        // sent — and every other row is right too.
+                        defaultCourseId={o.courseId}
                         offerings={offerings.map((off) => ({
                           courseId: off.courseId,
                           name: off.course.name,

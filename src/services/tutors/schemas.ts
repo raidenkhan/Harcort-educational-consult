@@ -17,7 +17,7 @@ export const tutorProfileSchema = z.object({
     .string()
     .trim()
     .min(5, "List your qualifications / experience")
-    .max(500, "Keep your qualifications under 500 characters"),
+    .max(2000, "Keep your qualifications under 2000 characters"),
   ratePerSemester: z.coerce
     .number({ message: "Enter a valid semester rate" })
     .min(0, "Rate cannot be negative")

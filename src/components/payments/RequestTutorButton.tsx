@@ -56,11 +56,16 @@ export function RequestTutorButton({
   offerings,
   signedIn,
   className,
+  defaultCourseId,
 }: {
   tutorProfileId: string;
   offerings: TutorOffering[];
   signedIn: boolean;
   className?: string;
+  /** Which offering the dialog opens on — a per-course share link (?course=)
+   *  and a profile row both name one, so the form never starts on the wrong
+   *  course. */
+  defaultCourseId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<RequestFormState, FormData>(
@@ -69,8 +74,13 @@ export function RequestTutorButton({
   );
 
   const first = offerings[0];
-  const [courseId, setCourseId] = useState(first?.courseId ?? "");
-  const [mode, setMode] = useState<SessionMode>(modesFor(first)[0]);
+  // A per-course link names one offering; ignore it when the tutor no longer
+  // teaches that course rather than leaving the <select> on a value it cannot
+  // render.
+  const initial =
+    offerings.find((o) => o.courseId === defaultCourseId) ?? first;
+  const [courseId, setCourseId] = useState(initial?.courseId ?? "");
+  const [mode, setMode] = useState<SessionMode>(modesFor(initial)[0]);
 
   // Signed-out visitors get the auth modal — same session-aware pattern
   // as ContactTutorButton.
