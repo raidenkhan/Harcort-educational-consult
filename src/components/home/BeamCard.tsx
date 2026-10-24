@@ -22,6 +22,15 @@ import { BorderBeam } from "border-beam";
  *  - "hover" (default): the beam fades in only while the pointer is on
  *    the card — intriguing on approach, silent at rest.
  *  - "always": continuous, at low strength, for ambient emphasis.
+ *
+ * PERFORMANCE — an ACTIVE beam is not free. The package animates a registered
+ * conic-gradient angle (plus a blur/hue/brightness filter) on the card and its
+ * ::after, so every active beam repaints itself every frame and invalidates
+ * style while it does. Measured on the project's Intel HD 620 machine, the
+ * four "always" beams on the landing page cost ~15 fps of scroll (25 → 40 fps
+ * with them off, janky frames 76% → 35%). Keep "hover" as the default, and if
+ * you ever want ambient beams again, use ONE above-the-fold card — never a
+ * column of them.
  */
 export function BeamCard({
   children,

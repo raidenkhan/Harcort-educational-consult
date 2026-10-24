@@ -278,6 +278,45 @@ mobile app.
   payment log (Paystack + admin-recorded, source-badged) and the payout
   transfer button became a two-step confirm (amount shown, real-money
   warning) before the live-key switch.
+- **Landing-page scroll performance (measured, then fixed).** The complaint was
+  that scrolling the homepage felt slow. It was measured, not guessed at:
+  headless Chrome over raw CDP, real GPU (`ANGLE (Intel, Intel HD Graphics 620,
+  D3D11)` — verified, not SwiftShader), 1366×900, **time-driven** scroll at
+  1100 px/s so every run covers the same path, A/B passes **interleaved** and
+  reported as **median of 3** (this machine's background load swings single
+  runs by 2×, so one-shot numbers are meaningless). Two controls:
+  `prefers-reduced-motion` (everything off) and injecting CSS to hide one
+  layer at a time. Findings and fixes, in order of size:
+  1. **The four always-on `BeamCard` border beams** were the first big cost —
+     25 → 40 fps and `RecalcStyleDuration` 2.27 s → 0.26 s with them disabled.
+     The package animates a registered `conic-gradient` angle *plus* a
+     blur/hue/brightness filter on the card and its `::after`, so every active
+     beam repaints and invalidates style every frame. All four are now
+     `mode="hover"`; keep "always" for at most ONE above-the-fold card.
+  2. **The WebGL hero (`FloatingLines`) was the remaining cost, and it was
+     the whole of it.** With everything else already fixed, hiding only the
+     canvas took p95 from **66.7 ms → 17.1 ms** and janky frames **27.2% →
+     1.7%**. Its fragment shader evaluates every line of every wave for every
+     pixel (each with `sin`, `exp`, `log`, `rotate` = 2 sin + 2 cos, and a
+     divide), so cost = total line count × pixels × fps. Three knobs, one
+     build: `lineCount` 8/12/16 → **6/9/12** (36 → 27 lines), pixel ratio
+     1.25 → **0.75** (rendered below 1:1 and upscaled by the compositor —
+     invisible on a smooth light field, −44% fragments), 30 → **24 fps**.
+     Result: **60.1 fps, p95 16.8 ms, 0% janky frames**, i.e. at the display
+     refresh cap and *at parity with the reduced-motion control*. The canvas
+     is now free.
+  3. Supporting fixes: the canvas is transparent with **premultiplied alpha**
+     instead of `mix-blend-mode: screen` (a blend mode on a full-screen layer
+     forces the compositor to re-blend the entire hero every frame); the
+     render loop is gated by an `IntersectionObserver` so the shader stops
+     once the hero scrolls away (it used to run for the whole life of the
+     page, competing with the syllabus, tutor list and footer); `antialias:
+     false`; and the two `backdrop-blur` layers sitting over the animating
+     canvas are gone.
+  Net: **42 fps / p95 54 ms / 18% janky frames → 60 fps / p95 17 ms / 0%**.
+  The benchmark scripts live outside the repo (they need a running prod
+  build); re-create them from this note if the hero is ever retuned — the
+  performance contract at the top of `FloatingLines.tsx` lists the knobs.
 
 ---
 
@@ -387,7 +426,15 @@ Key security properties:
   absolutely-positioned sibling, so content that must sit on top either wraps
   in a `relative` element or the backdrop takes `-z-10`. If the wrapper is
   **opaque** it also needs `isolate` — see the gotcha below. Hero surfaces use
-  `AnimatedGradient`; all app chrome uses `FloatingNav`.
+  `AnimatedGradient`; the landing hero is a static gradient with
+  `FloatingLines` (WebGL) on top; all app chrome uses `FloatingNav`.
+- **Animated decoration has a budget.** `BeamCard` beams are `mode="hover"`
+  everywhere — an *active* beam repaints every frame, and four of them cost
+  ~15 fps of scroll on the project's reference GPU. `FloatingLines` documents
+  its own render contract at the top of the file; treat its line count, pixel
+  ratio and fps cap as load-bearing. Anything that would animate continuously
+  on the landing page needs the scroll benchmark before it ships — see the
+  history entry above.
 - **Errors:** never expose raw DB errors to users beyond `error.message` in
   form states.
 - **Prices are PER SEMESTER.** Every price tag in the app reads

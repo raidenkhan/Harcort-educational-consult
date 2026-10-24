@@ -252,6 +252,10 @@ export default async function Home() {
               ink scrims keep the copy readable. One Parallax wrapper carries
               the entire stack, so the backdrop lags the scroll (parallax). */}
           <Parallax className="absolute inset-0" speed={0.16}>
+            {/* 27 lines total (6/9/12), not 36: line count is a direct
+                multiplier on the fragment shader's inner loops, and the extra
+                density was invisible behind the scrims. See the performance
+                contract at the top of FloatingLines.tsx. */}
             <FloatingLinesLazy
               linesGradient={[
                 "#610b96",
@@ -259,13 +263,12 @@ export default async function Home() {
                 "#af88e3",
                 "#b473da",
               ]}
-              lineCount={[8, 12, 16]}
+              lineCount={[6, 9, 12]}
               lineDistance={[8, 6, 4]}
               animationSpeed={1}
               interactive
               bendRadius={5}
               bendStrength={-0.5}
-              mixBlendMode="screen"
             />
             {/* 0032: STATIC gradient. The AnimatedGradient layer that sat
                 here (SVG goo filter + 40px blur + six infinitely-animating
@@ -336,7 +339,7 @@ export default async function Home() {
               </Link>
               <AuthTrigger
                 tab="sign-up"
-                className="h-12 rounded-[2px] border border-white/30 bg-white/10 px-7 text-sm font-semibold text-white backdrop-blur transition hover:border-white/50 hover:bg-white/20"
+                className="h-12 rounded-[2px] border border-white/30 bg-white/15 px-7 text-sm font-semibold text-white transition hover:border-white/50 hover:bg-white/25"
               >
                 Become a Tutor
               </AuthTrigger>
@@ -351,14 +354,14 @@ export default async function Home() {
               style={{ animationDelay: "240ms" }}
           >
             <BeamCard
-              mode="always"
+              mode="hover"
               theme="dark"
               colorVariant="colorful"
               hue={275}
               strength={0.5}
               borderRadius={12}
             >
-            <dl className="grid grid-cols-3 divide-x divide-white/15 rounded-lg border border-white/15 bg-white/10 shadow-card backdrop-blur">
+            <dl className="grid grid-cols-3 divide-x divide-white/15 rounded-lg border border-white/15 bg-white/10 shadow-card">
               {[
                 { label: "Approved tutors", value: String(tutors.length) },
                 { label: "Subjects covered", value: String(subjects.length) },
@@ -538,11 +541,13 @@ export default async function Home() {
             </Reveal>
           </div>
           {/* The subtext alone gets the treatment: a translucent glass panel
-              with a breathing purple halo — the headline stays bare above
-              it, so the panel reads as the "ground" the statement stands
-              on. Harcourt purple via hue=275 (see BeamCard). */}
+              with a purple halo on hover — the headline stays bare above it,
+              so the panel reads as the "ground" the statement stands on.
+              Harcourt purple via hue=275 (see BeamCard). Hover rather than
+              "always": an active beam repaints every frame (see BeamCard's
+              performance note). */}
           <BeamCard
-            mode="always"
+            mode="hover"
             size="pulse-outside"
             colorVariant="colorful"
             hue={275}
@@ -645,7 +650,7 @@ export default async function Home() {
           {tutors.length === 0 ? (
             <Reveal variant="blur">
               <BeamCard
-                mode="always"
+                mode="hover"
                 size="pulse-inner"
                 colorVariant="colorful"
                 hue={275}
@@ -765,7 +770,7 @@ export default async function Home() {
                   lit object on a dark stage. */}
               <Reveal variant="right" delay={100} className="lg:col-span-3">
                 <BeamCard
-                  mode="always"
+                  mode="hover"
                   size="md"
                   colorVariant="colorful"
                   hue={275}
