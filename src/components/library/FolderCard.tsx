@@ -7,8 +7,9 @@ import { cn } from "@/lib/cn";
  * rounded panel, with a field/term icon. Purely presentational — the whole
  * card is one link, so a course (or a term) opens on click/tap/keyboard.
  *
- * Used by /library (one folder per course) and by the course page (one folder
- * per term), so the drill-down reads identically at both levels.
+ * Used by the course page: one folder per term, and the Drive-materials block
+ * for the course's own folder. The drill-down reads identically at both
+ * levels.
  */
 export function FolderCard({
   href,

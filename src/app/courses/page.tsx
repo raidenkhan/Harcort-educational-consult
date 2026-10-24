@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { listCourses } from "@/services/courses/queries";
 import { getCurrentProfile } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
+import { findCourseMaterials } from "@/services/library/courseMaterials";
 import { CourseDirectory } from "@/components/courses/CourseDirectory";
 import { engineeringCourses } from "@/components/home/courseTaxonomy";
 import { Container } from "@/components/ui/Container";
@@ -22,6 +23,10 @@ import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
  * then a level, then the semester; each course opens its materials, videos
  * and the tutors who teach it. Data comes from the cached listCourses,
  * filtered to the KNUST engineering programmes.
+ *
+ * The old /library page is gone. Its Drive folders and video playlists
+ * are indexed by course code (`services/library/courseMaterials.ts`) and shown
+ * on the course page itself, so there is ONE browsing tree, not two.
  */
 export const dynamic = "force-dynamic";
 
@@ -45,7 +50,6 @@ export default async function CoursesPage() {
         links={[
           { href: "/", label: "Home" },
           { href: "/courses", label: "Courses" },
-          { href: "/library", label: "Library" },
           { href: "/tutors", label: "Find a tutor" },
         ]}
       >
@@ -93,9 +97,10 @@ export default async function CoursesPage() {
                 Start from your course
               </h1>
               <p className="mt-3 text-lilac-100/90">
-                Pick your programme — Mechanical, Electrical &amp; Electronic,
-                Computer, Civil or Chemical Engineering — then your level, your
-                semester, and the exact course you&apos;re taking.
+                Pick your programme, then your level — Semester 1 and Semester 2
+                are grouped and counted separately, so you can see exactly which
+                courses run this term. Every course opens its notes, tutorial
+                videos and the tutors who teach it.
               </p>
             </div>
           </Container>
@@ -122,6 +127,9 @@ export default async function CoursesPage() {
                   code: course.code ?? null,
                   credits: course.credits ?? null,
                   semester: course.semester ?? null,
+                  // Resolved on the server: the directory only needs to know
+                  // whether a Drive folder exists, not the whole library tree.
+                  hasDriveMaterials: Boolean(findCourseMaterials(course.code)),
                 }))}
               />
             )}

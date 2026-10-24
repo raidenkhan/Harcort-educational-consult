@@ -186,3 +186,89 @@ export function groupCoursesByYear<T extends { year: number | null }>(
     .filter((b) => b.items.length > 0)
     .map((b) => ({ year: b.year, label: yearLabel(b.year), items: b.items }));
 }
+
+/**
+ * Buckets a catalog for a course PICKER: Level 100 → 400, each split into
+ * Semester 1 / Semester 2 / "Both semesters", with level-independent courses
+ * in "All levels" last. Same vocabulary as the directory, so a tutor picking
+ * a course reads "Level 100 · Semester 2" and knows it is the right one.
+ *
+ * Only buckets with content are returned (a programme has no Level 400
+ * courses in its first year, and an empty optgroup looks like a bug).
+ */
+export function groupCoursesForPicker<
+  T extends { year: number | null; semester?: number | null },
+>(courses: T[]): { key: string; label: string; items: T[] }[] {
+  const order = (year: number | null, semester: number | null) =>
+    (year ?? 99) * 10 + (semester ?? 9);
+
+  const buckets = new Map<
+    string,
+    { year: number | null; semester: number | null; items: T[] }
+  >();
+
+  for (const course of courses) {
+    const year = course.year ?? null;
+    const semester = course.semester ?? null;
+    const key = `${year ?? "all"}-${semester ?? "both"}`;
+    const bucket = buckets.get(key) ?? { year, semester, items: [] };
+    bucket.items.push(course);
+    buckets.set(key, bucket);
+  }
+
+  return [...buckets.entries()]
+    .sort(
+      ([, a], [, b]) => order(a.year, a.semester) - order(b.year, b.semester),
+    )
+    .map(([key, bucket]) => ({
+      key,
+      label: `${yearLabel(bucket.year)} · ${
+        bucket.semester ? `Semester ${bucket.semester}` : "Both semesters"
+      }`,
+      items: bucket.items,
+    }));
+}
+
+export type SemesterGroup<T> = {
+  term: 1 | 2;
+  items: T[];
+  /** Sum of the group's `credits` — 0 when the rows carry none. */
+  credits: number;
+};
+
+/**
+ * Splits one level's courses into Semester 1, Semester 2 and "both" (no
+ * semester), each term carrying its own course and credit-hour totals.
+ *
+ * Why not `coursesForTerm` twice: that helper deliberately duplicates a
+ * no-semester course into both terms (it answers "what runs this term?"), but
+ * the directory prints BOTH terms on one page, so a course with no semester
+ * would appear twice under two headings. Here it goes in `both` once, and the
+ * directory gives it its own "Runs in both semesters" heading.
+ *
+ * `hasSemesterData` is false when nothing is tagged (pre-0026 rows, or a
+ * non-engineering subject), so the caller can print one plain list instead of
+ * two empty headings.
+ */
+export function splitBySemester<
+  T extends { semester?: number | null; credits?: number | null },
+>(courses: T[]): {
+  groups: SemesterGroup<T>[];
+  both: T[];
+  hasSemesterData: boolean;
+} {
+  const groups = ([1, 2] as const).map((term) => {
+    const items = courses.filter((course) => course.semester === term);
+    return {
+      term,
+      items,
+      credits: items.reduce((sum, course) => sum + (course.credits ?? 0), 0),
+    };
+  });
+
+  return {
+    groups,
+    both: courses.filter((course) => course.semester == null),
+    hasSemesterData: groups.some((group) => group.items.length > 0),
+  };
+}

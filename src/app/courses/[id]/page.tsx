@@ -23,6 +23,7 @@ import {
 } from "@/services/courses/queries";
 import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
+import { findCourseMaterials } from "@/services/library/courseMaterials";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { levelLabel } from "@/components/home/courseTaxonomy";
 import type { CourseMaterial, CourseVideo } from "@/types";
@@ -40,6 +41,7 @@ import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { CourseVideoGrid } from "@/components/courses/CourseVideoGrid";
+import { DriveMaterials } from "@/components/courses/DriveMaterials";
 import { RelatedLessons } from "@/components/courses/RelatedLessons";
 import { FolderCard } from "@/components/library/FolderCard";
 import {
@@ -104,6 +106,13 @@ export default async function CoursePage({
     listTutorsForCourse(course.id),
   ]);
 
+  // The Drive library is indexed by course code — the same folders the
+  // old /library page listed, now shown on the course they belong to. Counted
+  // with the in-app materials so the hero never says "0 materials" for a
+  // course whose notes are one Drive folder away.
+  const driveMaterials = findCourseMaterials(course.code);
+  const materialCount = materials.length + (driveMaterials ? 1 : 0);
+
   // Term drill-down: the page opens on term folders, and a `?term=` value
   // drills into one term's materials and videos. Only when something is
   // actually tagged (0018) does the folder level appear — otherwise the honest
@@ -145,7 +154,6 @@ export default async function CoursePage({
         links={[
           { href: "/", label: "Home" },
           { href: "/courses", label: "Courses" },
-          { href: "/library", label: "Library" },
           { href: "/tutors", label: "Find a tutor" },
         ]}
       >
@@ -194,8 +202,8 @@ export default async function CoursePage({
                 Home
               </Link>
               <ChevronRight className="h-3.5 w-3.5 text-lilac-100/50" />
-              <Link href="/library" className="transition hover:text-white">
-                Library
+              <Link href="/courses" className="transition hover:text-white">
+                Courses
               </Link>
               <ChevronRight className="h-3.5 w-3.5 text-lilac-100/50" />
               {selectedTerm === undefined ? (
@@ -258,8 +266,8 @@ export default async function CoursePage({
                   <FileText className="h-4 w-4 text-lilac-200/70" strokeWidth={1.5} />
                   <dt className="sr-only">Materials</dt>
                   <dd>
-                    {materials.length}{" "}
-                    {materials.length === 1 ? "material" : "materials"}
+                    {materialCount}{" "}
+                    {materialCount === 1 ? "material" : "materials"}
                   </dd>
                 </div>
                 <div className="flex items-center gap-2">
@@ -296,6 +304,12 @@ export default async function CoursePage({
                 <VideosBlock videos={videos} />
                 <MaterialsBlock materials={materials} courseName={course.name} />
               </>
+            )}
+
+            {/* The Drive library for this course — the same folders the
+                old /library page listed, now where the student already is. */}
+            {driveMaterials && (
+              <DriveMaterials entry={driveMaterials} courseName={course.name} />
             )}
 
             {/* Tutors who teach this course */}

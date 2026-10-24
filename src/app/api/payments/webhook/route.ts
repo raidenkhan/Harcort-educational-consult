@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isMissingColumn } from "@/lib/postgres";
 import {
   verifyTransaction,
   verifyTransfer,
@@ -133,12 +134,25 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
 
   // Our row (written at checkout init) supplies the engagement/installment
-  // mapping — never the payload.
-  const { data: paymentRow } = await supabase
-    .from("payments")
-    .select("id, engagement_id, installment_id, status, amount")
-    .eq("paystack_reference", reference)
-    .maybeSingle();
+  // mapping — never the payload. `payment_request_id` (0032) is read in a
+  // separate, tolerant pass so a pre-0032 database still reconciles.
+  const readPayment = (withLink: boolean) => {
+    const columns = withLink
+      ? "id, engagement_id, installment_id, status, amount, payment_request_id"
+      : "id, engagement_id, installment_id, status, amount";
+    return supabase
+      .from("payments")
+      .select(columns)
+      .eq("paystack_reference", reference)
+      .maybeSingle();
+  };
+
+  const firstRead = await readPayment(true);
+  let paymentRow = firstRead.data;
+  if (firstRead.error && isMissingColumn(firstRead.error)) {
+    const retry = await readPayment(false);
+    paymentRow = retry.data;
+  }
 
   const row = paymentRow as
     | {
@@ -147,6 +161,7 @@ export async function POST(request: NextRequest) {
         installment_id: string;
         status: string;
         amount: string | number;
+        payment_request_id?: string | null;
       }
     | null;
 
@@ -190,6 +205,23 @@ export async function POST(request: NextRequest) {
       // outcome — but make it loud for reconciliation.
       console.error(`[payments] apply refused for ${reference}: ${applyError.message}`);
       return NextResponse.json({ received: true, refused: applyError.message });
+    }
+
+    // The money is applied, so the admin-issued link that produced this charge
+    // is now spent (0032 — single use). Marking it AFTER the apply means a
+    // refused charge never burns the student's link. `status = open` keeps a
+    // cancelled link cancelled.
+    if (row.payment_request_id) {
+      const { error: linkError } = await supabase
+        .from("payment_requests")
+        .update({ status: "paid", paid_at: new Date().toISOString() })
+        .eq("id", row.payment_request_id)
+        .eq("status", "open");
+      if (linkError) {
+        console.error(
+          `[payments] payment link ${row.payment_request_id} not marked paid: ${linkError.message}`,
+        );
+      }
     }
 
     // Text the student that the money landed. Best-effort — the money is

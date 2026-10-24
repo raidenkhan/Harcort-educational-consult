@@ -57,6 +57,11 @@ export function toTutorListings(rows: TutorProfileRow[]): TutorListing[] {
               tutor_profile_id: s.tutor_profile_id,
               course_id: s.course_id,
               price: s.price,
+              // 0031 per-format prices. Absent (undefined) on a database that
+              // hasn't run the migration, which `servicePrice()` detects and
+              // falls back to `price`.
+              price_group: s.price_group,
+              price_one_on_one: s.price_one_on_one,
               description: s.description,
               created_at: s.created_at,
             }

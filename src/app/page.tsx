@@ -207,7 +207,6 @@ export default async function Home() {
         links={[
           { href: "/tutors", label: "Find a Tutor" },
           { href: "/courses", label: "Courses" },
-          { href: "/library", label: "Library" },
           { href: "#learn", label: "Harcourt University" },
         ]}
       >
@@ -443,8 +442,8 @@ export default async function Home() {
             </Reveal>
             <Reveal variant="right" delay={100}>
               <p className="max-w-sm text-sm leading-relaxed text-slate-600">
-                Course materials, free lessons and tutors — organized by the
-                field you actually study in, so you never have to wade through
+                Course materials, free lessons and tutors — organized by
+                programme, level and semester, so you never have to wade through
                 somebody else&apos;s syllabus.
               </p>
             </Reveal>

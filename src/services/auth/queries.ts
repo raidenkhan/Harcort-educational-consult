@@ -13,15 +13,18 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   return getSessionProfile();
 }
 
-export async function requireProfile(): Promise<Profile> {
+export async function requireProfile(next?: string): Promise<Profile> {
   const profile = await getSessionProfile();
   if (profile) return profile;
 
   // Auth is a modal on the landing page — send visitors there with the
   // ?auth=sign-in param so the modal opens automatically. (Matches what the
   // middleware does; this also covers environments where middleware doesn't
-  // run, e.g. dev-mode Turbopack.)
-  redirect("/?auth=sign-in");
+  // run, e.g. dev-mode Turbopack.) `next` carries a deep link (a payment link)
+  // through sign-in instead of dropping it on the dashboard.
+  redirect(
+    next ? `/?auth=sign-in&next=${encodeURIComponent(next)}` : "/?auth=sign-in",
+  );
 }
 
 /** Re-exported from the pure module (src/lib/auth/admin.ts) so the rest of

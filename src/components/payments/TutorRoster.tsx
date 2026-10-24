@@ -8,8 +8,8 @@ import { Badge } from "@/components/ui/Badge";
 
 /**
  * Tutor roster — "My students" on the tutor page. One card per student:
- * identity (name + tracking code), payment progress against the 50/50
- * plan, the next meeting, and the topics already dual-ticked as finished.
+ * identity (name + tracking code), payment progress against the semester fee,
+ * the next meeting, and the topics already dual-ticked as finished.
  */
 
 const PAYMENT_BADGE: Record<

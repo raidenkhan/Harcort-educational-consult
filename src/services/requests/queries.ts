@@ -1,10 +1,12 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isMissingColumn } from "@/lib/postgres";
 import {
   normalizeSessionMode,
   type SessionMode,
 } from "@/services/auth/sessionFormat";
+import { servicePrice, type PricedService } from "@/services/tutors/pricing";
 import type { Profile } from "@/types";
 
 /**
@@ -148,12 +150,76 @@ async function listRequestSessionModes(
   );
 }
 
-/** Attach each request's own session format (0024). */
+/**
+ * Per-format prices for a set of `tutor_services` rows (0031).
+ *
+ * A separate query for the same reason as the session modes below:
+ * `price_group` / `price_one_on_one` only exist once 0031 is applied, and the
+ * student's request list and the tutor's inbox must render either way. A
+ * missing column is logged, never fatal — the caller then falls back to the
+ * single `price` embedded in the request select.
+ */
+async function listServicePrices(
+  serviceIds: string[],
+): Promise<Map<string, PricedService>> {
+  const ids = [...new Set(serviceIds)];
+  if (ids.length === 0) return new Map();
+
+  const supabase = createAdminClient();
+
+  const read = (withSplit: boolean) =>
+    supabase
+      .from("tutor_services")
+      .select(withSplit ? "id, price, price_group, price_one_on_one" : "id, price")
+      .in("id", ids);
+
+  let { data, error } = await read(true);
+
+  if (error && isMissingColumn(error)) {
+    console.warn(
+      "[requests] tutor_services.price_group missing — pricing by the single price (apply migration 0031).",
+    );
+    ({ data, error } = await read(false));
+  }
+
+  if (error) {
+    console.error(`[requests] price lookup failed: ${error.message}`);
+    return new Map();
+  }
+
+  return new Map(
+    ((data ?? []) as unknown as Array<{ id: string } & PricedService>).map((row) => [
+      row.id,
+      row,
+    ]),
+  );
+}
+
+/** Attach each request's own session format (0024) and the fee for that
+ *  format (0031). */
 async function withSessionModes(
   views: TutorRequestView[],
 ): Promise<TutorRequestView[]> {
   const modes = await listRequestSessionModes(views.map((view) => view.id));
-  return views.map((view) => ({ ...view, sessionMode: modes.get(view.id) }));
+  const prices = await listServicePrices(
+    views
+      .map((view) => view.tutorServiceId)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  return views.map((view) => {
+    const mode = modes.get(view.id);
+    const service = view.tutorServiceId ? prices.get(view.tutorServiceId) : null;
+    // No price row (or a pre-0031 database, where the lookup returns nothing)
+    // leaves the embedded single price in place — never a null fee for a
+    // request that does have one.
+    return {
+      ...view,
+      sessionMode: mode,
+      tutorServicePrice:
+        service != null ? servicePrice(service, mode) : view.tutorServicePrice,
+    };
+  });
 }
 
 /** The student's sent requests, newest first. */

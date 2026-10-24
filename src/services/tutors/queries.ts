@@ -6,7 +6,7 @@ import {
   type TutorListing,
   type TutorProfileRow,
 } from "@/services/tutors/listing";
-import type { TutorProfile, TutorService } from "@/types";
+import type { Course, TutorProfile, TutorService } from "@/types";
 import { readRate } from "./rate";
 
 /**
@@ -115,9 +115,12 @@ export async function safeListApprovedTutors(): Promise<TutorListing[]> {
   }
 }
 
+/** One of the tutor's own offerings, with its course embedded. */
+export type OwnTutorService = TutorService & { course: Course | null };
+
 export async function getOwnTutorProfile(): Promise<{
   profile: TutorProfile | null;
-  services: TutorService[];
+  services: OwnTutorService[];
 }> {
   const supabase = createAdminClient();
   const current = await getCurrentProfile();
@@ -129,10 +132,13 @@ export async function getOwnTutorProfile(): Promise<{
     .eq("profile_id", current.id)
     .maybeSingle();
 
+  // The course is embedded rather than looked up in `listCourses()`: a course
+  // the tutor just added is UNAPPROVED, so the public catalog deliberately
+  // excludes it — the tutor's own list must still name it.
   const { data: services } = profile
     ? await supabase
         .from("tutor_services")
-        .select("*")
+        .select("*, courses(*)")
         .eq("tutor_profile_id", (profile as TutorProfile).id)
         .order("created_at", { ascending: false })
     : { data: [] };
@@ -141,11 +147,18 @@ export async function getOwnTutorProfile(): Promise<{
     rate_per_hour?: number | null;
   }) | null;
 
+  const serviceRows = (services ?? []) as Array<
+    TutorService & { courses?: Course | Course[] | null }
+  >;
+
   return {
     // The rate column was renamed in 0028 — read whichever this row carries.
     profile: row
       ? ({ ...row, rate_per_semester: readRate(row) } as TutorProfile)
       : null,
-    services: (services as TutorService[]) ?? [],
+    services: serviceRows.map(({ courses, ...service }) => ({
+      ...service,
+      course: Array.isArray(courses) ? (courses[0] ?? null) : (courses ?? null),
+    })),
   };
 }

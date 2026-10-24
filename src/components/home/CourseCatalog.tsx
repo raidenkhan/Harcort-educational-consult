@@ -30,6 +30,7 @@ import { Reveal } from "./Reveal";
 import { LevelRail } from "./LevelRail";
 import {
   LESSON_FIELDS,
+  coursesForTerm,
   matchCourses,
   sortFields,
   groupCoursesByYear,
@@ -188,6 +189,10 @@ export function CourseCatalog({
     field: string;
     key: string | null;
   } | null>(null);
+  // Semester is a separate pick, exactly like the level rail: a KNUST level
+  // carries ~8 courses per semester, so the two terms are shown one at a time
+  // instead of as one 16-card wall a first-year cannot read.
+  const [semester, setSemester] = useState<1 | 2>(1);
   const active = chosen && fields.includes(chosen) ? chosen : fields[0] ?? null;
 
   // No courses at all — an empty taxonomy, or a read that degraded to nothing.
@@ -242,6 +247,30 @@ export function CourseCatalog({
     activeYearBuckets.find(
       (bucket) => (bucket.year == null ? "all" : String(bucket.year)) === openLevelKey,
     ) ?? null;
+
+  // Semester split for the open level. Counts include courses with no semester
+  // (they run in both terms), and a level that only runs one term shows that
+  // term as a static label instead of a toggle that could dead-end.
+  const termCounts = ([1, 2] as const).map((term) => ({
+    term,
+    count:
+      openBucket?.items.filter(
+        (course) => course.semester == null || course.semester === term,
+      ).length ?? 0,
+  }));
+  const availableTerms = termCounts.filter((entry) => entry.count > 0);
+  const bucketHasSemesterData =
+    openBucket?.items.some((course) => course.semester != null) ?? false;
+  const shownSemester = availableTerms.some((entry) => entry.term === semester)
+    ? semester
+    : (availableTerms[0]?.term ?? semester);
+  const termCourses = openBucket
+    ? coursesForTerm(openBucket.items, null, shownSemester)
+    : [];
+  const termCredits = termCourses.reduce(
+    (total, course) => total + (course.credits ?? 0),
+    0,
+  );
 
   return (
     <div className={className}>
@@ -390,13 +419,84 @@ export function CourseCatalog({
 
           <div id="course-level-panel" className="mt-5">
             {openBucket ? (
-              <ul className={cn(LIST)}>
-                {openBucket.items.map((course) => (
-                  <li key={course.id} className={LIST_ITEM}>
-                    <CourseCard course={course} />
-                  </li>
-                ))}
-              </ul>
+              <>
+                {/* Semester split. A KNUST level is two terms of ~7 courses
+                    each; showing them together is the "wall of courses" a
+                    first-year cannot read. The term pick persists across
+                    levels, so a Semester 2 student stays in Semester 2. A
+                    catalogue with no semester tags (non-engineering subjects)
+                    skips the split instead of showing two identical lists. */}
+                {bucketHasSemesterData && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
+                    {availableTerms.length > 1 ? (
+                      <div
+                        role="group"
+                        aria-label="Choose a semester"
+                        className="inline-flex rounded-[2px] border border-slate-300/70 bg-white p-0.5"
+                      >
+                        {availableTerms.map(({ term, count }) => {
+                          const isTerm = term === shownSemester;
+                          return (
+                            <button
+                              key={term}
+                              type="button"
+                              onClick={() => setSemester(term)}
+                              aria-pressed={isTerm}
+                              className={cn(
+                                "inline-flex items-center gap-2 rounded-[2px] px-3 py-1.5 text-[13px] font-medium transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600",
+                                isTerm
+                                  ? "bg-petrol-900 text-white"
+                                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                              )}
+                            >
+                              Semester {term}
+                              <span
+                                className={cn(
+                                  "text-[11px] tabular-nums",
+                                  isTerm ? "text-white/60" : "text-slate-400",
+                                )}
+                              >
+                                {count}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center rounded-[2px] border border-slate-300/70 bg-white px-3 py-1.5 text-[13px] font-medium text-slate-700">
+                        Semester {shownSemester}
+                      </span>
+                    )}
+                    <span className="text-xs font-medium uppercase tracking-widest text-slate-400">
+                      {termCourses.length}{" "}
+                      {termCourses.length === 1 ? "course" : "courses"}
+                      {termCredits > 0 && ` · ${termCredits} credits`}
+                    </span>
+                  </div>
+                )}
+
+                {termCourses.length > 0 ? (
+                  <ul className={cn(LIST)}>
+                    {termCourses.map((course) => (
+                      <li key={course.id} className={LIST_ITEM}>
+                        <CourseCard course={course} />
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="rounded-[2px] border border-dashed border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
+                    No courses are published for this semester yet. Switch
+                    semester above, or{" "}
+                    <Link
+                      href="/courses"
+                      className="font-semibold text-slate-900 transition hover:text-brand-600"
+                    >
+                      browse the full course directory
+                    </Link>
+                    .
+                  </p>
+                )}
+              </>
             ) : (
               <p className="rounded-[2px] border border-dashed border-slate-300 bg-white p-6 text-sm leading-relaxed text-slate-600">
                 Every level is closed. Open one above to see its courses.

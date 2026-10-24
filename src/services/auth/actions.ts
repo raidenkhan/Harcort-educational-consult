@@ -12,6 +12,7 @@ import {
   setSessionCookie,
 } from "@/lib/auth/session";
 import { createThrottle } from "@/lib/auth/throttle";
+import { safeNextPath } from "@/lib/auth/redirect";
 import { isUnknownFunction } from "@/lib/auth/rpc";
 import { requireProfile } from "./queries";
 import {
@@ -190,7 +191,7 @@ export async function signUpAction(
   revalidateTag("tutors", "max");
   revalidatePath("/");
 
-  redirect("/dashboard");
+  redirect(safeNextPath(formData.get("next")) ?? "/dashboard");
 }
 
 export async function signInAction(
@@ -237,7 +238,7 @@ export async function signInAction(
   const token = await createSession(credential.profile_id);
   await setSessionCookie(token);
 
-  redirect("/dashboard");
+  redirect(safeNextPath(formData.get("next")) ?? "/dashboard");
 }
 
 export async function signOutAction(): Promise<void> {

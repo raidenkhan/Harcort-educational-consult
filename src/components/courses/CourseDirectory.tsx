@@ -6,17 +6,17 @@ import {
   ArrowUpRight,
   BookOpen,
   ChevronRight,
+  FolderOpen,
   GraduationCap,
   Search,
   X,
 } from "lucide-react";
-import { cn } from "@/lib/cn";
 import {
-  coursesForTerm,
   levelLabel,
   levelsInCourses,
   matchCourses,
   sortFields,
+  splitBySemester,
 } from "@/components/home/courseTaxonomy";
 import { FIELD_ICONS } from "@/components/home/CourseCatalog";
 import { CourseTitle } from "./CourseTitle";
@@ -33,7 +33,13 @@ import { CourseTitle } from "./CourseTitle";
  * nested dropdowns:
  *   1. all programmes (cards)
  *   2. one programme's levels (rows, with course + credit counts)
- *   3. one level's courses for semester 1 or 2 (cards with code + credits)
+ *   3. one level's courses, BOTH semesters shown as headed, counted sections
+ *      (cards with code + credits)
+ *
+ * Semester 3 shows the two terms stacked rather than behind a toggle: a
+ * first-year who does not yet know which courses belong to which term needs to
+ * see the split, not discover it by clicking. Courses with no semester (or
+ * programmes with no semester data at all) fall back to one plain list.
  *
  * A programme with no year tier skips straight to its course list, and
  * courses that aren't level-bound appear at every level. Search stays global:
@@ -49,6 +55,9 @@ export type DirectoryCourse = {
   code?: string | null;
   credits?: number | null;
   semester?: number | null;
+  /** A study-materials folder exists for this code. Resolved on the
+   *  server so the client never bundles the whole Drive tree. */
+  hasDriveMaterials?: boolean;
 };
 
 export function CourseDirectory({ courses }: { courses: DirectoryCourse[] }) {
@@ -56,7 +65,6 @@ export function CourseDirectory({ courses }: { courses: DirectoryCourse[] }) {
 
   const [program, setProgram] = useState<string | null>(null);
   const [level, setLevel] = useState<number | null>(null);
-  const [semester, setSemester] = useState<1 | 2>(1);
   const [query, setQuery] = useState("");
 
   const trimmed = query.trim();
@@ -69,14 +77,24 @@ export function CourseDirectory({ courses }: { courses: DirectoryCourse[] }) {
   const levels = levelsInCourses(programCourses);
   const activeLevel =
     level !== null && levels.includes(level) ? level : levels.length === 1 ? levels[0] : null;
-  const termCourses = program
-    ? coursesForTerm(programCourses, activeLevel, semester)
+
+  // Everything at the chosen level — including courses with no year, which run
+  // at every level. Split into the two terms below.
+  const levelCourses = program
+    ? programCourses.filter(
+        (course) =>
+          activeLevel === null ||
+          course.year === activeLevel ||
+          course.year == null,
+      )
     : [];
+  const semesterGroups = splitBySemester(levelCourses);
+  const bothTermCourses = semesterGroups.both;
+  const hasSemesterData = semesterGroups.hasSemesterData;
 
   function chooseProgram(next: string) {
     setProgram(next);
     setLevel(null);
-    setSemester(1);
     setQuery("");
   }
 
@@ -255,6 +273,9 @@ export function CourseDirectory({ courses }: { courses: DirectoryCourse[] }) {
                 {levels.map((year) => {
                   const list = programCourses.filter((c) => c.year === year);
                   const credits = list.reduce((sum, c) => sum + (c.credits ?? 0), 0);
+                  const firstTerm = list.filter((c) => c.semester === 1).length;
+                  const secondTerm = list.filter((c) => c.semester === 2).length;
+                  const bothTerms = list.filter((c) => c.semester == null).length;
                   return (
                     <li key={year}>
                       <button
@@ -271,8 +292,13 @@ export function CourseDirectory({ courses }: { courses: DirectoryCourse[] }) {
                               {levelLabel(year)}
                             </span>
                             <span className="mt-0.5 block text-xs text-slate-500">
-                              Semester 1 &amp; 2 · {list.length}{" "}
-                              {list.length === 1 ? "course" : "courses"}
+                              {firstTerm + secondTerm > 0
+                                ? `Semester 1: ${firstTerm} · Semester 2: ${secondTerm}${
+                                    bothTerms > 0 ? ` · ${bothTerms} both` : ""
+                                  }`
+                                : `${list.length} ${
+                                    list.length === 1 ? "course" : "courses"
+                                  }`}
                               {credits > 0 ? ` · ${credits} credit hours` : ""}
                             </span>
                           </span>
@@ -286,7 +312,7 @@ export function CourseDirectory({ courses }: { courses: DirectoryCourse[] }) {
             </section>
           )}
 
-          {/* ── 3. Courses for the chosen term ─────────────────────── */}
+          {/* ── 3. Courses at the chosen level, split by semester ──── */}
           {program && (levels.length === 0 || activeLevel !== null) && (
             <section className="mt-8" aria-label="Courses">
               <div className="flex flex-wrap items-end justify-between gap-3">
@@ -297,39 +323,72 @@ export function CourseDirectory({ courses }: { courses: DirectoryCourse[] }) {
                       : `${program} courses`}
                   </h2>
                   <p className="mt-1 text-sm text-slate-600">
-                    {termCourses.length}{" "}
-                    {termCourses.length === 1 ? "course" : "courses"} this
-                    semester. Open one for its materials, videos and tutors.
+                    {levelCourses.length}{" "}
+                    {levelCourses.length === 1 ? "course" : "courses"}
+                    {hasSemesterData ? ", grouped by semester" : ""}. Open one for
+                    its materials, videos and tutors.
                   </p>
                 </div>
               </div>
 
-              <div className="mt-4 inline-flex w-full max-w-sm rounded-lg border border-slate-200 bg-slate-100/80 p-1">
-                {([1, 2] as const).map((term) => (
-                  <button
-                    key={term}
-                    type="button"
-                    onClick={() => setSemester(term)}
-                    aria-pressed={semester === term}
-                    className={cn(
-                      "flex-1 rounded-md px-3 py-2 text-sm font-semibold transition-colors duration-150",
-                      semester === term
-                        ? "bg-white text-slate-900 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900",
-                    )}
-                  >
-                    Semester {term}
-                  </button>
-                ))}
-              </div>
-
-              {termCourses.length === 0 ? (
+              {levelCourses.length === 0 ? (
                 <p className="mt-5 rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-                  No courses listed for this semester yet.
+                  No courses listed for this level yet.
                 </p>
+              ) : hasSemesterData ? (
+                <div className="mt-5 space-y-8">
+                  {semesterGroups.groups.map(({ term, items, credits }) => (
+                    <div key={term}>
+                      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-200 pb-2">
+                        <h3 className="font-display text-base font-semibold text-slate-900">
+                          Semester {term}
+                        </h3>
+                        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+                          {items.length}{" "}
+                          {items.length === 1 ? "course" : "courses"}
+                          {credits > 0 && ` · ${credits} credit hours`}
+                        </span>
+                      </div>
+                      {items.length > 0 ? (
+                        <ul className="mt-3 space-y-3">
+                          {items.map((course) => (
+                            <li key={course.id}>
+                              <CourseRow course={course} />
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">
+                          No courses listed for Semester {term}.
+                        </p>
+                      )}
+                    </div>
+                  ))}
+
+                  {bothTermCourses.length > 0 && (
+                    <div>
+                      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-200 pb-2">
+                        <h3 className="font-display text-base font-semibold text-slate-900">
+                          Runs in both semesters
+                        </h3>
+                        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+                          {bothTermCourses.length}{" "}
+                          {bothTermCourses.length === 1 ? "course" : "courses"}
+                        </span>
+                      </div>
+                      <ul className="mt-3 space-y-3">
+                        {bothTermCourses.map((course) => (
+                          <li key={course.id}>
+                            <CourseRow course={course} />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <ul className="mt-5 space-y-3">
-                  {termCourses.map((course) => (
+                  {levelCourses.map((course) => (
                     <li key={course.id}>
                       <CourseRow course={course} />
                     </li>
@@ -350,6 +409,9 @@ export function CourseDirectory({ courses }: { courses: DirectoryCourse[] }) {
  * click target through the stretched link, same destination as before
  * (`/courses/[id]`), so materials, videos and the tutor list stay exactly
  * where they were.
+ *
+ * A course whose code has a Drive folder says so up front, so a
+ * student can see which courses already have notes without opening each one.
  */
 function CourseRow({
   course,
@@ -385,6 +447,12 @@ function CourseRow({
           {course.credits != null && (
             <span className="text-[11px] text-slate-400">
               {course.credits} credit hour{course.credits === 1 ? "" : "s"}
+            </span>
+          )}
+          {course.hasDriveMaterials && (
+            <span className="inline-flex items-center gap-1 rounded-[2px] bg-petrol-50 px-1.5 py-0.5 text-[11px] font-semibold text-petrol-900">
+              <FolderOpen aria-hidden="true" className="h-3 w-3" />
+              Drive notes
             </span>
           )}
         </span>

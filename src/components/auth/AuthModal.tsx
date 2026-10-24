@@ -53,6 +53,21 @@ function getAuthUrlServerSnapshot(): AuthTab | null {
   return null;
 }
 
+/**
+ * `?next=` — where to go after signing in. Same external-store trick as
+ * `?auth=`, and the same primitive-string snapshot (a fresh object every read
+ * would re-render forever). The value is validated server-side by
+ * `safeNextPath`; this only carries it into the form.
+ */
+function readNextFromUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("next");
+}
+
+function getNextUrlServerSnapshot(): string | null {
+  return null;
+}
+
 /** Drop the ?auth= param once the modal is closed, so refreshes stay clean. */
 function clearAuthFromUrl() {
   const params = new URLSearchParams(window.location.search);
@@ -77,6 +92,11 @@ export function AuthModalProvider({ children }: { children: React.ReactNode }) {
     subscribeToAuthUrl,
     getAuthUrlSnapshot,
     getAuthUrlServerSnapshot,
+  );
+  const nextPath = useSyncExternalStore(
+    subscribeToAuthUrl,
+    readNextFromUrl,
+    getNextUrlServerSnapshot,
   );
   const [tab, setTab] = useState<AuthTab | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -203,7 +223,7 @@ export function AuthModalProvider({ children }: { children: React.ReactNode }) {
                 : "Join Harcourt as a student or a tutor."}
             </p>
 
-            {activeTab === "sign-in" ? <SignInFields /> : <SignUpFields />}
+            {activeTab === "sign-in" ? <SignInFields next={nextPath} /> : <SignUpFields next={nextPath} />}
 
             <p className="mt-6 text-center text-sm text-slate-500">
               {activeTab === "sign-in" ? (

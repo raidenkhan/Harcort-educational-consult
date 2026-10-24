@@ -81,8 +81,8 @@ export async function TutorEarningsCard() {
             What you&apos;ve earned
           </h2>
           <p className="mt-1 max-w-xl text-sm text-slate-600">
-            Students pay Harcourt in two installments; after sessions are
-            confirmed, 90% is paid out to your mobile money account.
+            Students pay Harcourt the full semester fee up front; after sessions
+            are confirmed, 90% is paid out to your mobile money account.
           </p>
         </div>
       </div>

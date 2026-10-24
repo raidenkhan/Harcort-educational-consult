@@ -1,7 +1,8 @@
 import { requireProfile } from "@/services/auth/queries";
 import { listStudentEngagements } from "@/services/payments/queries";
 import { formatGhs } from "@/lib/money";
-import { dueDateLabel, isOverdue } from "@/lib/time";
+import { accraDate, dueDateLabel, isOverdue } from "@/lib/time";
+import { promiseState } from "@/services/payments/plan";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { PayInstallmentButton } from "./PayInstallmentButton";
@@ -9,10 +10,12 @@ import { PayInstallmentButton } from "./PayInstallmentButton";
 /**
  * Student payments card — the money side of the student dashboard.
  *
- * One row per engagement: course, tutor, the 50/50 installment plan with
- * Accra-time due dates, and a pay button on every payable installment.
- * All amounts are pesewas formatted via formatGhs; no money math happens
- * here (queries.ts derives paid/remaining from the DB rows).
+ * One row per agreement: course, tutor, what has been paid, what is left, the
+ * promised full-payment date (0032), and a pay button for the OUTSTANDING
+ * balance. Since 0029 the semester fee is 100% upfront — a single installment
+ * — and part payments accumulate in `paidAmount`, so the button must charge
+ * the remainder rather than the face value. All amounts are pesewas formatted
+ * via formatGhs; no money math happens here (queries.ts derives it).
  */
 
 const ENGAGEMENT_BADGE: Record<
@@ -37,13 +40,20 @@ const INSTALLMENT_BADGE: Record<
 
 /** Module-level so component render stays pure (react-hooks/purity) —
  *  same pattern as splitStudentTimetable on the dashboard page. Resolves
- *  pending installments past their Accra-day deadline to "overdue". */
+ *  pending installments past their Accra-day deadline to "overdue", and the
+ *  promised balance date to overdue / due / upcoming (0032). */
 function withDisplayStatus(engagements: Awaited<ReturnType<typeof listStudentEngagements>>) {
   const now = Date.now();
   return engagements.map((engagement) => ({
     ...engagement,
+    promise: promiseState(
+      engagement.expectedFullPaymentAt,
+      engagement.remainingPesewas,
+      now,
+    ),
     installments: engagement.installments.map((installment) => ({
       ...installment,
+      outstanding: installment.amount - installment.paidAmount,
       displayStatus:
         installment.status === "pending" && isOverdue(new Date(installment.dueAt), now)
           ? "overdue"
@@ -61,8 +71,10 @@ export async function StudentPaymentsCard() {
       <Card className="border-dashed">
         <h2 className="text-lg font-semibold text-slate-900">My payments</h2>
         <p className="mt-1 text-sm text-slate-600">
-          When you commit to a tutor&apos;s quoted course, your 50/50 payment
-          plan appears here with deadlines and a pay button.
+          When you commit to a tutor&apos;s quoted course, your semester fee
+          appears here with its deadline and a pay button. If you can&apos;t pay
+          it all at once, message the admin team from the paywall and
+          they&apos;ll set up a payment plan.
         </p>
       </Card>
     );
@@ -107,6 +119,29 @@ export async function StudentPaymentsCard() {
               )}
             </div>
 
+            {engagement.expectedFullPaymentAt &&
+              engagement.remainingPesewas > BigInt(0) && (
+                <p
+                  className={
+                    engagement.promise === "overdue"
+                      ? "mt-1 text-xs font-medium text-red-700"
+                      : "mt-1 text-xs text-slate-500"
+                  }
+                >
+                  Balance promised by{" "}
+                  {accraDate(
+                    new Date(
+                      `${engagement.expectedFullPaymentAt.slice(0, 10)}T00:00:00Z`,
+                    ),
+                  )}
+                  {engagement.promise === "overdue"
+                    ? " — this date has passed. Message the admin team if you need more time."
+                    : engagement.promise === "due"
+                      ? " — that's today."
+                      : ""}
+                </p>
+              )}
+
             <ul className="mt-4 space-y-3">
               {engagement.installments.map((installment) => {
                 const displayStatus = installment.displayStatus;
@@ -115,6 +150,10 @@ export async function StudentPaymentsCard() {
                   tone: "neutral" as const,
                 };
                 const payable = displayStatus === "pending" || displayStatus === "overdue";
+                const outstanding =
+                  installment.outstanding > BigInt(0)
+                    ? installment.outstanding
+                    : BigInt(0);
                 return (
                   <li
                     key={installment.id}
@@ -122,22 +161,34 @@ export async function StudentPaymentsCard() {
                   >
                     <div>
                       <p className="text-sm font-semibold text-slate-900">
-                        Installment {installment.idx} of 2 ·{" "}
-                        {formatGhs(installment.amount)}
+                        {engagement.installments.length === 1
+                          ? "Semester fee"
+                          : `Installment ${installment.idx} of ${engagement.installments.length}`}{" "}
+                        · {formatGhs(installment.amount)}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-500">
                         {installment.paidAt
                           ? `Paid ${dueDateLabel(new Date(installment.paidAt))}`
                           : dueDateLabel(new Date(installment.dueAt))}
+                        {installment.paidAmount > BigInt(0) &&
+                          installment.paidAmount < installment.amount && (
+                            <>
+                              {" · "}
+                              {formatGhs(installment.paidAmount)} paid,{" "}
+                              {formatGhs(outstanding)} left
+                            </>
+                          )}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
                       <Badge tone={badge2.tone}>{badge2.label}</Badge>
-                      {payable && engagement.status !== "cancelled" ? (
+                      {payable &&
+                      outstanding > BigInt(0) &&
+                      engagement.status !== "cancelled" ? (
                         <PayInstallmentButton
                           engagementId={engagement.id}
                           installmentId={installment.id}
-                          amountDisplay={formatGhs(installment.amount)}
+                          amountDisplay={formatGhs(outstanding)}
                         />
                       ) : null}
                     </div>

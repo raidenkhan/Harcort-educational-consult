@@ -1,7 +1,16 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isMissingColumn } from "@/lib/postgres";
 import { profileIsAdmin } from "@/lib/auth/admin";
+import {
+  normalizeSessionMode,
+  type SessionMode,
+} from "@/services/auth/sessionFormat";
+import {
+  hashPaymentToken,
+  isPlausiblePaymentToken,
+} from "@/services/payments/links";
 import type { Profile } from "@/types";
 
 /**
@@ -49,6 +58,9 @@ export interface EngagementView {
   tutorName: string;
   installments: InstallmentView[];
   createdAt: string;
+  /** Date the admin and student agreed the balance will be settled (0032).
+   *  Null when no promise has been made yet. */
+  expectedFullPaymentAt: string | null;
 }
 
 export interface PayoutView {
@@ -99,6 +111,8 @@ interface EngagementRow {
   platform_fee_bps: number;
   created_at: string;
   student_id: string;
+  /** 0032 — the promised full-payment date. Absent before the migration. */
+  expected_full_payment_at?: string | null;
   installments?: Array<{
     id: string;
     idx: number;
@@ -121,18 +135,30 @@ interface EngagementRow {
     | null;
 }
 
+/** How much has actually landed across an agreement's installments.
+ *
+ *  0029 tracks partials in `paid_amount`; before it, a paid installment was
+ *  paid in full. Reading whichever shape the rows carry keeps the console
+ *  correct on a database that hasn't caught up. */
+function paidFromInstallments(
+  installments: Array<{ amount: unknown; paid_amount?: unknown; status: string }>,
+): bigint {
+  const hasPartialTracking = installments.some((i) => i.paid_amount != null);
+  return hasPartialTracking
+    ? installments.reduce<bigint>(
+        (acc, i) => acc + toBigint(i.paid_amount ?? 0),
+        BigInt(0),
+      )
+    : installments
+        .filter((i) => i.status === "paid")
+        .reduce<bigint>((acc, i) => acc + toBigint(i.amount), BigInt(0));
+}
+
 /** Map a raw engagement row (with embeds) to the public view shape. */
 function toEngagementView(row: EngagementRow): EngagementView {
   const total = toBigint(row.agreed_total);
   const installments = [...(row.installments ?? [])].sort((a, b) => a.idx - b.idx);
-  // 0029: a partially-paid installment carries paid_amount. Prefer it; fall
-  // back to the status-based sum for a database without the column yet.
-  const hasPartialTracking = installments.some((i) => i.paid_amount != null);
-  const paid = hasPartialTracking
-    ? installments.reduce<bigint>((acc, i) => acc + toBigint(i.paid_amount ?? 0), BigInt(0))
-    : installments
-        .filter((i) => i.status === "paid")
-        .reduce<bigint>((acc, i) => acc + toBigint(i.amount), BigInt(0));
+  const paid = paidFromInstallments(installments);
   const fee = (total * BigInt(row.platform_fee_bps ?? 1000)) / BigInt(10000);
 
   return {
@@ -152,15 +178,28 @@ function toEngagementView(row: EngagementRow): EngagementView {
       id: i.id,
       idx: i.idx,
       amount: toBigint(i.amount),
-      paidAmount: hasPartialTracking ? toBigint(i.paid_amount ?? 0) : toBigint(i.status === "paid" ? i.amount : 0),
+      paidAmount:
+        i.paid_amount != null
+          ? toBigint(i.paid_amount)
+          : toBigint(i.status === "paid" ? i.amount : 0),
       dueAt: i.due_at,
       status: i.status as InstallmentStatus,
       wasOverdue: i.was_overdue,
       paidAt: i.paid_at,
     })),
     createdAt: row.created_at,
+    expectedFullPaymentAt: row.expected_full_payment_at ?? null,
   };
 }
+
+const ENGAGEMENT_SELECT_V3 = `
+  id, status, agreed_total, platform_fee_bps, created_at, student_id,
+  expected_full_payment_at,
+  installments(id, idx, amount, due_at, status, was_overdue, paid_at, paid_amount),
+  courses(name),
+  profiles!engagements_student_id_fkey(full_name, public_code),
+  tutor_profiles(profiles(full_name))
+`;
 
 const ENGAGEMENT_SELECT_V2 = `
   id, status, agreed_total, platform_fee_bps, created_at, student_id,
@@ -180,9 +219,10 @@ const ENGAGEMENT_SELECT_BASE = `
 `;
 
 /**
- * Engagement lists tolerate a database without 0029 yet: the v2 select asks
- * for `paid_amount`; if PostgREST rejects the column, the query retries with
- * the base set (the mapper reads whichever shape the rows carry).
+ * Engagement lists tolerate a database that hasn't caught up: the newest
+ * select asks for the 0032 promise date, then 0029's `paid_amount`, then the
+ * base set. The mapper reads whichever shape the rows carry — a missing
+ * column must never blank the money console.
  */
 async function listEngagements(
   filter: { field: string; value: string } | null,
@@ -195,8 +235,11 @@ async function listEngagements(
     return query.order("created_at", { ascending: false });
   };
 
-  let { data, error } = await run(ENGAGEMENT_SELECT_V2);
-  if (error && /paid_amount/i.test(error.message ?? "")) {
+  let { data, error } = await run(ENGAGEMENT_SELECT_V3);
+  if (error && isMissingColumn(error)) {
+    ({ data, error } = await run(ENGAGEMENT_SELECT_V2));
+  }
+  if (error && isMissingColumn(error)) {
     ({ data, error } = await run(ENGAGEMENT_SELECT_BASE));
   }
   if (error) throw new Error(`${label}: ${error.message}`);
@@ -527,4 +570,324 @@ export async function listPayoutAccountsForAdmin(): Promise<
       verified: Boolean(row.verified_at),
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Payment plans & part-payment links (0032)
+// ---------------------------------------------------------------------------
+
+export interface PaymentRequestView {
+  id: string;
+  engagementId: string;
+  amount: bigint;
+  note: string | null;
+  status: "open" | "paid" | "cancelled";
+  createdAt: string;
+  expiresAt: string | null;
+  paidAt: string | null;
+  studentName: string;
+  studentCode: string | null;
+  courseTitle: string;
+  tutorName: string;
+}
+
+/**
+ * A link as the STUDENT sees it on /pay/[token]. It carries the agreement's
+ * balance so the page can say "GH₵600 of GH₵1,200 paid" before the student
+ * commits — and refuse a link whose agreement is already settled.
+ */
+export interface PaymentLinkView extends PaymentRequestView {
+  studentId: string;
+  engagementStatus: string;
+  agreedTotal: bigint;
+  paidPesewas: bigint;
+  remainingPesewas: bigint;
+  expectedFullPaymentAt: string | null;
+  /** True when the link can still be paid right now. */
+  payable: boolean;
+}
+
+interface PaymentRequestRow {
+  id: string;
+  engagement_id: string;
+  amount: unknown;
+  note: string | null;
+  status: string;
+  created_at: string;
+  expires_at: string | null;
+  paid_at: string | null;
+  engagements?:
+    | {
+        status?: string;
+        agreed_total?: unknown;
+        expected_full_payment_at?: string | null;
+        student_id?: string;
+        courses?: { name: string } | { name: string }[] | null;
+        profiles?:
+          | { full_name: string; public_code: string | null }
+          | { full_name: string; public_code: string | null }[]
+          | null;
+        tutor_profiles?:
+          | { profiles?: { full_name: string } | { full_name: string }[] | null }
+          | { profiles?: { full_name: string } | { full_name: string }[] | null }[]
+          | null;
+        installments?: Array<{
+          amount: unknown;
+          paid_amount?: unknown;
+          status: string;
+        }>;
+      }
+    | Array<{
+        status?: string;
+        agreed_total?: unknown;
+        expected_full_payment_at?: string | null;
+        student_id?: string;
+        courses?: { name: string } | { name: string }[] | null;
+        profiles?:
+          | { full_name: string; public_code: string | null }
+          | { full_name: string; public_code: string | null }[]
+          | null;
+        tutor_profiles?:
+          | { profiles?: { full_name: string } | { full_name: string }[] | null }
+          | { profiles?: { full_name: string } | { full_name: string }[] | null }[]
+          | null;
+        installments?: Array<{
+          amount: unknown;
+          paid_amount?: unknown;
+          status: string;
+        }>;
+      }>
+    | null;
+}
+
+const PAYMENT_REQUEST_SELECT = `
+  id, engagement_id, amount, note, status, created_at, expires_at, paid_at,
+  engagements(
+    status, agreed_total, expected_full_payment_at, student_id,
+    installments(amount, paid_amount, status),
+    courses(name),
+    profiles!engagements_student_id_fkey(full_name, public_code),
+    tutor_profiles(profiles(full_name))
+  )
+`;
+
+function toPaymentRequestView(row: PaymentRequestRow): PaymentRequestView {
+  const engagement = one(row.engagements);
+  return {
+    id: row.id,
+    engagementId: row.engagement_id,
+    amount: toBigint(row.amount),
+    note: row.note,
+    status: row.status as PaymentRequestView["status"],
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    paidAt: row.paid_at,
+    studentName: one(engagement?.profiles)?.full_name ?? "",
+    studentCode: one(engagement?.profiles)?.public_code ?? null,
+    courseTitle: one(engagement?.courses)?.name ?? "",
+    tutorName: one(one(engagement?.tutor_profiles)?.profiles)?.full_name ?? "",
+  };
+}
+
+/** Has this link expired? Expiry is advisory in the DB (the RPC only stores
+ *  it) — the pay action enforces it, so a stale link cannot be paid. */
+export function isPaymentLinkExpired(
+  expiresAt: string | null,
+  now: number,
+): boolean {
+  return expiresAt !== null && Date.parse(expiresAt) < now;
+}
+
+/**
+ * Resolve a part-payment link from the token in the URL.
+ *
+ * Only the SHA-256 hash is stored, so this is the one place that turns the
+ * student's token into a row. Returns null for an unknown token — never
+ * throws, because the page must render "this link is invalid" rather than a
+ * 500.
+ */
+export async function getPaymentLinkByToken(
+  token: string,
+  now: number,
+): Promise<PaymentLinkView | null> {
+  if (!isPlausiblePaymentToken(token)) return null;
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("payment_requests")
+    .select(PAYMENT_REQUEST_SELECT)
+    .eq("token_hash", hashPaymentToken(token))
+    .maybeSingle();
+
+  if (error) {
+    // Pre-0032 there is no such table — the link simply doesn't exist yet.
+    if (!/does not exist|schema cache|relation/i.test(error.message ?? "")) {
+      console.error(`[payments] payment link lookup failed: ${error.message}`);
+    }
+    return null;
+  }
+  if (!data) return null;
+
+  const row = data as unknown as PaymentRequestRow;
+  const engagement = one(row.engagements);
+  const base = toPaymentRequestView(row);
+  const total = toBigint(engagement?.agreed_total ?? 0);
+  const paid = paidFromInstallments(engagement?.installments ?? []);
+
+  return {
+    ...base,
+    studentId: engagement?.student_id ?? "",
+    engagementStatus: engagement?.status ?? "pending_payment",
+    agreedTotal: total,
+    paidPesewas: paid,
+    remainingPesewas: total - paid,
+    expectedFullPaymentAt: engagement?.expected_full_payment_at ?? null,
+    payable:
+      row.status === "open" &&
+      !isPaymentLinkExpired(row.expires_at, now) &&
+      (engagement?.status ?? "") !== "cancelled" &&
+      total - paid > BigInt(0),
+  };
+}
+
+/** Every link the admin has issued, newest first (console list). */
+export async function listPaymentRequestsForAdmin(
+  limit = 50,
+): Promise<PaymentRequestView[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("payment_requests")
+    .select(PAYMENT_REQUEST_SELECT)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    if (/does not exist|schema cache|relation/i.test(error.message ?? "")) {
+      return []; // pre-0032
+    }
+    throw new Error(`listPaymentRequestsForAdmin: ${error.message}`);
+  }
+  return (data ?? []).map((row) => toPaymentRequestView(row as unknown as PaymentRequestRow));
+}
+
+export interface OpenPlanRequestView {
+  requestId: string;
+  studentId: string;
+  studentName: string;
+  studentCode: string | null;
+  courseTitle: string;
+  tutorName: string;
+  tutorServiceId: string | null;
+  sessionMode: SessionMode;
+  createdAt: string;
+}
+
+/**
+ * Requests that could become a payment plan: still live, and with no
+ * engagement for that student + tutor service yet.
+ *
+ * This is the admin's queue of "students who reached the paywall and asked
+ * for help" — opening a plan is what makes a part payment recordable.
+ */
+export async function listOpenRequestsForAdmin(): Promise<OpenPlanRequestView[]> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("tutor_requests")
+    .select(
+      `id, student_id, course_id, tutor_profile_id, created_at,
+       courses(name),
+       profiles!tutor_requests_student_id_fkey(full_name, public_code),
+       tutor_profiles(
+         id,
+         profiles(full_name),
+         tutor_services(id, course_id, price, price_group, price_one_on_one)
+       )`,
+    )
+    .in("status", ["pending", "accepted"])
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error(`[payments] open request lookup failed: ${error.message}`);
+    return [];
+  }
+
+  const rows = (data ?? []) as unknown as Array<{
+    id: string;
+    student_id: string;
+    course_id: string | null;
+    created_at: string;
+    courses?: { name: string } | { name: string }[] | null;
+    profiles?:
+      | { full_name: string; public_code: string | null }
+      | { full_name: string; public_code: string | null }[]
+      | null;
+    tutor_profiles?:
+      | {
+          id: string;
+          profiles?: { full_name: string } | { full_name: string }[] | null;
+          tutor_services?: Array<{ id: string; course_id: string }> | null;
+        }
+      | Array<{
+          id: string;
+          profiles?: { full_name: string } | { full_name: string }[] | null;
+          tutor_services?: Array<{ id: string; course_id: string }> | null;
+        }>
+      | null;
+  }>;
+
+  if (rows.length === 0) return [];
+
+  // Session format is per request (0024) and lives in its own column so a
+  // database without it still renders the queue.
+  const modes = new Map<string, SessionMode>();
+  const { data: modeRows, error: modeError } = await supabase
+    .from("tutor_requests")
+    .select("id, session_mode")
+    .in("id", rows.map((r) => r.id));
+  if (!modeError) {
+    for (const row of modeRows ?? []) {
+      modes.set(
+        (row as { id: string }).id,
+        normalizeSessionMode((row as { session_mode?: unknown }).session_mode),
+      );
+    }
+  }
+
+  // Which of those students already have an open agreement for the service?
+  const { data: engagementRows } = await supabase
+    .from("engagements")
+    .select("student_id, tutor_service_id, status")
+    .in("status", ["pending_payment", "active", "completed"]);
+
+  const covered = new Set(
+    ((engagementRows ?? []) as Array<{
+      student_id: string;
+      tutor_service_id: string;
+    }>).map((e) => `${e.student_id}::${e.tutor_service_id}`),
+  );
+
+  return rows
+    .map((row) => {
+      const tp = one(row.tutor_profiles);
+      const service =
+        tp?.tutor_services?.find((s) => s.course_id === row.course_id) ?? null;
+      return {
+        requestId: row.id,
+        studentId: row.student_id,
+        studentName: one(row.profiles)?.full_name ?? "",
+        studentCode: one(row.profiles)?.public_code ?? null,
+        courseTitle: one(row.courses)?.name ?? "Course",
+        tutorName: one(tp?.profiles)?.full_name ?? "",
+        tutorServiceId: service?.id ?? null,
+        sessionMode: modes.get(row.id) ?? "one_on_one",
+        createdAt: row.created_at,
+      };
+    })
+    .filter(
+      (row) =>
+        row.tutorServiceId !== null &&
+        !covered.has(`${row.studentId}::${row.tutorServiceId}`),
+    );
 }

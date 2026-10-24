@@ -5,10 +5,12 @@ import {
   coursesForTerm,
   engineeringCourses,
   groupCoursesByYear,
+  groupCoursesForPicker,
   levelLabel,
   levelsInCourses,
   matchCourses,
   sortFields,
+  splitBySemester,
 } from "./courseTaxonomy";
 
 const COURSES = [
@@ -183,5 +185,73 @@ describe("coursesForTerm", () => {
       "4",
       "5",
     ]);
+  });
+});
+
+describe("groupCoursesForPicker", () => {
+  it("labels buckets by level and semester, in curriculum order", () => {
+    expect(groupCoursesForPicker(TERM_COURSES).map((b) => b.label)).toEqual([
+      "Level 100 · Semester 1",
+      "Level 100 · Semester 2",
+      "Level 200 · Semester 1",
+      "All levels · Both semesters",
+    ]);
+  });
+
+  it("keeps every course, in exactly one bucket", () => {
+    const buckets = groupCoursesForPicker(TERM_COURSES);
+    const ids = buckets.flatMap((b) => b.items.map((c) => c.id));
+    expect(ids.sort()).toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  it("omits empty buckets instead of rendering an empty optgroup", () => {
+    const onlyLevelTwo = TERM_COURSES.filter((c) => c.year === 2);
+    expect(groupCoursesForPicker(onlyLevelTwo)).toHaveLength(1);
+    expect(groupCoursesForPicker([])).toEqual([]);
+  });
+
+  it("uses a stable key that distinguishes the same semester across levels", () => {
+    const keys = groupCoursesForPicker(TERM_COURSES).map((b) => b.key);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe("splitBySemester", () => {
+  const LEVEL_ONE = [
+    { id: "1", semester: 1, credits: 4 },
+    { id: "2", semester: 1, credits: 2 },
+    { id: "3", semester: 2, credits: 3 },
+    { id: "4", semester: null, credits: 1 },
+    { id: "5", credits: null },
+  ];
+
+  it("groups the two terms with their own course and credit totals", () => {
+    const { groups } = splitBySemester(LEVEL_ONE);
+    expect(groups.map((g) => [g.term, g.items.length, g.credits])).toEqual([
+      [1, 2, 6],
+      [2, 1, 3],
+    ]);
+  });
+
+  it("lists a no-semester course once, under 'both', never in a term", () => {
+    const { groups, both } = splitBySemester(LEVEL_ONE);
+    expect(both.map((c) => c.id)).toEqual(["4", "5"]);
+    expect(groups.flatMap((g) => g.items.map((c) => c.id))).toEqual([
+      "1",
+      "2",
+      "3",
+    ]);
+  });
+
+  it("keeps every course exactly once across the three buckets", () => {
+    const { groups, both } = splitBySemester(LEVEL_ONE);
+    const ids = [...groups.flatMap((g) => g.items.map((c) => c.id)), ...both.map((c) => c.id)];
+    expect(ids.sort()).toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  it("reports no semester data for an untagged catalogue", () => {
+    expect(splitBySemester([{ semester: null }, {}]).hasSemesterData).toBe(false);
+    expect(splitBySemester([]).hasSemesterData).toBe(false);
+    expect(splitBySemester(LEVEL_ONE).hasSemesterData).toBe(true);
   });
 });

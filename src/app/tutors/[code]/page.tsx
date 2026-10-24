@@ -4,6 +4,8 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTutorByPublicCode } from "@/services/tutors/queries";
+import { formatPrices } from "@/services/tutors/pricing";
+import { ServicePrice } from "@/components/tutors/ServicePrice";
 import { getCurrentProfile } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
 import { RequestTutorButton } from "@/components/payments/RequestTutorButton";
@@ -63,13 +65,18 @@ export default async function TutorProfilePage({
   const name = tutorUser.full_name || "Harcourt tutor";
   const courseNames = new Map(courses.map((c) => [c.id, c]));
   const offerings = services
-    .map((s) => ({
-      serviceId: s.id,
-      courseId: s.course_id,
-      course: courseNames.get(s.course_id) ?? null,
-      price: s.price,
-    }))
-    .filter((o) => o.course !== null);
+    .map((s) => {
+      const course = courseNames.get(s.course_id);
+      if (!course) return null;
+      return {
+        serviceId: s.id,
+        courseId: s.course_id,
+        course,
+        service: s,
+        prices: formatPrices(s),
+      };
+    })
+    .filter((o): o is NonNullable<typeof o> => o !== null);
 
   return (
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
@@ -77,7 +84,7 @@ export default async function TutorProfilePage({
         links={[
           { href: "/", label: "Home" },
           { href: "/tutors", label: "Find a tutor" },
-          { href: "/library", label: "Library" },
+          { href: "/courses", label: "Courses" },
         ]}
       >
         {profile ? (
@@ -196,22 +203,27 @@ export default async function TutorProfilePage({
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-800">
-                          {o.course!.name}
+                          {o.course.name}
                         </p>
                         <p className="mt-0.5 text-xs text-slate-500">
-                          {o.course!.code ?? "No code"}
-                          {o.course!.credits != null
-                            ? ` · ${o.course!.credits} credits`
+                          {o.course.code ?? "No code"}
+                          {o.course.credits != null
+                            ? ` · ${o.course.credits} credits`
                             : ""}
-                          {` · GH₵${o.price.toLocaleString()}/semester`}
+                          {o.course.semester != null
+                            ? ` · Semester ${o.course.semester}`
+                            : ""}
+                          {" · "}
+                          <ServicePrice service={o.service} />
                         </p>
                       </div>
                       <RequestTutorButton
                         tutorProfileId={tp.id}
                         offerings={offerings.map((off) => ({
                           courseId: off.courseId,
-                          name: off.course!.name,
-                          price: off.price,
+                          name: off.course.name,
+                          priceOneOnOne: off.prices.oneOnOne,
+                          priceGroup: off.prices.group,
                         }))}
                         signedIn={Boolean(profile?.id)}
                         className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-brand-600 px-3.5 text-xs font-semibold text-white shadow-xs transition hover:bg-brand-700 active:scale-[0.98]"

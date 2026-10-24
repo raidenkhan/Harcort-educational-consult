@@ -19,8 +19,9 @@ import { RolePicker, type AuthRole } from "./RolePicker";
 const selectClass =
   "h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-xs transition focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/15";
 
-/** Sign-in form. */
-export function SignInFields() {
+/** Sign-in form. `next` keeps a payment link (or any deep link) alive across
+ *  sign-in — see safeNextPath. */
+export function SignInFields({ next }: { next?: string | null }) {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(
     signInAction,
     {},
@@ -42,6 +43,7 @@ export function SignInFields() {
       <GoogleAuthBlock />
 
       <form action={formAction} className="space-y-4">
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <Field label="Email" htmlFor="email">
           <Input
             id="email"
@@ -80,7 +82,7 @@ export function SignInFields() {
  *  and basic fields. The session format (one-on-one vs group) is chosen at
  *  booking time, not here.
  */
-export function SignUpFields() {
+export function SignUpFields({ next }: { next?: string | null }) {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(
     signUpAction,
     {},
@@ -105,6 +107,7 @@ export function SignUpFields() {
       <GoogleAuthBlock />
 
       <form action={formAction} className="space-y-4">
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <Field label="Full name" htmlFor="fullName">
           <Input
             id="fullName"

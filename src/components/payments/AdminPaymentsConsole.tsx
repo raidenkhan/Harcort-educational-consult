@@ -1,13 +1,26 @@
-import { AlertTriangle, Banknote, Wallet } from "lucide-react";
+import {
+  AlertTriangle,
+  Banknote,
+  CalendarClock,
+  UserCheck,
+  Users,
+  UserX,
+  Wallet,
+} from "lucide-react";
 import { requireRole } from "@/services/auth/queries";
 import {
   listAllEngagements,
   listAllPayouts,
+  listOpenRequestsForAdmin,
+  listPaymentRequestsForAdmin,
   listPayoutAccountsForAdmin,
   type EngagementView,
+  type OpenPlanRequestView,
+  type PaymentRequestView,
 } from "@/services/payments/queries";
 import { formatGhs } from "@/lib/money";
-import { isOverdue } from "@/lib/time";
+import { accraDate, isOverdue } from "@/lib/time";
+import { promiseState, summarizePlans } from "@/services/payments/plan";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -16,6 +29,10 @@ import {
 } from "@/services/payments/queries";
 import { AdminPayoutActions } from "./AdminPayoutActions";
 import { AdminVerifyPayoutAccountButton } from "./AdminVerifyPayoutAccountButton";
+import { CancelPaymentLinkButton } from "./CancelPaymentLinkButton";
+import { CreatePaymentLinkForm } from "./CreatePaymentLinkForm";
+import { OpenPlanForm } from "./OpenPlanForm";
+import { PromiseDateForm } from "./PromiseDateForm";
 import { RecordPartPaymentForm } from "./RecordPartPaymentForm";
 
 /**
@@ -83,8 +100,25 @@ function derive(rows: {
         (i.status === "pending" && isOverdue(new Date(i.dueAt), now)),
     );
     if (hasOverdue) overdueCount += 1;
-    return { ...e, hasOverdue };
+    return {
+      ...e,
+      hasOverdue,
+      // 0032 — is the agreed full-payment date still in the future?
+      promise: promiseState(e.expectedFullPaymentAt, e.remainingPesewas, now),
+    };
   });
+
+  // Per STUDENT, not per agreement: "how many students have paid in full" is
+  // a question about people. A student with two courses is one student, and is
+  // only settled when both agreements are.
+  const summary = summarizePlans(
+    rows.engagements.map((e) => ({
+      studentId: e.studentId,
+      paidPesewas: e.paidPesewas,
+      remainingPesewas: e.remainingPesewas,
+      status: e.status,
+    })),
+  );
 
   const queue = [...rows.payouts].sort((a, b) => {
     const rank: Record<string, number> = {
@@ -101,10 +135,12 @@ function derive(rows: {
   return {
     engagements,
     queue,
+    summary,
     collected,
     outstanding,
     revenue,
     overdueCount,
+    promisesOverdue: engagements.filter((e) => e.promise === "overdue").length,
     needsReview: queue.filter((p) => p.status === "pending_review").length,
     readyToSend: queue.filter((p) => p.status === "approved").length,
   };
@@ -113,12 +149,15 @@ function derive(rows: {
 export async function AdminPaymentsConsole() {
   await requireRole("admin");
 
-  const [engagements, payouts, accounts, paymentLog] = await Promise.all([
-    listAllEngagements(),
-    listAllPayouts(),
-    listPayoutAccountsForAdmin(),
-    listRecentPaymentsForAdmin(),
-  ]);
+  const [engagements, payouts, accounts, paymentLog, openRequests, links] =
+    await Promise.all([
+      listAllEngagements(),
+      listAllPayouts(),
+      listPayoutAccountsForAdmin(),
+      listRecentPaymentsForAdmin(),
+      listOpenRequestsForAdmin(),
+      listPaymentRequestsForAdmin(),
+    ]);
   const d = derive({ engagements, payouts });
 
   const stats = [
@@ -126,6 +165,35 @@ export async function AdminPaymentsConsole() {
     { label: "Platform revenue", value: formatGhs(d.revenue), icon: Banknote, tint: "bg-brand-50 text-brand-700" },
     { label: "Outstanding", value: formatGhs(d.outstanding), icon: AlertTriangle, tint: "bg-amber-50 text-amber-700" },
     { label: "Needs review", value: String(d.needsReview), icon: Banknote, tint: "bg-red-50 text-red-700" },
+  ];
+
+  // 0032 — the student-side questions: how many students, how many settled,
+  // how many still owe. Counted per person (summarizePlans), not per course.
+  const studentStats = [
+    {
+      label: "Students",
+      value: String(d.summary.students),
+      icon: Users,
+      tint: "bg-slate-100 text-slate-700",
+    },
+    {
+      label: "Paid in full",
+      value: String(d.summary.paidInFull),
+      icon: UserCheck,
+      tint: "bg-emerald-50 text-emerald-700",
+    },
+    {
+      label: "Paying in parts",
+      value: String(d.summary.partPaid),
+      icon: CalendarClock,
+      tint: "bg-amber-50 text-amber-700",
+    },
+    {
+      label: "Not paid yet",
+      value: String(d.summary.unpaid),
+      icon: UserX,
+      tint: "bg-red-50 text-red-700",
+    },
   ];
 
   return (
@@ -157,13 +225,40 @@ export async function AdminPaymentsConsole() {
           <Card key={stat.label} className="flex items-center gap-4">
             <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md ${stat.tint}`}>
               <stat.icon className="h-5 w-5" />
-  </span>
+            </span>
             <div className="min-w-0">
               <p className="font-display text-2xl font-bold text-slate-900">{stat.value}</p>
               <p className="truncate text-xs font-medium text-slate-500">{stat.label}</p>
             </div>
           </Card>
         ))}
+      </div>
+
+      {/* Students & plans (0032) — "how many students, how many paid in full,
+          how many still owe" is the question the admin actually asks. Counted
+          per student, so a student with two courses counts once. */}
+      <div className="mt-8">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-lg font-semibold text-slate-900">
+            Students &amp; payment plans
+          </h3>
+          {d.promisesOverdue > 0 && (
+            <Badge tone="red">{d.promisesOverdue} promise overdue</Badge>
+          )}
+        </div>
+        <div className="mt-4 grid gap-4 grid-cols-2 lg:grid-cols-4">
+          {studentStats.map((stat) => (
+            <Card key={stat.label} className="flex items-center gap-4">
+              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md ${stat.tint}`}>
+                <stat.icon className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-display text-2xl font-bold text-slate-900">{stat.value}</p>
+                <p className="truncate text-xs font-medium text-slate-500">{stat.label}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
       </div>
 
       {/* Payout queue */}
@@ -258,6 +353,52 @@ export async function AdminPaymentsConsole() {
         )}
       </div>
 
+      {/* Requests waiting for a plan (0032). A student who cannot pay the full
+          fee reaches the admin from the paywall; until the admin opens a plan
+          there is no agreement, so nothing can be recorded against them. */}
+      <div className="mt-10">
+        <h3 className="text-lg font-semibold text-slate-900">
+          Requests waiting for a plan
+        </h3>
+        <p className="mt-1 max-w-xl text-sm text-slate-500">
+          Students who sent a tutor request but have no payment agreement yet —
+          usually because they asked for a payment plan. Open the plan, set the
+          promised date, then send a part-payment link.
+        </p>
+        {openRequests.length === 0 ? (
+          <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white/70 p-10 text-center text-sm text-slate-500">
+            Nothing waiting — every live request already has an agreement.
+          </div>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {openRequests.map((request: OpenPlanRequestView) => (
+              <li key={request.requestId}>
+                <Card className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {request.studentName || "Student"} ×{" "}
+                      {request.tutorName || "Tutor"} · {request.courseTitle}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {request.studentCode && (
+                        <span className="mr-2 font-mono text-slate-400">
+                          {request.studentCode}
+                        </span>
+                      )}
+                      {request.sessionMode === "group"
+                        ? "Group sessions"
+                        : "One-on-one"}{" "}
+                      · requested {accraDate(new Date(request.createdAt))}
+                    </p>
+                  </div>
+                  <OpenPlanForm requestId={request.requestId} />
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {/* Engagements oversight */}
       <div className="mt-10">
         <h3 className="text-lg font-semibold text-slate-900">
@@ -272,42 +413,125 @@ export async function AdminPaymentsConsole() {
           <ul className="mt-4 space-y-3">
             {d.engagements.map((engagement) => (
               <li key={engagement.id}>
-                <Card className="flex flex-wrap items-center justify-between gap-4">
+                <Card>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {engagement.studentName || "Student"} ×{" "}
+                        {engagement.tutorName || "Tutor"} ·{" "}
+                        {engagement.courseTitle || "Course"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {engagement.studentCode && (
+                          <span className="mr-2 font-mono text-slate-400">
+                            {engagement.studentCode}
+                          </span>
+                        )}
+                        {formatGhs(engagement.paidPesewas)} paid of{" "}
+                        {formatGhs(engagement.agreedTotal)} ·{" "}
+                        {formatGhs(engagement.remainingPesewas)} left
+                        {engagement.hasOverdue ? " · has overdue installment(s)" : ""}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {engagement.promise === "overdue" && (
+                        <Badge tone="red">Promise overdue</Badge>
+                      )}
+                      {engagement.promise === "due" && (
+                        <Badge tone="amber">Promised today</Badge>
+                      )}
+                      {engagement.hasOverdue && <Badge tone="red">Overdue</Badge>}
+                      <Badge
+                        tone={
+                          ENGAGEMENT_BADGE[engagement.status]?.tone ?? "neutral"
+                        }
+                      >
+                        {ENGAGEMENT_BADGE[engagement.status]?.label ?? engagement.status}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {(engagement.status === "active" ||
+                    engagement.status === "pending_payment") && (
+                    <div className="mt-4 grid gap-5 border-t border-slate-200 pt-4 lg:grid-cols-2">
+                      <PromiseDateForm
+                        engagementId={engagement.id}
+                        currentDate={engagement.expectedFullPaymentAt}
+                        overdue={engagement.promise === "overdue"}
+                      />
+                      <CreatePaymentLinkForm
+                        engagementId={engagement.id}
+                        remainingCedis={Number(engagement.remainingPesewas) / 100}
+                      />
+                      {/* 0029 — record money that arrived outside Paystack. */}
+                      <div className="lg:col-span-2">
+                        <RecordPartPaymentForm
+                          engagementId={engagement.id}
+                          remainingDisplay={`${formatGhs(engagement.remainingPesewas)} of ${formatGhs(engagement.agreedTotal)}`}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Part-payment links (0032) — what was sent, and what is still open. */}
+      <div className="mt-10">
+        <h3 className="text-lg font-semibold text-slate-900">
+          Part-payment links
+        </h3>
+        <p className="mt-1 max-w-xl text-sm text-slate-500">
+          Every link issued, newest first. The link itself is not stored (only
+          its hash), so a lost link has to be replaced — cancel the old one
+          first.
+        </p>
+        {links.length === 0 ? (
+          <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white/70 p-10 text-center text-sm text-slate-500">
+            No part-payment links yet.
+          </div>
+        ) : (
+          <ul className="mt-4 space-y-2">
+            {links.map((link: PaymentRequestView) => (
+              <li key={link.id}>
+                <Card className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900">
-                      {engagement.studentName || "Student"} ×{" "}
-                      {engagement.tutorName || "Tutor"} ·{" "}
-                      {engagement.courseTitle || "Course"}
+                      {formatGhs(link.amount)} ·{" "}
+                      {link.studentName || "Student"} ·{" "}
+                      {link.courseTitle || "Course"}
                     </p>
                     <p className="mt-0.5 text-xs text-slate-500">
-                      {engagement.studentCode && (
-                        <span className="mr-2 font-mono text-slate-400">
-                          {engagement.studentCode}
-                        </span>
-                      )}
-                      {formatGhs(engagement.paidPesewas)} paid of{" "}
-                      {formatGhs(engagement.agreedTotal)}
-                      {engagement.hasOverdue ? " · has overdue installment(s)" : ""}
+                      Issued {accraDate(new Date(link.createdAt))}
+                      {link.expiresAt
+                        ? ` · expires ${accraDate(new Date(link.expiresAt))}`
+                        : ""}
+                      {link.note ? ` · ${link.note}` : ""}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {engagement.hasOverdue && <Badge tone="red">Overdue</Badge>}
                     <Badge
                       tone={
-                        ENGAGEMENT_BADGE[engagement.status]?.tone ?? "neutral"
+                        link.status === "paid"
+                          ? "green"
+                          : link.status === "cancelled"
+                            ? "neutral"
+                            : "amber"
                       }
                     >
-                      {ENGAGEMENT_BADGE[engagement.status]?.label ?? engagement.status}
+                      {link.status === "paid"
+                        ? "Paid"
+                        : link.status === "cancelled"
+                          ? "Cancelled"
+                          : "Open"}
                     </Badge>
+                    {link.status === "open" && (
+                      <CancelPaymentLinkButton requestId={link.id} />
+                    )}
                   </div>
-                  {/* 0029 — record money that arrived outside Paystack. */}
-                  {(engagement.status === "active" ||
-                    engagement.status === "pending_payment") && (
-                    <RecordPartPaymentForm
-                      engagementId={engagement.id}
-                      remainingDisplay={`${formatGhs(engagement.remainingPesewas)} of ${formatGhs(engagement.agreedTotal)}`}
-                    />
-                  )}
                 </Card>
               </li>
             ))}

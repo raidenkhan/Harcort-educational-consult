@@ -2,12 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isMissingColumn } from "@/lib/postgres";
 import { scheduleOutboxDrain } from "@/lib/email/outbox";
 import { notifyNewMessage } from "@/lib/email/notify";
 import { notifySmsToProfiles } from "@/lib/sms";
 import { formatGhs } from "@/lib/money";
 import { requireProfile } from "@/services/auth/queries";
-import { normalizeSessionMode } from "@/services/auth/sessionFormat";
+import {
+  DEFAULT_SESSION_MODE,
+  normalizeSessionMode,
+  type SessionMode,
+} from "@/services/auth/sessionFormat";
+import { servicePrice, type PricedService } from "@/services/tutors/pricing";
 import {
   paymentPlanRequestSchema,
   sendRequestSchema,
@@ -29,7 +35,7 @@ export interface RequestPaywall {
   tutorName: string;
   /** The tutor's full quote for the course, in pesewas. */
   totalPesewas: number;
-  /** The first 50% — what the student must pay to activate sessions. */
+  /** The full semester fee, due up front (0029) — what the paywall charges. */
   duePesewas: number;
 }
 
@@ -164,8 +170,11 @@ export async function sendTutorRequest(
   revalidatePath("/tutor", "layout");
   return {
     message: paywall
-      ? "Request sent. Complete the first 50% below to activate your sessions."
-      : "Request sent. You'll get an email when the tutor accepts — your payment button unlocks then.",
+      ? "Request sent. Pay the semester fee below to activate your sessions."
+      : // No price for this request's format (the tutor removed it, or never
+        // set one). Saying "payment unlocks when the tutor accepts" would be a
+        // lie: there is nothing to charge, so send the student to Chat.
+        "Request sent. This tutor hasn't published a price for that session format yet — message them in Chat to agree one.",
     paywall: paywall ?? undefined,
   };
 }
@@ -228,9 +237,41 @@ async function resolveRequestContact(
 }
 
 /**
+ * The session format the student chose for this request (0024).
+ *
+ * Best-effort: `session_mode` only exists once 0024 is applied, and the
+ * paywall must still be able to price a request without it — the default
+ * format is one-on-one, which is also what pre-0024 rows meant.
+ */
+async function requestSessionMode(
+  supabase: ReturnType<typeof createAdminClient>,
+  requestId: string,
+): Promise<SessionMode> {
+  const { data, error } = await supabase
+    .from("tutor_requests")
+    .select("session_mode")
+    .eq("id", requestId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(
+      `[requests] session_mode unreadable — assuming one-on-one: ${error.message}`,
+    );
+    return DEFAULT_SESSION_MODE;
+  }
+
+  return normalizeSessionMode((data as { session_mode?: unknown } | null)?.session_mode);
+}
+
+/**
  * Resolve the amount and labels for a request's paywall. Returns null when the
  * tutor hasn't quoted this course (no price to charge) — the UI then explains
  * that payment unlocks once a price exists instead of inventing an amount.
+ *
+ * 0031: the fee depends on the format the student chose — a group session is
+ * charged the group price, one-on-one the one-on-one price. A format the
+ * tutor does not offer for this course resolves to null (no paywall), which is
+ * exactly the "you can't book that format" rule.
  */
 async function resolvePaywall(
   supabase: ReturnType<typeof createAdminClient>,
@@ -248,29 +289,46 @@ async function resolvePaywall(
     | null;
   if (!request?.course_id) return null;
 
-  const { data } = await supabase
-    .from("tutor_services")
-    .select("id, price, courses(name), tutor_profiles(profiles(full_name))")
-    .eq("tutor_profile_id", request.tutor_profile_id)
-    .eq("course_id", request.course_id)
-    .maybeSingle();
+  const mode = await requestSessionMode(supabase, requestId);
+
+  const read = (withSplit: boolean) =>
+    supabase
+      .from("tutor_services")
+      .select(
+        withSplit
+          ? "id, price, price_group, price_one_on_one, courses(name), tutor_profiles(profiles(full_name))"
+          : "id, price, courses(name), tutor_profiles(profiles(full_name))",
+      )
+      .eq("tutor_profile_id", request.tutor_profile_id)
+      .eq("course_id", request.course_id)
+      .maybeSingle();
+
+  let { data, error } = await read(true);
+  if (error && isMissingColumn(error)) {
+    console.warn(
+      "[requests] tutor_services.price_group missing — pricing by the single price (apply migration 0031).",
+    );
+    ({ data, error } = await read(false));
+  }
   if (!data) return null;
 
-  const row = data as {
+  const row = data as unknown as {
     id: string;
-    price: unknown;
     courses?: { name: string } | { name: string }[] | null;
     tutor_profiles?:
       | { profiles?: { full_name: string } | { full_name: string }[] | null }
       | Array<{ profiles?: { full_name: string } | { full_name: string }[] | null }>
       | null;
-  };
+  } & PricedService;
   const course = Array.isArray(row.courses) ? row.courses[0] : row.courses;
   const tp = Array.isArray(row.tutor_profiles) ? row.tutor_profiles[0] : row.tutor_profiles;
   const names = tp?.profiles;
   const tutor = Array.isArray(names) ? names[0] : names;
 
-  const totalPesewas = Math.round(Number(row.price ?? 0) * 100);
+  const amount = servicePrice(row, mode);
+  if (amount === null) return null;
+
+  const totalPesewas = Math.round(amount * 100);
   if (totalPesewas <= 0) return null;
 
   return {
@@ -405,11 +463,12 @@ export async function requestPaymentPlan(
     : request.tutor_profiles;
   const tutorNames = tp?.profiles;
   const tutor = Array.isArray(tutorNames) ? tutorNames[0] : tutorNames;
-  const service = tp?.tutor_services?.find(
-    (s: { price: unknown; course_id: string }) => s.course_id === request.course_id,
-  );
-  const totalPesewas = service ? Math.round(Number(service.price ?? 0) * 100) : 0;
-  const due = totalPesewas > 0 ? totalPesewas : null;
+
+  // Price through the SAME resolver the paywall uses, so the figure quoted to
+  // the admin can never disagree with the figure the student was shown — and
+  // it respects the request's session format (0031).
+  const paywall = await resolvePaywall(supabase, request.id);
+  const due = paywall?.totalPesewas ?? null;
 
   const lines = [
     "Payment plan request — I can't pay the full semester fee right now.",
@@ -487,7 +546,7 @@ export async function respondTutorRequest(
   revalidatePath("/dashboard");
   return {
     message: parsed.data.accept
-      ? "Accepted. The student can now complete their first 50% payment to activate sessions."
+      ? "Accepted. The student can now pay the semester fee to activate sessions."
       : "Request declined.",
   };
 }

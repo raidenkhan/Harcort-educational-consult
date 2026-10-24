@@ -170,6 +170,71 @@ mobile app.
   inconsistencies are handled with one coded + one NULL-coded row. Aerospace
   Engineering is listed by the department but publishes no structure, so it
   is deliberately unseeded.
+- **Library merged into Courses.** `/library` and `/courses` were two doors
+  into the same thing — the catalogue knew each course's code, credits and
+  tutors; the library knew each course's Drive folder and video playlists.
+  `/library` is now a **permanent redirect to `/courses`**, `ProgramDirectory`
+  is deleted, and Library is gone from the navs and the sitemap. The
+  programme → level → semester → course flow ends on a course page that shows
+  the Drive notes folder, the tutorial videos and the available tutors
+  together (`DriveMaterials.tsx`). The static Drive tree is indexed by
+  **normalized course code** in `src/services/library/courseMaterials.ts`
+  (upper-case, single-spaced — the same normalization as the catalogue), with
+  one deliberate alias: the `ME 168` folder maps to the catalog's `ME 158`.
+- **Semester-aware catalogue.** The home band keeps **one level open at a
+  time** (`LevelRail`) and adds a **Semester 1 / Semester 2 segmented control**
+  with counts; the chosen term persists while switching levels, a level with
+  only one term shows a static label, and a catalogue with no semester tags
+  skips the control entirely. The `/courses` directory **stacks both
+  semesters** as headed, counted sections (plus "Runs in both semesters" for
+  null-semester courses) rather than toggling one at a time. The splitting is
+  `splitBySemester()` in `courseTaxonomy.ts`, unit-tested — a null-semester
+  course appears **once**, never duplicated into both terms.
+- **Per-format pricing + tutor-added courses (0031).** A tutor charges
+  differently for a group session than for one-on-one, but `tutor_services`
+  had one `price`, so every offering collapsed to a single number. It now
+  carries `price_group` and `price_one_on_one`, matching
+  `tutor_requests.session_mode` (0024). **Either may be NULL**, which means
+  "not offered in that format": the request dialog disables that format and
+  the paywall raises `format_not_offered` rather than quietly charging the
+  other price. The legacy `price` column is kept and still written
+  (`coalesce(one_on_one, group)`), and readers prefer the per-mode columns via
+  `servicePrice()` in `services/tutors/pricing.ts` — so the app works before
+  and after the migration. Migration 0031 also backfills **both** columns
+  from `price`, keeping every live group request payable. Separately, a tutor
+  can add a course the catalog is missing (course **code required**, shape-
+  validated to reject prose, normalized so "me 158" reuses "ME 158"); it is
+  created `is_approved = false`, usable by that tutor immediately but hidden
+  from the public directory until an admin approves it on `/admin/courses`
+  (`PendingCoursesPanel`). Rejecting deletes the course and the tutor's offer
+  for it. Price copy has one source of truth: `components/tutors/ServicePrice`
+  (`priceTag`, `servicePriceSummary`, `ServicePrice`, `hasDistinctFormatPrices`)
+  — a pre-0031 row renders a single `/semester` price rather than printing the
+  same number twice.
+- **Payment plans + part-payment links (0032).** 0029 could record a part
+  payment, but only against an existing agreement — and a student who cannot
+  pay in full never gets one: they hit the paywall, ask the admin for a plan,
+  and the flow dead-ended. `engagements.expected_full_payment_at` now stores
+  **the date the balance will be settled** (set when the admin opens the plan,
+  movable later, shown to the student, flagged when overdue), and
+  `payment_requests` stores an **admin-issued part-payment link**: the admin
+  picks an amount, the student gets a one-time URL, and paying it charges
+  exactly that amount through Paystack. The token is stored as a **SHA-256
+  hash** (same rule as sessions and password-reset codes) and is **single-
+  use**; `payments.payment_request_id` ties the charge back to the link so the
+  webhook marks it paid in the same transaction that applies the money.
+  Nothing here moves money by itself: a link only permits an amount the admin
+  already approved, and `payment_apply_verified_payment` (0029) still re-checks
+  it against the installment under a lock. `/pay/[token]` is a standalone page
+  (a WhatsApp link is often opened signed-out on a new device) and
+  `requireProfile(next)` + `safeNextPath` bring the student back after
+  sign-in. Admin console gained student tiles (total, paid in full, remaining),
+  the plan queue, promise dates and the links list.
+- **Brochure corrections (0033).** The department's own BSc Mechanical
+  Engineering brochure is authoritative. It adds the two courses 0030 dropped
+  because their codes were duplicated in the printed tables:
+  `EE 252 Electrical Engineering Machines` (Year 3, Semester 2, 2 credits) and
+  `ME 496 Human Factors and Ergonomics` (Year 4, Semester 2, 3 credits).
 - **Admin Performance tab (0025).** `/admin/analytics` shows money in/out
   (collected, paid out, queued, platform fees, outstanding installments), the
   request funnel (acceptance rate, average response time), sessions vs dual
@@ -329,8 +394,14 @@ src/
 ├─ services/             ← ALL business logic. UI never queries Supabase directly.
 │  ├─ auth/              → sign-up/sign-in/sign-out actions, getCurrentProfile,
 │  │                        requireProfile / requireRole guards
-│  ├─ tutors/            → approved-tutor listings (cached), onboarding forms
-│  ├─ courses/           → taxonomy + search (cached)
+│  ├─ tutors/            → approved-tutor listings (cached), onboarding forms,
+│  │                        per-format pricing (pricing.ts, pure + tested)
+│  ├─ courses/           → taxonomy + search (cached), tutor-added course
+│  │                        approval queue, course library assets
+│  ├─ requests/          → tutor requests + the paywall, session format
+│  ├─ payments/          → engagements, installments, part payments, plans
+│  │                        and single-use payment links, Paystack webhook
+│  ├─ library/           → the static Drive tree, indexed by course code
 │  ├─ sessions/          → tutoring timetable: schedule, confirm attendance
 │  │                        (dual ticks), cancel (soft)
 │  ├─ chat/              → /chat page: conversation list (names + last-message
@@ -338,8 +409,9 @@ src/
 │  ├─ admin/             → approval workflow (RPCs) + audit log
 │  └─ moderation/        → reports & blocks
 ├─ lib/                  → supabase admin client + middleware helper, auth
-│  │                        primitives (password, session, throttle), email/
-│  │                        (Resend), time formatting (Accra), cn()
+│  │                        primitives (password, session, throttle,
+│  │                        redirect), email/ (Resend), sms (Arkesel), money,
+│  │                        time formatting (Accra), cn()
 ├─ components/           → ui/ primitives (Card, Button, Badge, Field(s),
 │  │                        Container, BentoBackdrop, AnimatedGradient),
 │  │                        navigation/ (FloatingNav, MobileTabBar), auth/,
@@ -386,6 +458,9 @@ and all are safe to re-run:
 | `0028_rate_per_semester.sql` | Renames `tutor_profiles.rate_per_hour` → `rate_per_semester` — prices are per semester, and the column was the last place the old hourly framing survived. The app reads and writes both names, so it works before and after the migration is applied |
 | `0029_full_upfront_admin_payments.sql` | 100% upfront: engagements are created with ONE installment for the full semester fee (the idx check is relaxed to 1..12); `installments.paid_amount` tracks partial coverage; `payment_apply_verified_payment` accepts partial amounts and flips the installment to paid only when fully covered; new admin RPC `admin_record_part_payment` records money collected out-of-band (cash/personal MoMo to the admin) with a synthetic `ADMIN-…` reference, applying it to the agreement and activating it immediately (recording one IS approving the plan). `request_payout` is unchanged — it already requires every installment settled |
 | `0030_knust_mech_department_curriculum.sql` | Rebuilds the catalog from the department's OWN published structures (mech.knust.edu.gh HTML tables + the Marine/Automobile brochure PDFs): real codes/credits/semesters for Mechanical, Industrial, Marine and Automobile Engineering (Levels 100→400, incl. the Year-4 specialisation options). Replaces 0026's invented pairings (stale unreferenced rows are deleted); shared courses are seeded per programme; site-inconsistent duplicate codes (IE 356, AME 481, AME 496) keep one coded row + one NULL-coded row. Aerospace is listed by the department but publishes no structure — deliberately not seeded |
+| `0031_tutor_pricing_and_course_approval.sql` | `tutor_services.price_group` + `price_one_on_one` (both nullable = format not offered), backfilled from `price` so live group requests stay payable; a check keeps at least one usable price. `courses.is_approved` (default TRUE; seeded rows stay public) + `created_by_profile_id` for tutor-added courses, which are created FALSE and hidden until an admin approves; a case-insensitive unique index on `(subject, code)` dedupes a tutor adding a course that already exists |
+| `0032_payment_plans_and_links.sql` | `engagements.expected_full_payment_at` (the promised date the balance is settled). `payment_requests` — admin-issued, single-use part-payment links: SHA-256-hashed token, amount in pesewas, `open`/`paid`/`cancelled`, expiry, deny-all RLS. `payments.payment_request_id` ties the Paystack charge to its link so the webhook can mark it paid in the same transaction. `payment_apply_verified_payment` still re-checks the amount under a lock |
+| `0033_knust_mech_brochure_corrections.sql` | The department's brochure is authoritative: adds `EE 252 Electrical Engineering Machines` (Y3S2, 2 cr) and `ME 496 Human Factors and Ergonomics` (Y4S2, 3 cr) — the two courses 0030 dropped because their codes were duplicated in the printed tables |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -439,18 +514,32 @@ Key security properties:
   form states.
 - **Prices are PER SEMESTER.** Every price tag in the app reads
   `GH₵<amount>/semester` — the tutor's advertised rate, the per-course quote
-  (`tutor_services.price`, what the student actually pays), and the engagement
-  totals. **Never "/hr" or "per hour".** The rate column was renamed
-  `rate_per_hour` → `rate_per_semester` in 0028; the app still reads and
-  writes BOTH names so it can be deployed before that migration is applied
-  (`readRate` in `services/tutors/rate.ts`, and the write fallback in
+  (what the student actually pays), and the engagement totals. **Never "/hr"
+  or "per hour".** The rate column was renamed `rate_per_hour` →
+  `rate_per_semester` in 0028; the app still reads and writes BOTH names so it
+  can be deployed before that migration is applied (`readRate` in
+  `services/tutors/rate.ts`, and the write fallback in
   `services/tutors/mutations.ts`). **And it's 100% UPFRONT (0029):** a
   student pays the full semester fee at the paywall; there is no 50/50 split
   anywhere in the product. A student who can't pay in full reaches the admin
   team — WhatsApp first (`adminWhatsappUrl`), or the in-site payment-plan
   chat — and the admin records each out-of-band part payment against the
   agreement (`admin_record_part_payment` / `RecordPartPaymentForm`), where it
-  feeds earnings, payouts and analytics like any Paystack charge.
+  feeds earnings, payouts and analytics like any Paystack charge. A student
+  who can't pay even that asks for a plan; the admin sets a **promised date**
+  (`expected_full_payment_at`, 0032) and sends a **single-use part-payment
+  link** (`payment_requests`, SHA-256 hashed at rest) for an amount the admin
+  approved.
+- **Prices are PER FORMAT (0031).** A `tutor_services` row carries
+  `price_one_on_one` and `price_group` (the group price is **per student**);
+  either may be NULL = "not offered in that format". Never fall back to the
+  other format's price for a request — the request UI disables the missing
+  format and the paywall raises `format_not_offered`. Render prices through
+  `components/tutors/ServicePrice` (`priceTag`, `servicePriceSummary`,
+  `hasDistinctFormatPrices`) so the card, profile page and tutor dashboard
+  agree; a pre-0031 row shows one `/semester` price, not the same number
+  twice. Read amounts with `servicePrice()`/`formatPrices()` in
+  `services/tutors/pricing.ts` — they tolerate the legacy `price` column.
 
 ---
 
@@ -491,7 +580,8 @@ every send).
 
 Setup runbook:
 1. `npm install`
-2. Apply migrations 0001→0007 in the Supabase SQL Editor
+2. Apply migrations `0001` → `0033` in the Supabase SQL Editor, in order
+   (each is safe to re-run)
 3. `npm run dev` → http://localhost:3000 (no confirmation emails — sign-up
    signs you in immediately)
 4. Promote yourself to admin:

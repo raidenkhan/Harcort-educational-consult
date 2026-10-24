@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { Plus } from "lucide-react";
 import {
   addTutorService,
   type TutorFormState,
@@ -8,15 +9,40 @@ import {
 import { Field } from "@/components/ui/Field";
 import { Select, Input } from "@/components/ui/Fields";
 import { Button } from "@/components/ui/Button";
+import {
+  groupCoursesForPicker,
+  levelLabel,
+  sortFields,
+  YEARS,
+} from "@/components/home/courseTaxonomy";
 import type { Course } from "@/types";
 
+/**
+ * Add (or re-price) a course offering (0031).
+ *
+ * Two prices, both optional: one-on-one and group (per student). A blank
+ * format means "I don't teach this course that way" — the request dialog hides
+ * it and the paywall refuses it, instead of quietly charging the other price.
+ * The server enforces at least one, so the form says so rather than relying on
+ * a `required` attribute that can only mark one input.
+ *
+ * The catalog picker is programme → course (grouped Level 100 · Semester 1 …),
+ * because "ME 255" is how a tutor knows their own course. A course the
+ * catalog doesn't have yet can be added by code; it is unpublished until an
+ * admin approves it, but the tutor can price and teach it immediately.
+ */
 export function TutorServiceForm({ courses }: { courses: Course[] }) {
   const [state, formAction, pending] = useActionState<TutorFormState, FormData>(
     addTutorService,
     {},
   );
 
-  const subjects = Array.from(new Set(courses.map((c) => c.subject)));
+  const subjects = sortFields(Array.from(new Set(courses.map((c) => c.subject))));
+  const [subject, setSubject] = useState(subjects[0] ?? "");
+  const [addingCourse, setAddingCourse] = useState(false);
+
+  const subjectCourses = courses.filter((c) => c.subject === subject);
+  const groups = groupCoursesForPicker(subjectCourses);
 
   return (
     <form action={formAction} className="mt-4 space-y-4">
@@ -31,39 +57,183 @@ export function TutorServiceForm({ courses }: { courses: Course[] }) {
         </div>
       )}
 
-      <Field label="Course" htmlFor="courseId">
-        <Select id="courseId" name="courseId" required defaultValue="">
-          <option value="" disabled>
-            Select a course…
-          </option>
-          {subjects.map((subject) => (
-            <optgroup key={subject} label={subject}>
-              {courses
-                .filter((c) => c.subject === subject)
-                .map((course) => (
-                  <option key={course.id} value={course.id}>
-                    {course.name}
-                  </option>
-                ))}
-            </optgroup>
-          ))}
-        </Select>
-      </Field>
+      {addingCourse ? (
+        <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">
+                Add a course that isn&apos;t listed
+              </p>
+              <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
+                An admin reviews it before it appears in the public course
+                directory. You can teach it straight away.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setAddingCourse(false)}
+            >
+              Back to the list
+            </Button>
+          </div>
 
-      <Field label="Price per semester (GH₵)" htmlFor="price">
-        <Input
-          id="price"
-          name="price"
-          type="number"
-          min={0}
-          step="0.01"
-          required
-          placeholder="e.g. 100"
-        />
-      </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Course code" htmlFor="newCourseCode" hint="e.g. ME 158">
+              <Input
+                id="newCourseCode"
+                name="newCourseCode"
+                type="text"
+                required
+                maxLength={40}
+                autoComplete="off"
+                placeholder="ME 158"
+              />
+            </Field>
+            <Field label="Course name" htmlFor="newCourseName">
+              <Input
+                id="newCourseName"
+                name="newCourseName"
+                type="text"
+                required
+                maxLength={160}
+                placeholder="Computer Programming for Engineers"
+              />
+            </Field>
+            <Field
+              label="Programme"
+              htmlFor="newCourseSubject"
+              hint="Pick an existing programme or type a new one."
+            >
+              <Input
+                id="newCourseSubject"
+                name="newCourseSubject"
+                type="text"
+                required
+                maxLength={120}
+                list="tutor-service-subjects"
+                defaultValue={subject}
+                placeholder="Mechanical Engineering"
+              />
+              <datalist id="tutor-service-subjects">
+                {subjects.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Level" htmlFor="newCourseYear">
+                <Select id="newCourseYear" name="newCourseYear" required defaultValue="">
+                  <option value="" disabled>
+                    Level…
+                  </option>
+                  {YEARS.map((year) => (
+                    <option key={year} value={year}>
+                      {levelLabel(year)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Semester" htmlFor="newCourseSemester">
+                <Select
+                  id="newCourseSemester"
+                  name="newCourseSemester"
+                  required
+                  defaultValue=""
+                >
+                  <option value="" disabled>
+                    Semester…
+                  </option>
+                  <option value={1}>Semester 1</option>
+                  <option value={2}>Semester 2</option>
+                </Select>
+              </Field>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <Field label="Programme" htmlFor="serviceSubject">
+            <Select
+              id="serviceSubject"
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+            >
+              {subjects.length === 0 && <option value="">No programmes yet</option>}
+              {subjects.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Course" htmlFor="courseId">
+            <Select id="courseId" name="courseId" required defaultValue="">
+              <option value="" disabled>
+                Select a course…
+              </option>
+              {groups.map((group) => (
+                <optgroup key={group.key} label={group.label}>
+                  {group.items.map((course) => (
+                    <option key={course.id} value={course.id}>
+                      {course.code ? `${course.code} · ${course.name}` : course.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </Select>
+          </Field>
+
+          <button
+            type="button"
+            onClick={() => setAddingCourse(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 transition hover:text-brand-800"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            My course isn&apos;t listed — add it by code
+          </button>
+        </>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field
+          label="One-on-one (GH₵ / semester)"
+          htmlFor="priceOneOnOne"
+          hint="Per student. Leave blank if you don't offer it."
+        >
+          <Input
+            id="priceOneOnOne"
+            name="priceOneOnOne"
+            type="number"
+            min={0}
+            step="0.01"
+            placeholder="e.g. 400"
+          />
+        </Field>
+        <Field
+          label="Group (GH₵ / semester)"
+          htmlFor="priceGroup"
+          hint="Per student in the group. Leave blank if you don't offer it."
+        >
+          <Input
+            id="priceGroup"
+            name="priceGroup"
+            type="number"
+            min={0}
+            step="0.01"
+            placeholder="e.g. 250"
+          />
+        </Field>
+      </div>
+      <p className="text-xs text-slate-500">
+        Set at least one price. Re-adding a course you already teach updates
+        its prices.
+      </p>
 
       <Button variant="dark" type="submit" disabled={pending}>
-        {pending ? "Adding…" : "Add course"}
+        {pending ? "Saving…" : addingCourse ? "Add course" : "Save course"}
       </Button>
     </form>
   );

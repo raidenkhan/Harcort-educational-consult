@@ -70,6 +70,11 @@ export interface Course {
   credits?: number | null;
   /** 1 or 2; null = runs across both / not semester-bound (0026). */
   semester?: number | null;
+  /** FALSE = added by a tutor and hidden from the public directory until an
+   *  admin approves it (0031). Seeded catalog rows are TRUE. */
+  is_approved?: boolean;
+  /** Set when a tutor added the course themselves (0031). */
+  created_by_profile_id?: string | null;
   created_at: string;
 }
 
@@ -131,7 +136,13 @@ export interface TutorService {
   id: string;
   tutor_profile_id: string;
   course_id: string;
+  /** Legacy single price (pre-0031) — still written as the one-on-one price so
+   *  a deploy before 0031 works. Read prices through `servicePrice()`. */
   price: number;
+  /** Per-student fee for a group session (0031). Null = not offered. */
+  price_group?: number | null;
+  /** Per-student fee for one-on-one sessions (0031). Null = not offered. */
+  price_one_on_one?: number | null;
   description: string | null;
   created_at: string;
 }

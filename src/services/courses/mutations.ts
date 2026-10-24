@@ -256,3 +256,59 @@ export async function setCourseYear(formData: FormData): Promise<void> {
   revalidatePath("/dashboard");
   revalidatePath("/");
 }
+
+// ---------------------------------------------------------------------------
+// Tutor-added courses (0031)
+// ---------------------------------------------------------------------------
+
+/**
+ * Approve or reject a course a tutor added. Rejecting DELETES the row — a
+ * rejected course has no reason to linger, and `tutor_services.course_id`
+ * cascades, so the tutor's offering for it goes with it (which is correct: a
+ * course an admin refused should not stay on their profile).
+ *
+ * Seeded catalog rows are already approved; re-approving one is a no-op.
+ */
+async function setCourseApproval(
+  formData: FormData,
+  approved: boolean,
+): Promise<void> {
+  const profile = await requireProfile();
+  if (!profileIsAdmin(profile)) throw new Error("Forbidden");
+
+  const parsed = courseAssetIdSchema.safeParse({ id: formData.get("courseId") });
+  if (!parsed.success) throw new Error("Missing course");
+
+  const supabase = createAdminClient();
+
+  if (approved) {
+    const { error } = await supabase
+      .from("courses")
+      .update({ is_approved: true })
+      .eq("id", parsed.data.id);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase
+      .from("courses")
+      .delete()
+      .eq("id", parsed.data.id)
+      .eq("is_approved", false); // never delete a curated catalog row
+    if (error) throw new Error(error.message);
+  }
+
+  await writeAudit(profile.id, approved ? "course_approved" : "course_rejected", parsed.data.id, {});
+
+  revalidateTag("courses", "max");
+  revalidateTag("tutors", "max");
+  revalidatePath("/admin/courses");
+  revalidatePath("/courses");
+  revalidatePath("/");
+}
+
+export async function approveCourse(formData: FormData): Promise<void> {
+  await setCourseApproval(formData, true);
+}
+
+export async function rejectCourse(formData: FormData): Promise<void> {
+  await setCourseApproval(formData, false);
+}

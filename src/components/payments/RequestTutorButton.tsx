@@ -10,6 +10,7 @@ import { Field } from "@/components/ui/Field";
 import { Select, Textarea } from "@/components/ui/Fields";
 import { Modal } from "@/components/ui/Modal";
 import { SessionModePicker } from "@/components/auth/SessionModePicker";
+import type { SessionMode } from "@/services/auth/sessionFormat";
 import { CommitToCourseButton } from "./CommitToCourseButton";
 import { PaymentPlanRequestButton } from "./PaymentPlanRequestButton";
 import { formatGhs } from "@/lib/money";
@@ -21,12 +22,35 @@ import { formatGhs } from "@/lib/money";
  * session format for THIS request (one-on-one vs group — 0024; a student may
  * choose differently for the next tutor), and an optional note.
  *
+ * Since 0031 each course carries a price PER FORMAT, and either may be blank
+ * (the tutor doesn't teach it that way). The picker therefore disables a
+ * format the chosen course doesn't offer, and re-picking the course moves the
+ * selection to a format that exists — the paywall then charges the price for
+ * exactly the format the student picked.
+ *
  * The moment the request is sent the dialog becomes the PAYWALL: the full
  * semester fee is due to activate sessions (0029 — 100% upfront), payable
  * immediately (the tutor accepts to schedule, not to unlock payment). A
  * student who can't pay in full reaches the admin team from the same panel —
  * WhatsApp first, or in-site with the context pre-filled.
  */
+export interface TutorOffering {
+  courseId: string;
+  name: string;
+  /** Per student, per semester. Null = the tutor doesn't offer that format. */
+  priceOneOnOne: number | null;
+  priceGroup: number | null;
+}
+
+/** The formats this offering can be requested in, one-on-one first. */
+function modesFor(offering: TutorOffering | undefined): SessionMode[] {
+  if (!offering) return ["one_on_one"];
+  const modes: SessionMode[] = [];
+  if (offering.priceOneOnOne !== null) modes.push("one_on_one");
+  if (offering.priceGroup !== null) modes.push("group");
+  return modes.length > 0 ? modes : ["one_on_one"];
+}
+
 export function RequestTutorButton({
   tutorProfileId,
   offerings,
@@ -34,7 +58,7 @@ export function RequestTutorButton({
   className,
 }: {
   tutorProfileId: string;
-  offerings: Array<{ courseId: string; name: string; price: number }>;
+  offerings: TutorOffering[];
   signedIn: boolean;
   className?: string;
 }) {
@@ -43,6 +67,10 @@ export function RequestTutorButton({
     sendTutorRequest,
     {},
   );
+
+  const first = offerings[0];
+  const [courseId, setCourseId] = useState(first?.courseId ?? "");
+  const [mode, setMode] = useState<SessionMode>(modesFor(first)[0]);
 
   // Signed-out visitors get the auth modal — same session-aware pattern
   // as ContactTutorButton.
@@ -55,6 +83,17 @@ export function RequestTutorButton({
   }
 
   const paywall = state?.paywall;
+  const selected = offerings.find((o) => o.courseId === courseId) ?? first;
+  const offeredModes = modesFor(selected);
+  const disabledModes = (["one_on_one", "group"] as const).filter(
+    (candidate) => !offeredModes.includes(candidate),
+  );
+
+  function chooseCourse(nextId: string) {
+    setCourseId(nextId);
+    // Never leave a disabled format selected — it would be unsubmittable.
+    setMode(modesFor(offerings.find((o) => o.courseId === nextId))[0]);
+  }
 
   return (
     <>
@@ -138,15 +177,38 @@ export function RequestTutorButton({
           <form action={formAction} className="mt-4 space-y-3">
             <input type="hidden" name="tutorProfileId" value={tutorProfileId} />
             <Field label="Course" htmlFor="courseId">
-              <Select id="courseId" name="courseId" defaultValue={offerings[0]?.courseId ?? ""}>
-                {offerings.map((o) => (
-                  <option key={o.courseId} value={o.courseId}>
-                    {o.name} · GH₵{o.price.toLocaleString()}/semester
-                  </option>
-                ))}
+              <Select
+                id="courseId"
+                name="courseId"
+                value={courseId}
+                onChange={(event) => chooseCourse(event.target.value)}
+              >
+                {offerings.map((o) => {
+                  const from =
+                    o.priceOneOnOne === null
+                      ? o.priceGroup
+                      : o.priceGroup === null
+                        ? o.priceOneOnOne
+                        : Math.min(o.priceOneOnOne, o.priceGroup);
+                  return (
+                    <option key={o.courseId} value={o.courseId}>
+                      {o.name}
+                      {from !== null
+                        ? ` · from GH₵${from.toLocaleString()}/semester`
+                        : " · rates on request"}
+                    </option>
+                  );
+                })}
               </Select>
             </Field>
+            {/* Keyed on the course: the picker is uncontrolled (native
+                :checked styling), so a new course must remount it with the
+                format that course actually offers. */}
             <SessionModePicker
+              key={courseId}
+              defaultMode={mode}
+              disabledModes={disabledModes}
+              onChange={setMode}
               legend="Session format for this request"
               hint="One-on-one or group — for this tutor only. You can pick differently for another tutor."
             />

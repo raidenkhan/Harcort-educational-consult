@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isMissingColumn } from "@/lib/postgres";
 import {
   toTutorListings,
   type TutorListing,
@@ -27,16 +28,33 @@ function logAndEmpty<T>(scope: string, message: string | undefined): T[] {
  * The full subject/course taxonomy. Cached after the first request (5 min
  * TTL); the taxonomy changes rarely, and the tutor schedule form reads it
  * from cache too.
+ *
+ * 0031: only APPROVED courses. Tutor-added courses are created unpublished
+ * and wait for an admin, so the public directory can't be spammed. If the
+ * column doesn't exist yet (migration pending) the filter is dropped rather
+ * than failing the whole query — the catalog must never go blank.
  */
 export const listCourses = unstable_cache(
   async (): Promise<Course[]> => {
     const supabase = createAdminClient();
 
-    const { data, error } = await supabase
-      .from("courses")
-      .select("*")
-      .order("subject", { ascending: true })
-      .order("name", { ascending: true });
+    const read = (approvedOnly: boolean) => {
+      const query = supabase
+        .from("courses")
+        .select("*")
+        .order("subject", { ascending: true })
+        .order("name", { ascending: true });
+      return approvedOnly ? query.eq("is_approved", true) : query;
+    };
+
+    let { data, error } = await read(true);
+
+    if (error && isMissingColumn(error)) {
+      console.warn(
+        "[courses] courses.is_approved missing — listing unmoderated courses (apply migration 0031).",
+      );
+      ({ data, error } = await read(false));
+    }
 
     if (error) return logAndEmpty<Course>("listCourses", error.message);
     return (data as Course[]) ?? [];
@@ -44,6 +62,37 @@ export const listCourses = unstable_cache(
   ["courses"],
   { revalidate: 300, tags: ["courses"] },
 );
+
+/** A tutor-added course awaiting review, with the tutor's name. */
+export type PendingCourse = Course & { addedBy: string | null };
+
+/**
+ * Courses a tutor added that are waiting for review — the admin queue.
+ * Not cached: it is read only by the admin console, where a stale list would
+ * mean a tutor waits longer than necessary.
+ */
+export async function listPendingCourses(): Promise<PendingCourse[]> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("courses")
+    .select("*, profiles(full_name)")
+    .eq("is_approved", false)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    // Pre-0031 there is no approval flag, so there is nothing to review.
+    if (isMissingColumn(error)) return [];
+    return logAndEmpty<PendingCourse>("listPendingCourses", error.message);
+  }
+
+  return ((data ?? []) as Array<Course & {
+    profiles?: { full_name: string } | { full_name: string }[] | null;
+  }>).map(({ profiles, ...course }) => ({
+    ...course,
+    addedBy: (Array.isArray(profiles) ? profiles[0] : profiles)?.full_name ?? null,
+  }));
+}
 
 export async function searchCourses(query: string): Promise<Course[]> {
   const supabase = createAdminClient();

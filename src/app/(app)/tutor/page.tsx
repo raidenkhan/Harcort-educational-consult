@@ -1,13 +1,13 @@
 import { requireRole } from "@/services/auth/queries";
 import { getOwnTutorProfile } from "@/services/tutors/queries";
 import { listCourses } from "@/services/courses/queries";
+import { ServicePrice } from "@/components/tutors/ServicePrice";
 import { TutorProfileForm } from "@/components/tutor/TutorProfileForm";
 import { TutorServiceForm } from "@/components/tutor/TutorServiceForm";
 import { PhoneForm } from "@/components/auth/PhoneForm";
 import { SmsPreferenceForm } from "@/components/auth/SmsPreferenceForm";
 import { CopyProfileLink } from "@/components/tutor/CopyProfileLink";
 import { Card } from "@/components/ui/Card";
-import type { TutorService } from "@/types";
 
 /**
  * Overview tab — profile + course offerings. The verification gate on
@@ -72,22 +72,30 @@ export default async function TutorOverviewPage() {
             <p className="mt-2 text-sm text-slate-500">No courses added yet.</p>
           ) : (
             <ul className="mt-3 divide-y divide-slate-100">
-              {tutor.services.map((service: TutorService) => (
-                <li
-                  key={service.id}
-                  className="flex items-center justify-between py-2.5 text-sm"
-                >
-                  <span className="font-medium text-slate-800">
-                    {courseName(courses, service.course_id)}
-                  </span>
-                  <span className="font-semibold text-slate-900">
-                    GH₵{service.price.toLocaleString()}
-                    <span className="ml-1 text-xs font-normal text-slate-400">
-                      /semester
-                    </span>
-                  </span>
-                </li>
-              ))}
+              {tutor.services.map((service) => {
+                return (
+                  <li key={service.id} className="py-3 text-sm">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="font-medium text-slate-800">
+                        {service.course?.code && (
+                          <span className="mr-2 font-mono text-xs text-slate-400">
+                            {service.course.code}
+                          </span>
+                        )}
+                        {service.course?.name ?? "Unknown course"}
+                      </span>
+                      {service.course?.is_approved === false && (
+                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                          awaiting review
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                      <ServicePrice service={service} />
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>
@@ -111,6 +119,4 @@ export default async function TutorOverviewPage() {
   );
 }
 
-function courseName(courses: { id: string; name: string }[], courseId: string) {
-  return courses.find((c) => c.id === courseId)?.name ?? "Unknown course";
-}
+

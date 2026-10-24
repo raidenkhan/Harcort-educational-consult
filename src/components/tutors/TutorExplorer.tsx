@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, GraduationCap, ShieldCheck, SearchX } from "lucide-react";
 import type { TutorListing } from "@/services/tutors/queries";
+import { formatPrices } from "@/services/tutors/pricing";
+import { ServicePrice } from "@/components/tutors/ServicePrice";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { RequestTutorButton } from "@/components/payments/RequestTutorButton";
 import { Badge } from "@/components/ui/Badge";
@@ -164,17 +166,26 @@ function TutorCard({
 }) {
   const { tutorProfile: tp, profile, services, courses } = tutor;
   const courseNames = new Map(courses.map((c) => [c.id, c.name]));
+  // 0031 — each offering carries one price per session format. Blank formats
+  // are dropped here; the request dialog disables them.
   const offerings = services
-    .map((s) => ({
-      serviceId: s.id,
-      name: courseNames.get(s.course_id) ?? null,
-      price: s.price,
-    }))
-    .filter((o): o is { serviceId: string; name: string; price: number } => o.name !== null);
+    .map((s) => {
+      const name = courseNames.get(s.course_id);
+      if (!name) return null;
+      return {
+        serviceId: s.id,
+        courseId: s.course_id,
+        name,
+        service: s,
+        prices: formatPrices(s),
+      };
+    })
+    .filter((o): o is NonNullable<typeof o> => o !== null);
   const offeringsForRequest = offerings.map((o) => ({
-    courseId: services.find((s) => s.id === o.serviceId)?.course_id ?? "",
+    courseId: o.courseId,
     name: o.name,
-    price: o.price,
+    priceOneOnOne: o.prices.oneOnOne,
+    priceGroup: o.prices.group,
   }));
 
   return (
@@ -243,7 +254,7 @@ function TutorCard({
                 {o.name}
                 <span className="text-brand-700">
                   {" "}
-                  · GH₵{o.price.toLocaleString()}/semester
+                  · <ServicePrice service={o.service} showModeLabels={false} />
                 </span>
               </span>
               <RequestTutorButton

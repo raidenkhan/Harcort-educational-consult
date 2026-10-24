@@ -8,8 +8,12 @@
  *
  * This module walks that static tree (extracted once via Drive's public
  * `embeddedfolderview` listing) and exposes it as plain typed data. It is
- * server-safe — no "use client" — so the /library page (a server component)
- * can read it directly and pass plain data down.
+ * server-safe — no "use client" — so server components can read it directly
+ * and pass plain data down.
+ *
+ * The library merge: there is no /library page any more. `courseMaterials.ts` indexes this
+ * tree by course code, and the course page shows the folder for the course
+ * the student is already looking at.
  *
  * Term placement follows the official KNUST curriculum, NOT the Drive folder
  * a link happens to sit in — the Drive was filed by hand and had courses in

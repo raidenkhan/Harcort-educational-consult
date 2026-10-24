@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isMissingColumn } from "@/lib/postgres";
 import { APP_URL } from "@/lib/email/client";
 import { requireProfile } from "@/services/auth/queries";
 import type { Profile } from "@/types";
@@ -11,11 +12,18 @@ import { scheduleOutboxDrain } from "@/lib/email/outbox";
 import { createTransferRecipient, initializeTransaction, isPaystackConfigured } from "./paystack";
 import { formatGhs } from "@/lib/money";
 import {
+  cancelPaymentRequestSchema,
   createEngagementSchema,
+  createPaymentRequestSchema,
   initializeInstallmentPaymentSchema,
+  openPlanSchema,
+  payPaymentRequestSchema,
   recordPartPaymentSchema,
   savePayoutAccountSchema,
+  setPaymentPromiseSchema,
 } from "./schemas";
+import { generatePaymentToken, hashPaymentToken, paymentLinkPath } from "./links";
+import { getPaymentLinkByToken } from "./queries";
 
 /**
  * Payment mutations — the write side of the payments domain.
@@ -30,12 +38,19 @@ import {
  * carry any extra fields (like checkoutUrl) inside the returned object.
  */
 
-export type PaymentFormState = { error?: string; message?: string; checkoutUrl?: string };
+export type PaymentFormState = {
+  error?: string;
+  message?: string;
+  checkoutUrl?: string;
+  /** 0032 — `/pay/<token>` for a freshly issued part-payment link. The client
+   *  prefixes the current origin (the console works on localhost and prod). */
+  linkPath?: string;
+};
 
 /** PostgREST RPC errors carry the Postgres message we raised. */
 function rpcError(err: { message?: string } | Error | null): string {
   const message = err instanceof Error ? err.message : (err?.message ?? "Payment action failed");
-  return message.replace(/^.*?(?=(forbidden|amount_mismatch|amount_exceeds_outstanding|currency_mismatch|installment_not_payable|installment_not_found|engagement_exists|engagement_not_found|engagement_cancelled|sessions_incomplete|payments_outstanding|payout_account_unverified|payout_account_not_found|payout_exists|payout_not_found|payout_not_approvable|payout_not_cancellable|payout_not_holdable|payout_not_releasable|reason_required|not_completable|service_not_found|service_not_available))/, "").replace(/\s+/g, " ").trim();
+  return message.replace(/^.*?(?=(forbidden|amount_mismatch|amount_exceeds_outstanding|currency_mismatch|installment_not_payable|installment_not_found|engagement_exists|engagement_not_found|engagement_cancelled|sessions_incomplete|payments_outstanding|payout_account_unverified|payout_account_not_found|payout_exists|payout_not_found|payout_not_approvable|payout_not_cancellable|payout_not_holdable|payout_not_releasable|reason_required|not_completable|service_not_found|service_not_available|format_not_offered|invalid_price|invalid_token|payment_request_not_found|payment_request_not_open))/, "").replace(/\s+/g, " ").trim();
 }
 
 /** Human-friendly copy for the Postgres guard messages. */
@@ -45,6 +60,21 @@ function friendlyError(error: string): string {
   }
   if (error.startsWith("service_not_available") || error.startsWith("service_not_found")) {
     return "That course offer is no longer available.";
+  }
+  if (error.startsWith("format_not_offered")) {
+    return "That tutor doesn't teach this course in the session format you picked — choose the other format.";
+  }
+  if (error.startsWith("invalid_price")) {
+    return "That course offer has no usable price — ask the tutor to update it.";
+  }
+  if (error.startsWith("payment_request_not_found")) {
+    return "That payment link no longer exists.";
+  }
+  if (error.startsWith("payment_request_not_open")) {
+    return "That payment link is no longer open — it was already paid or cancelled.";
+  }
+  if (error.startsWith("invalid_token")) {
+    return "That payment link is not valid.";
   }
   if (error.startsWith("forbidden")) return "You're not allowed to do that.";
   if (error.startsWith("payout_account_unverified")) {
@@ -119,11 +149,26 @@ export async function createEngagement(
  * init. Returns checkoutUrl for the client to redirect to. The payments row
  * is created here as 'initialized' and flipped to 'paid' ONLY by the
  * verified webhook — the callback redirect alone never marks anything paid.
+ *
+ * The amount charged is the installment's OUTSTANDING balance, not its face
+ * value: after a part payment (0029) the installment stays 'pending' with
+ * `paid_amount` > 0, and charging the full amount again would be rejected by
+ * the webhook as an overpay. A part-payment link (0032) overrides it with an
+ * amount the admin already approved — still server-derived, never from the
+ * client.
  */
 async function runCheckout(
   profile: Pick<Profile, "id">,
   engagementId: string,
   installmentId: string,
+  opts: {
+    /** Charge this amount instead of the installment's outstanding balance. */
+    amountPesewas?: number;
+    /** The 0032 link this charge settles. */
+    paymentRequestId?: string;
+    /** Where Paystack returns the student. */
+    returnPath?: string;
+  } = {},
 ): Promise<PaymentFormState> {
   if (!isPaystackConfigured()) {
     return { error: "Payments are not configured yet — please try again later." };
@@ -143,22 +188,53 @@ async function runCheckout(
   if (eng.status === "cancelled") return { error: "This agreement was cancelled." };
 
   // The installment must belong to the engagement and still be payable.
-  const { data: installment, error: instError } = await supabase
-    .from("installments")
-    .select("id, amount, currency, status, idx")
-    .eq("id", installmentId)
-    .eq("engagement_id", engagementId)
-    .maybeSingle();
+  // `paid_amount` (0029) is read separately so a pre-0029 database still
+  // checks out — there, a payable installment has nothing paid against it.
+  const readInstallment = (withPartial: boolean) => {
+    const columns = withPartial
+      ? "id, amount, currency, status, idx, paid_amount"
+      : "id, amount, currency, status, idx";
+    return supabase
+      .from("installments")
+      .select(columns)
+      .eq("id", installmentId)
+      .eq("engagement_id", engagementId)
+      .maybeSingle();
+  };
+
+  const firstRead = await readInstallment(true);
+  let installment = firstRead.data;
+  let instError = firstRead.error;
+  if (instError && isMissingColumn(instError)) {
+    const retry = await readInstallment(false);
+    installment = retry.data;
+    instError = retry.error;
+  }
   if (instError || !installment) return { error: "Installment not found." };
-  const inst = installment as {
+
+  const inst = installment as unknown as {
     id: string;
     amount: string | number;
+    paid_amount?: string | number | null;
     currency: string;
     status: string;
     idx: number;
   };
   if (inst.status !== "pending" && inst.status !== "overdue") {
     return { error: `This installment is already ${inst.status}.` };
+  }
+
+  const outstanding = Number(inst.amount) - Number(inst.paid_amount ?? 0);
+  if (outstanding <= 0) {
+    return { message: "This agreement is already fully paid." };
+  }
+
+  const amount = opts.amountPesewas ?? outstanding;
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { error: "Enter an amount above zero." };
+  }
+  if (amount > outstanding) {
+    return { error: "That amount is more than the outstanding balance." };
   }
 
   // The student's email lives in credentials (self-hosted auth).
@@ -180,11 +256,16 @@ async function runCheckout(
     .insert({
       engagement_id: engagementId,
       installment_id: installmentId,
-      amount: inst.amount as unknown as string, // BIGINT as string — BigInt breaks JSON.stringify
+      amount: String(amount), // BIGINT as string — BigInt breaks JSON.stringify
       currency: inst.currency,
       paystack_reference: reference,
       status: "initialized",
       initialized_by: profile.id,
+      // Only written by the 0032 link path, so a pre-0032 database never
+      // sees an unknown column.
+      ...(opts.paymentRequestId
+        ? { payment_request_id: opts.paymentRequestId }
+        : {}),
     })
     .select("id")
     .single();
@@ -193,13 +274,16 @@ async function runCheckout(
   try {
     const txn = await initializeTransaction({
       email,
-      amountPesewas: Number(inst.amount), // pesewas — server-derived, never client-sent
+      amountPesewas: amount, // pesewas — server-derived, never client-sent
       reference,
-      callbackUrl: `${APP_URL}/dashboard?payment=return`,
+      callbackUrl: `${APP_URL}${opts.returnPath ?? "/dashboard?payment=return"}`,
       metadata: {
         engagement_id: engagementId,
         installment_id: installmentId,
         installment_idx: inst.idx,
+        ...(opts.paymentRequestId
+          ? { payment_request_id: opts.paymentRequestId }
+          : {}),
       },
     });
 
@@ -387,6 +471,273 @@ export async function recordPartPayment(
   return {
     message: `Recorded ${formatGhs(BigInt(amountPesewas))} — applied to the agreement.`,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Payment plans & part-payment links (0032)
+// ---------------------------------------------------------------------------
+
+/**
+ * Admin opens a plan for a student who hit the paywall and asked for help.
+ *
+ * The queue row is a tutor REQUEST — there is no agreement yet, and without
+ * one there is nothing to record a part payment against. `create_payment_
+ * engagement` accepts an admin actor, so this creates the agreement (with the
+ * full semester fee as its single installment) on the student's behalf; the
+ * admin can then set a promised date and issue a part-payment link. Re-running
+ * it is harmless: `engagement_exists` means the plan is already open.
+ */
+export async function openPaymentPlan(
+  _prev: PaymentFormState,
+  formData: FormData,
+): Promise<PaymentFormState> {
+  const profile = await requireProfile();
+  if (!profileIsAdmin(profile)) {
+    return { error: "Only admins can open a payment plan." };
+  }
+
+  const parsed = openPlanSchema.safeParse({
+    requestId: formData.get("requestId"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid request" };
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: request } = await supabase
+    .from("tutor_requests")
+    .select("id, student_id, course_id, tutor_profile_id, status")
+    .eq("id", parsed.data.requestId)
+    .maybeSingle();
+  if (!request) return { error: "That request no longer exists." };
+
+  const req = request as {
+    id: string;
+    student_id: string;
+    course_id: string | null;
+    tutor_profile_id: string;
+    status: string;
+  };
+  if (req.status !== "pending" && req.status !== "accepted") {
+    return { error: "That request is closed — ask the student to send a new one." };
+  }
+  if (!req.course_id) {
+    return { error: "That request has no course attached." };
+  }
+
+  const { data: service } = await supabase
+    .from("tutor_services")
+    .select("id")
+    .eq("tutor_profile_id", req.tutor_profile_id)
+    .eq("course_id", req.course_id)
+    .maybeSingle();
+  if (!service) {
+    return { error: "That tutor no longer offers this course." };
+  }
+
+  const { error } = await supabase.rpc("create_payment_engagement", {
+    actor_id: profile.id,
+    p_student_id: req.student_id,
+    p_tutor_service_id: (service as { id: string }).id,
+    p_request_id: req.id,
+  });
+  // `engagement_exists` is success here: the plan is already open, and the
+  // admin is about to add a link to it.
+  if (error && !/engagement_exists/.test(error.message ?? "")) {
+    return { error: friendlyError(rpcError(error)) };
+  }
+
+  scheduleOutboxDrain();
+  revalidatePath("/admin", "layout");
+  revalidatePath("/dashboard");
+  revalidatePath("/tutor", "layout");
+  return {
+    message:
+      "Plan opened. Set the date the balance will be settled, then send the student a part-payment link.",
+  };
+}
+
+/**
+ * Record (or move, or clear) the agreed date the balance will be settled.
+ * The student sees it on the paywall, and the console flags an overdue
+ * promise — a plan without a date is a plan nobody is tracking.
+ */
+export async function setPaymentPromise(
+  _prev: PaymentFormState,
+  formData: FormData,
+): Promise<PaymentFormState> {
+  const profile = await requireProfile();
+  if (!profileIsAdmin(profile)) {
+    return { error: "Only admins can set a payment promise." };
+  }
+
+  const parsed = setPaymentPromiseSchema.safeParse({
+    engagementId: formData.get("engagementId"),
+    date: String(formData.get("date") ?? "").trim() || undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid date" };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.rpc("admin_set_payment_promise", {
+    actor_id: profile.id,
+    p_engagement_id: parsed.data.engagementId,
+    p_date: parsed.data.date ?? null,
+  });
+  if (error) return { error: friendlyError(rpcError(error)) };
+
+  revalidatePath("/admin", "layout");
+  revalidatePath("/dashboard");
+  return {
+    message: parsed.data.date
+      ? "Promised date saved."
+      : "Promised date cleared.",
+  };
+}
+
+/**
+ * Issue a single-use part-payment link for a specific amount.
+ *
+ * The raw token is generated here and never stored — only its SHA-256 hash
+ * reaches Postgres (same rule as sessions and reset codes). The RPC re-checks
+ * the amount against the live outstanding balance under a row lock, so an
+ * admin cannot issue a link for more than the student owes.
+ */
+export async function createPaymentRequest(
+  _prev: PaymentFormState,
+  formData: FormData,
+): Promise<PaymentFormState> {
+  const profile = await requireProfile();
+  if (!profileIsAdmin(profile)) {
+    return { error: "Only admins can create payment links." };
+  }
+
+  const parsed = createPaymentRequestSchema.safeParse({
+    engagementId: formData.get("engagementId"),
+    amountCedis: formData.get("amountCedis"),
+    note: formData.get("note") || undefined,
+    validDays: formData.get("validDays") || 7,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid request" };
+  }
+
+  const amountPesewas = Math.round(parsed.data.amountCedis * 100);
+  if (amountPesewas <= 0) return { error: "Enter an amount above zero." };
+
+  const token = generatePaymentToken();
+  const expiresAt = new Date(
+    Date.now() + parsed.data.validDays * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.rpc("admin_create_payment_request", {
+    actor_id: profile.id,
+    p_engagement_id: parsed.data.engagementId,
+    p_token_hash: hashPaymentToken(token),
+    p_amount: amountPesewas,
+    p_note: parsed.data.note ?? null,
+    p_expires_at: expiresAt,
+  });
+  if (error) return { error: friendlyError(rpcError(error)) };
+
+  revalidatePath("/admin", "layout");
+  return {
+    message: `Link ready for ${formatGhs(BigInt(amountPesewas))} — copy it and send it to the student.`,
+    linkPath: paymentLinkPath(token),
+  };
+}
+
+/** Cancel an open link. A paid link is immutable: the money row is the record. */
+export async function cancelPaymentRequest(
+  _prev: PaymentFormState,
+  formData: FormData,
+): Promise<PaymentFormState> {
+  const profile = await requireProfile();
+  if (!profileIsAdmin(profile)) {
+    return { error: "Only admins can cancel payment links." };
+  }
+
+  const parsed = cancelPaymentRequestSchema.safeParse({
+    requestId: formData.get("requestId"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid link" };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.rpc("admin_cancel_payment_request", {
+    actor_id: profile.id,
+    p_payment_request: parsed.data.requestId,
+  });
+  if (error) return { error: friendlyError(rpcError(error)) };
+
+  revalidatePath("/admin", "layout");
+  return { message: "Link cancelled." };
+}
+
+/**
+ * The student pays an admin-issued link (`/pay/[token]`).
+ *
+ * The token is the whole credential: it resolves to ONE link, which names the
+ * agreement and the amount the admin approved. Everything money-related is
+ * re-derived server-side — the client only ever sends the token. The charge
+ * is capped at the live outstanding balance so a stale link can never overpay
+ * an agreement that has since been part-paid.
+ */
+export async function payPaymentRequest(
+  _prev: PaymentFormState,
+  formData: FormData,
+): Promise<PaymentFormState> {
+  const profile = await requireProfile();
+
+  const parsed = payPaymentRequestSchema.safeParse({
+    token: formData.get("token"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "This payment link is not valid." };
+  }
+
+  const link = await getPaymentLinkByToken(parsed.data.token, Date.now());
+  if (!link) return { error: "This payment link is not valid." };
+  if (link.studentId && link.studentId !== profile.id) {
+    return { error: "This payment link was issued to another student." };
+  }
+
+  if (link.status === "paid") {
+    return { message: "This link has already been paid — thank you." };
+  }
+  if (link.status === "cancelled") {
+    return { error: "This link was cancelled — ask the admin team for a new one." };
+  }
+  if (link.remainingPesewas <= BigInt(0)) {
+    return { message: "This agreement is already fully paid." };
+  }
+  if (!link.payable) {
+    return { error: "This payment link has expired — ask the admin team for a new one." };
+  }
+
+  const supabase = createAdminClient();
+  const { data: installmentRows } = await supabase
+    .from("installments")
+    .select("id, idx, status")
+    .eq("engagement_id", link.engagementId)
+    .order("idx");
+  const payable = (
+    installmentRows as Array<{ id: string; idx: number; status: string }> | null
+  )?.find((row) => row.status === "pending" || row.status === "overdue");
+  if (!payable) return { message: "This agreement is already fully paid." };
+
+  const charge =
+    link.amount > link.remainingPesewas ? link.remainingPesewas : link.amount;
+
+  return runCheckout(profile, link.engagementId, payable.id, {
+    amountPesewas: Number(charge),
+    paymentRequestId: link.id,
+    returnPath: `${paymentLinkPath(parsed.data.token)}?payment=return`,
+  });
 }
 
 // ---------------------------------------------------------------------------

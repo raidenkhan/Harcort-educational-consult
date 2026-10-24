@@ -225,7 +225,7 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* The money view: engagements + 50/50 installments + pay buttons. */}
+        {/* The money view: engagements + semester fee + pay buttons. */}
         {profile.role === "student" && (
           <div className="mt-10">
             <StudentPaymentsCard />
