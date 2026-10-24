@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import {
   ArrowLeft,
@@ -20,6 +19,7 @@ import {
   sortFields,
 } from "@/components/home/courseTaxonomy";
 import { FIELD_ICONS } from "@/components/home/CourseCatalog";
+import { CourseTitle } from "./CourseTitle";
 
 /**
  * The /courses directory — program → level → semester → course.
@@ -345,9 +345,11 @@ export function CourseDirectory({ courses }: { courses: DirectoryCourse[] }) {
 }
 
 /**
- * One course row: code, credits, name, description. The whole row is the
- * link — same destination as before (`/courses/[id]`), so materials, videos
- * and the tutor list stay exactly where they were.
+ * One course row: code, level, credits, name — and an info toggle that
+ * reveals the description on demand (see CourseTitle). The row stays a single
+ * click target through the stretched link, same destination as before
+ * (`/courses/[id]`), so materials, videos and the tutor list stay exactly
+ * where they were.
  */
 function CourseRow({
   course,
@@ -357,15 +359,12 @@ function CourseRow({
   showProgram?: boolean;
 }) {
   return (
-    <Link
-      href={`/courses/${course.id}`}
-      className="group flex items-start gap-4 rounded-lg border border-slate-200 bg-white p-5 transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lift focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
-    >
+    <div className="group relative flex items-start gap-4 rounded-lg border border-slate-200 bg-white p-5 transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lift focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600 motion-reduce:transition-none motion-reduce:hover:translate-y-0">
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-600">
         <BookOpen aria-hidden="true" className="h-5 w-5" />
       </span>
 
-      <span className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1">
         {showProgram && (
           <span className="block text-[11px] font-semibold uppercase tracking-widest text-brand-600">
             {course.subject}
@@ -389,19 +388,18 @@ function CourseRow({
             </span>
           )}
         </span>
-        <span className="mt-1 block font-display text-base font-semibold text-slate-900 group-hover:text-brand-700">
-          {course.name}
-        </span>
-        {course.description && (
-          <span className="mt-1 line-clamp-2 block text-sm leading-relaxed text-slate-600">
-            {course.description}
-          </span>
-        )}
+        <CourseTitle
+          courseId={course.id}
+          name={course.name}
+          description={course.description}
+          className="mt-1"
+          linkClassName="transition-colors duration-200 group-hover:text-brand-700"
+        />
         <span className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-brand-600">
           Materials &amp; tutors
           <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 motion-reduce:transition-none" />
         </span>
-      </span>
-    </Link>
+      </div>
+    </div>
   );
 }

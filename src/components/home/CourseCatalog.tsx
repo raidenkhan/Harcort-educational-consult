@@ -25,6 +25,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { CourseTitle } from "@/components/courses/CourseTitle";
 import { Reveal } from "./Reveal";
 import { LevelRail } from "./LevelRail";
 import {
@@ -114,8 +115,14 @@ const LIST =
 const LIST_ITEM = "w-[76%] shrink-0 snap-start sm:w-auto";
 
 /**
- * One course card. The whole card is the link; when `eyebrow` is set the
- * field (and year) rides above the title, since search results span fields.
+ * One course card. Kept deliberately thin: code, credit hours, name, the
+ * destination hint — and an info toggle for the description (see CourseTitle)
+ * instead of printing it under every title. When `eyebrow` is set the field
+ * (and year) rides above the title, since search results span fields.
+ *
+ * `relative` on the card is load-bearing: CourseTitle stretches its link
+ * across this box with an ::after pseudo-element so the whole card stays one
+ * click target while the info button sits on top of it.
  */
 function CourseCard({
   course,
@@ -125,10 +132,7 @@ function CourseCard({
   eyebrow?: boolean;
 }) {
   return (
-    <Link
-      href={`/courses/${course.id}`}
-      className="group flex h-full flex-col rounded-[2px] border border-slate-200 bg-white p-5 transition-colors duration-200 hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-    >
+    <div className="group relative flex h-full flex-col rounded-[2px] border border-slate-200 bg-white p-5 transition-colors duration-200 hover:border-slate-300 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-600">
       {eyebrow && (
         <span className="block truncate text-[11px] font-semibold uppercase tracking-widest text-brand-600">
           {course.subject}
@@ -147,19 +151,17 @@ function CourseCard({
           )}
         </span>
       )}
-      <span className="font-display text-base font-semibold tracking-[0.01em] text-slate-900">
-        {course.name}
-      </span>
-      {course.description && (
-        <span className="mt-1.5 text-sm leading-relaxed text-slate-600">
-          {course.description}
-        </span>
-      )}
+      <CourseTitle
+        courseId={course.id}
+        name={course.name}
+        description={course.description}
+        linkClassName="transition-colors duration-200 group-hover:text-brand-700"
+      />
       <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-[13px] font-semibold text-brand-600">
         Materials &amp; tutors
         <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-200 [transition-timing-function:var(--ease-out)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 motion-reduce:transition-none" />
       </span>
-    </Link>
+    </div>
   );
 }
 
