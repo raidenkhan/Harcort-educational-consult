@@ -12,10 +12,14 @@
  * themselves `<img src=x onerror=…>` and land markup in an admin's inbox.
  */
 
+import { googleCalendarUrl, sessionIcs } from "@/lib/calendarLink";
+
 export interface EmailMessage {
   subject: string;
   text: string;
   html: string;
+  /** Optional files attached to the email (Resend shape: base64 content). */
+  attachments?: { filename: string; content: string; contentType?: string }[];
 }
 
 /** Escape a value for safe interpolation into HTML (text or attribute). */
@@ -133,11 +137,45 @@ export function sessionScheduledEmail(opts: {
   when: string;
   topic: string | null;
   location: string | null;
-  /** "Add to Google Calendar" link — carries the real start/end times. */
-  calendarUrl: string;
+  /** Calendar event title, e.g. "Tutoring with Ama — Mechanics". */
+  title: string;
+  start: Date;
+  end: Date;
+  /** Creation stamp + unique id for the .ics attachment. */
+  now: Date;
+  uid: string;
   dashboardUrl: string;
 }): EmailMessage {
   const subject = `Session scheduled: ${opts.topic ?? "Tutoring"} · ${opts.when}`;
+  const details = "Scheduled on Harcourt Educational Consult.";
+
+  const calendarUrl = googleCalendarUrl({
+    title: opts.title,
+    start: opts.start,
+    end: opts.end,
+    location: opts.location ?? undefined,
+    details,
+  });
+
+  // The .ics works everywhere (Apple Calendar, Outlook, and Google too), so it
+  // covers the clients the Google-only link misses. Base64 for Resend.
+  const ics = sessionIcs({
+    title: opts.title,
+    start: opts.start,
+    end: opts.end,
+    location: opts.location ?? undefined,
+    description: details,
+    uid: opts.uid,
+    now: opts.now,
+  });
+  const attachments = [
+    {
+      filename: "session.ics",
+      content: Buffer.from(ics, "utf-8").toString("base64"),
+      contentType: "text/calendar; charset=utf-8",
+    },
+  ];
+
   const lines = [
     `A new session has been scheduled for you.`,
     ``,
@@ -147,7 +185,9 @@ export function sessionScheduledEmail(opts: {
     opts.topic ? `  Topic:    ${opts.topic}` : ``,
     opts.location ? `  Where:    ${opts.location}` : ``,
     ``,
-    `Add it to your calendar: ${opts.calendarUrl}`,
+    `Add it to your calendar: ${calendarUrl}`,
+    ``,
+    `A calendar file (.ics) is attached — open it to add the session to Apple Calendar or Outlook.`,
     ``,
     `It's on your timetable — remember to tick attendance when you meet.`,
   ];
@@ -158,11 +198,11 @@ export function sessionScheduledEmail(opts: {
       `When: <strong>${escapeHtml(opts.when)}</strong><br/>${
         opts.topic ? `Topic: ${escapeHtml(opts.topic)}<br/>` : ""
       }${opts.location ? `Where: ${escapeHtml(opts.location)}` : ""}`,
-    )}${actionButton(opts.calendarUrl, "Add to Google Calendar")}${p(
-      textLink(opts.dashboardUrl, "View my timetable →"),
-    )}`,
+    )}${actionButton(calendarUrl, "Add to Google Calendar")}${p(
+      `A calendar file (<code>.ics</code>) is attached — open it to add the session to <strong>Apple Calendar</strong> or <strong>Outlook</strong>.`,
+    )}${p(textLink(opts.dashboardUrl, "View my timetable →"))}`,
   );
-  return { subject, text, html };
+  return { subject, text, html, attachments };
 }
 
 export function sessionCancelledEmail(opts: {

@@ -1,7 +1,7 @@
 import { after } from "next/server";
+import { randomUUID } from "node:crypto";
 import { EMAIL_FROM, getEmailClient, isEmailConfigured, APP_URL } from "./client";
 import { emailErrorReason } from "./errors";
-import { googleCalendarUrl } from "@/lib/calendarLink";
 import { adminEmails, emailsForProfiles } from "./recipients";
 import {
   attendanceConfirmedEmail,
@@ -42,6 +42,9 @@ export async function deliver(to: string, message: EmailMessage): Promise<string
       subject: message.subject,
       text: message.text,
       html: message.html,
+      ...(message.attachments?.length
+        ? { attachments: message.attachments }
+        : {}),
     });
     if (!error) return null;
     // Server log keeps the real thing (statusCode, Resend's wording); the user
@@ -128,20 +131,15 @@ export function notifySessionScheduled(opts: {
   tutorName: string;
   studentName: string;
   when: string;
-  /** Raw start + duration so the calendar link carries the real times. */
+  /** Raw start + duration so the calendar link/attachment carry real times. */
   start: Date;
   durationMinutes: number;
   topic: string | null;
   location: string | null;
 }): void {
   const dashboardUrl = `${APP_URL}/dashboard`;
-  const calendarUrl = googleCalendarUrl({
-    title: `Tutoring with ${opts.tutorName}${opts.topic ? ` — ${opts.topic}` : ""}`,
-    start: opts.start,
-    end: new Date(opts.start.getTime() + opts.durationMinutes * 60_000),
-    location: opts.location ?? undefined,
-    details: "Scheduled on Harcourt Educational Consult.",
-  });
+  const title = `Tutoring with ${opts.tutorName}${opts.topic ? ` — ${opts.topic}` : ""}`;
+  const end = new Date(opts.start.getTime() + opts.durationMinutes * 60_000);
   afterResponse(async () => {
     const emails = await emailsForProfiles([opts.studentProfileId]);
     const message = sessionScheduledEmail({
@@ -150,7 +148,11 @@ export function notifySessionScheduled(opts: {
       when: opts.when,
       topic: opts.topic,
       location: opts.location,
-      calendarUrl,
+      title,
+      start: opts.start,
+      end,
+      now: new Date(),
+      uid: `${randomUUID()}@harcourtinstitute.com`,
       dashboardUrl,
     });
     await Promise.all([...emails.values()].map((to) => deliver(to, message)));

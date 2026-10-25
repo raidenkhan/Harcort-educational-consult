@@ -42,3 +42,48 @@ export function googleCalendarUrl(input: {
   if (input.details) params.set("details", input.details);
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
+
+/** Escape a free-text value for a single iCalendar property line (RFC 5545). */
+function icsEscape(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
+}
+
+/**
+ * A minimal, valid `.ics` (iCalendar) file for a timed meeting. Attaching this
+ * to the session email lets ANY calendar client import it — Apple Calendar and
+ * Outlook (which the Google-Calandar-only link misses), and Google too. Lines
+ * are CRLF-terminated per the spec, and free-text fields are escaped.
+ */
+export function sessionIcs(input: {
+  title: string;
+  start: Date;
+  end: Date;
+  location?: string;
+  description?: string;
+  /** Globally-unique event id, e.g. `<uuid>@harcourtinstitute.com`. */
+  uid: string;
+  /** Creation stamp — pass `new Date()` in; kept a param so this stays pure. */
+  now: Date;
+}): string {
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Harcourt Educational Consult//Tutoring//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${icsEscape(input.uid)}`,
+    `DTSTAMP:${formatCalendarDate(input.now)}`,
+    `DTSTART:${formatCalendarDate(input.start)}`,
+    `DTEND:${formatCalendarDate(input.end)}`,
+    `SUMMARY:${icsEscape(input.title)}`,
+    ...(input.description ? [`DESCRIPTION:${icsEscape(input.description)}`] : []),
+    ...(input.location ? [`LOCATION:${icsEscape(input.location)}`] : []),
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+}

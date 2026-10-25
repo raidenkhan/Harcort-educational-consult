@@ -33,14 +33,18 @@ describe("email templates", () => {
     expect(msg.text).not.toContain("x".repeat(300));
   });
 
-  it("sessionScheduledEmail includes who, when, topic and location", () => {
+  it("sessionScheduledEmail includes who, when, topic, location and calendar", () => {
     const msg = sessionScheduledEmail({
       tutorName: "Ama",
       studentName: "Kojo",
       when: "Mon 14 Aug · 14:00–15:00",
       topic: "Mechanics",
       location: "KNUST Library",
-      calendarUrl: "https://calendar.google.com/calendar/render?action=TEMPLATE",
+      title: "Tutoring with Ama — Mechanics",
+      start: new Date("2026-08-14T14:00:00Z"),
+      end: new Date("2026-08-14T15:00:00Z"),
+      now: new Date("2026-08-13T10:00:00Z"),
+      uid: "test@harcourtinstitute.com",
       dashboardUrl: "https://app.example.com/dashboard",
     });
     expect(msg.subject).toContain("Mechanics");
@@ -50,6 +54,15 @@ describe("email templates", () => {
     // The calendar link is the whole point: present in text and as a button.
     expect(msg.text).toContain("calendar.google.com");
     expect(msg.html).toContain("Add to Google Calendar");
+    // And an .ics attachment covers Apple/Outlook.
+    expect(msg.attachments).toHaveLength(1);
+    expect(msg.attachments![0].filename).toBe("session.ics");
+    expect(msg.attachments![0].contentType).toContain("text/calendar");
+    const ics = Buffer.from(msg.attachments![0].content, "base64").toString("utf-8");
+    expect(ics).toContain("BEGIN:VEVENT");
+    expect(ics).toContain("SUMMARY:Tutoring with Ama — Mechanics");
+    expect(ics).toContain("DTSTART:20260814T140000Z");
+    expect(ics).toContain("LOCATION:KNUST Library");
   });
 
   it("sessionCancelledEmail names the canceller", () => {
@@ -148,7 +161,11 @@ describe("email HTML escaping", () => {
       when: "Mon 14 Aug · 14:00–15:00",
       topic: "<script>steal()</script>",
       location: null,
-      calendarUrl: "https://calendar.google.com/calendar/render?action=TEMPLATE",
+      title: "Tutoring with Ama — <script>steal()</script>",
+      start: new Date("2026-08-14T14:00:00Z"),
+      end: new Date("2026-08-14T15:00:00Z"),
+      now: new Date("2026-08-13T10:00:00Z"),
+      uid: "test@harcourtinstitute.com",
       dashboardUrl: "https://app.example.com/dashboard",
     });
     expect(scheduled.html).not.toContain("<script>");
