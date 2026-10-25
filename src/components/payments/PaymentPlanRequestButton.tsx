@@ -88,6 +88,7 @@ export function PaymentPlanRequestButton({
         </a>
       )}
       <form action={formAction} className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <input type="hidden" name="requestId" value={requestId} />
         <Input
           id={`plan-note-${requestId}`}
           name="note"
