@@ -40,12 +40,16 @@ describe("email templates", () => {
       when: "Mon 14 Aug · 14:00–15:00",
       topic: "Mechanics",
       location: "KNUST Library",
+      calendarUrl: "https://calendar.google.com/calendar/render?action=TEMPLATE",
       dashboardUrl: "https://app.example.com/dashboard",
     });
     expect(msg.subject).toContain("Mechanics");
     expect(msg.text).toContain("Ama");
     expect(msg.text).toContain("Kojo");
     expect(msg.text).toContain("KNUST Library");
+    // The calendar link is the whole point: present in text and as a button.
+    expect(msg.text).toContain("calendar.google.com");
+    expect(msg.html).toContain("Add to Google Calendar");
   });
 
   it("sessionCancelledEmail names the canceller", () => {
@@ -144,6 +148,7 @@ describe("email HTML escaping", () => {
       when: "Mon 14 Aug · 14:00–15:00",
       topic: "<script>steal()</script>",
       location: null,
+      calendarUrl: "https://calendar.google.com/calendar/render?action=TEMPLATE",
       dashboardUrl: "https://app.example.com/dashboard",
     });
     expect(scheduled.html).not.toContain("<script>");

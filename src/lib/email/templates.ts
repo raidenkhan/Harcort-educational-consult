@@ -67,6 +67,12 @@ function actionButton(href: string, label: string): string {
   return `<p style="margin:20px 0 0;"><a href="${escapeHtml(safeHref)}" style="display:inline-block;background:#610B96;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:600;">${escapeHtml(label)}</a></p>`;
 }
 
+/** A quiet text link (secondary action beneath the primary button). */
+function textLink(href: string, label: string): string {
+  const safeHref = /^https?:\/\//i.test(href) ? href : "#";
+  return `<a href="${escapeHtml(safeHref)}" style="color:#610B96;font-weight:600;text-decoration:none;">${escapeHtml(label)}</a>`;
+}
+
 /** Plain <p> with the brand's muted purple. Expects pre-escaped/HTML input. */
 function p(text: string): string {
   return `<p style="margin:0 0 12px;color:#3A2B4A;font-size:14px;line-height:1.6;">${text}</p>`;
@@ -127,6 +133,8 @@ export function sessionScheduledEmail(opts: {
   when: string;
   topic: string | null;
   location: string | null;
+  /** "Add to Google Calendar" link — carries the real start/end times. */
+  calendarUrl: string;
   dashboardUrl: string;
 }): EmailMessage {
   const subject = `Session scheduled: ${opts.topic ?? "Tutoring"} · ${opts.when}`;
@@ -139,6 +147,8 @@ export function sessionScheduledEmail(opts: {
     opts.topic ? `  Topic:    ${opts.topic}` : ``,
     opts.location ? `  Where:    ${opts.location}` : ``,
     ``,
+    `Add it to your calendar: ${opts.calendarUrl}`,
+    ``,
     `It's on your timetable — remember to tick attendance when you meet.`,
   ];
   const text = lines.filter(Boolean).join("\n");
@@ -148,7 +158,9 @@ export function sessionScheduledEmail(opts: {
       `When: <strong>${escapeHtml(opts.when)}</strong><br/>${
         opts.topic ? `Topic: ${escapeHtml(opts.topic)}<br/>` : ""
       }${opts.location ? `Where: ${escapeHtml(opts.location)}` : ""}`,
-    )}${actionButton(opts.dashboardUrl, "View my timetable")}`,
+    )}${actionButton(opts.calendarUrl, "Add to Google Calendar")}${p(
+      textLink(opts.dashboardUrl, "View my timetable →"),
+    )}`,
   );
   return { subject, text, html };
 }

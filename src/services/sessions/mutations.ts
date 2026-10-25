@@ -137,6 +137,8 @@ export async function createSession(
     tutorName: profile.full_name || "Your tutor",
     studentName: (studentRow as { full_name: string } | null)?.full_name || "you",
     when: sessionWhen(start, parsed.data.durationMinutes),
+    start,
+    durationMinutes: parsed.data.durationMinutes,
     topic: parsed.data.topic ?? null,
     location: parsed.data.location ?? null,
   });
