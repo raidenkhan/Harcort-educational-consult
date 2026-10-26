@@ -178,13 +178,21 @@ async function runCheckout(
   const supabase = createAdminClient();
 
   // Ownership: the caller must be the engagement's student.
+  // `currency` lives on the ENGAGEMENT, not the installment (0011) — reading it
+  // from installments made every checkout fail with a 42703 that surfaced as
+  // "Installment not found."
   const { data: engagement, error: engError } = await supabase
     .from("engagements")
-    .select("id, student_id, status")
+    .select("id, student_id, status, currency")
     .eq("id", engagementId)
     .maybeSingle();
   if (engError || !engagement) return { error: "Agreement not found." };
-  const eng = engagement as { id: string; student_id: string; status: string };
+  const eng = engagement as {
+    id: string;
+    student_id: string;
+    status: string;
+    currency: string;
+  };
   if (eng.student_id !== profile.id) return { error: "forbidden: not your agreement" };
   if (eng.status === "cancelled") return { error: "This agreement was cancelled." };
 
@@ -193,8 +201,8 @@ async function runCheckout(
   // checks out — there, a payable installment has nothing paid against it.
   const readInstallment = (withPartial: boolean) => {
     const columns = withPartial
-      ? "id, amount, currency, status, idx, paid_amount"
-      : "id, amount, currency, status, idx";
+      ? "id, amount, status, idx, paid_amount"
+      : "id, amount, status, idx";
     return supabase
       .from("installments")
       .select(columns)
@@ -211,13 +219,17 @@ async function runCheckout(
     installment = retry.data;
     instError = retry.error;
   }
-  if (instError || !installment) return { error: "Installment not found." };
+  if (instError) {
+    // A failed READ is not a missing installment — say so, or the next schema
+    // drift hides behind a misleading message again.
+    return { error: "Could not load this payment — please refresh and try again." };
+  }
+  if (!installment) return { error: "Installment not found." };
 
   const inst = installment as unknown as {
     id: string;
     amount: string | number;
     paid_amount?: string | number | null;
-    currency: string;
     status: string;
     idx: number;
   };
@@ -272,7 +284,7 @@ async function runCheckout(
     engagement_id: engagementId,
     installment_id: installmentId,
     amount: String(amount), // BIGINT as string — BigInt breaks JSON.stringify
-    currency: inst.currency,
+    currency: eng.currency,
     paystack_reference: reference,
     status: "initialized",
     initialized_by: profile.id,
