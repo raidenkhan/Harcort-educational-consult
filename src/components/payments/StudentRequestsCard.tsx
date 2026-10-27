@@ -40,7 +40,7 @@ const STATUS_BADGE: Record<
   { label: string; tone: "amber" | "green" | "red" | "neutral" }
 > = {
   pending: { label: "Waiting for tutor", tone: "amber" },
-  accepted: { label: "Accepted — payment unlocked", tone: "green" },
+  accepted: { label: "Accepted", tone: "green" },
   declined: { label: "Declined", tone: "red" },
   withdrawn: { label: "Withdrawn", tone: "neutral" },
 };

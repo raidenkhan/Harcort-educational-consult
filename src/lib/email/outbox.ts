@@ -30,8 +30,79 @@ interface OutboxRow {
   data: Record<string, unknown>;
 }
 
+/** The people/course a payment row is about. Resolved from the engagement so
+ *  the email names them even when the outbox payload (written by the DB RPC)
+ *  only carries an amount. */
+interface PaymentContext {
+  studentName: string;
+  courseTitle: string;
+  tutorName: string;
+  /** The agreement is active/completed — the booking is confirmed. */
+  confirmed: boolean;
+}
+
+function one<T>(value: T | T[] | null | undefined): T | null {
+  if (value == null) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+async function paymentContext(
+  engagementId: string | null,
+  cache: Map<string, PaymentContext | null>,
+): Promise<PaymentContext | null> {
+  if (!engagementId) return null;
+  if (cache.has(engagementId)) return cache.get(engagementId) ?? null;
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("engagements")
+    .select(
+      `status, courses(name), profiles!engagements_student_id_fkey(full_name), tutor_profiles(profiles(full_name))`,
+    )
+    .eq("id", engagementId)
+    .maybeSingle();
+
+  if (error || !data) {
+    // Best-effort: the email still goes out with generic copy.
+    cache.set(engagementId, null);
+    return null;
+  }
+
+  const row = data as unknown as {
+    status?: string;
+    courses?: { name?: string } | { name?: string }[] | null;
+    profiles?: { full_name?: string } | { full_name?: string }[] | null;
+    tutor_profiles?:
+      | {
+          profiles?:
+            | { full_name?: string }
+            | { full_name?: string }[]
+            | null;
+        }
+      | {
+          profiles?:
+            | { full_name?: string }
+            | { full_name?: string }[]
+            | null;
+        }[]
+      | null;
+  };
+
+  const context: PaymentContext = {
+    studentName: one(row.profiles)?.full_name ?? "",
+    courseTitle: one(row.courses)?.name ?? "",
+    tutorName: one(one(row.tutor_profiles)?.profiles)?.full_name ?? "",
+    confirmed: row.status === "active" || row.status === "completed",
+  };
+  cache.set(engagementId, context);
+  return context;
+}
+
 /** Build the email for one outbox row. Returns null for unknown types. */
-function buildEmail(row: OutboxRow): EmailMessage | null {
+function buildEmail(
+  row: OutboxRow,
+  context: PaymentContext | null,
+): EmailMessage | null {
   const idx = Number(row.data.installment_idx ?? 1);
   const amount = typeof row.data.amount === "string" || typeof row.data.amount === "number"
     ? formatGhs(BigInt(row.data.amount))
@@ -42,8 +113,11 @@ function buildEmail(row: OutboxRow): EmailMessage | null {
       if (!row.recipient_id) return null;
       return paymentReceivedEmail({
         audience: row.audience,
-        installmentIdx: idx,
         amountDisplay: amount,
+        studentName: context?.studentName,
+        courseTitle: context?.courseTitle,
+        tutorName: context?.tutorName,
+        confirmed: context?.confirmed,
       });
     case "payment.engagement_created":
       return paymentEngagementCreatedEmail({ audience: row.audience as "tutor" | "admin" });
@@ -113,9 +187,17 @@ export async function drainPaymentOutbox(): Promise<void> {
   const rows = (data ?? []) as unknown as OutboxRow[];
   if (rows.length === 0) return;
 
+  const contextCache = new Map<string, PaymentContext | null>();
+
   for (const row of rows) {
     try {
-      const email = buildEmail(row);
+      // Payment emails name the student/course/tutor; resolve that once per
+      // engagement (three outbox rows — student, tutor, admin — share one).
+      const context =
+        row.type === "payment.received"
+          ? await paymentContext(row.engagement_id, contextCache)
+          : null;
+      const email = buildEmail(row, context);
       const recipients = email ? await recipientsFor(row) : [];
 
       if (!email || recipients.length === 0) {

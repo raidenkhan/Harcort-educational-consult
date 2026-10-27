@@ -8,7 +8,7 @@ import { formatPrices } from "@/services/tutors/pricing";
 import { courseParamMatches, tutorSharePath } from "@/services/tutors/share";
 import { SITE_NAME, siteUrl } from "@/lib/site";
 import { ServicePrice } from "@/components/tutors/ServicePrice";
-import { getCurrentProfile } from "@/services/auth/queries";
+import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
 import { RequestTutorButton } from "@/components/payments/RequestTutorButton";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
@@ -287,8 +287,11 @@ export default async function TutorProfilePage({
             >
               ← All tutors
             </Link>
-            <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Tutor profile
+            {/* The tutor's name, not a generic "Tutor profile": on a phone the
+                card below sits under a full-height hero, so the first screen
+                has to say WHOSE profile this is. */}
+            <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-white sm:text-4xl">
+              {name}
             </h1>
             <p className="mt-3 max-w-2xl text-lilac-100/90">
               Verified by the Harcourt team — credentials checked, rates
@@ -301,7 +304,7 @@ export default async function TutorProfilePage({
         <section className="relative isolate -mt-6 rounded-t-[1.75rem] bg-canvas sm:rounded-t-[2.5rem]">
           <BentoBackdrop tone="purple" variant="smooth" className="-z-10" />
           <PerspectiveGrid tone="purple" className="-z-10" />
-          <Container className="relative py-10">
+          <Container className="relative pb-24 pt-10 lg:pb-10">
             <Card className="mx-auto max-w-3xl p-6 sm:p-8">
               <div className="flex flex-wrap items-start gap-4">
                 <TutorAvatar name={name} src={tutorUser.avatar_url} size={56} />
@@ -455,7 +458,7 @@ export default async function TutorProfilePage({
         </section>
       </main>
 
-      <MobileTabBar />
+      {profile && <MobileTabBar role={profile.role} isAdmin={profileIsAdmin(profile)} />}
     </div>
   );
 }

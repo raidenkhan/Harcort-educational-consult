@@ -175,14 +175,16 @@ export function AuthModalProvider({ children }: { children: React.ReactNode }) {
           aria-hidden="true"
         />
 
-        {/* panel */}
+        {/* panel — capped to the viewport so the sign-up form (program,
+            year, phone, Google block) can never run off a short screen. The
+            header stays put; only the body scrolls. */}
         <div
           ref={panelRef}
           tabIndex={-1}
-          className="relative w-full max-w-md animate-modal-in overflow-hidden rounded-xl bg-white shadow-lift focus:outline-none"
+          className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-md animate-modal-in flex-col overflow-hidden rounded-xl bg-white shadow-lift focus:outline-none supports-[height:100dvh]:max-h-[calc(100dvh-2rem)]"
         >
           {/* header */}
-          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
             <div className="flex rounded-lg bg-slate-100 p-1">
               {(
                 [
@@ -224,8 +226,9 @@ export function AuthModalProvider({ children }: { children: React.ReactNode }) {
             </button>
           </div>
 
-          {/* body */}
-          <div className="px-6 py-6">
+          {/* body — the only scroll region (min-h-0 lets it shrink inside
+              the flex column instead of pushing the panel past its cap). */}
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-6 py-6">
             <div className="mb-4 flex justify-center">
               <BrandMark size="lg" />
             </div>

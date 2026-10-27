@@ -33,7 +33,7 @@ export function RelatedLessons({
   if (lessons.length === 0) return null;
 
   return (
-    <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {lessons.map((lesson) => (
         <li key={lesson.id}>
           <a

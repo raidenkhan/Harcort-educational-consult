@@ -106,7 +106,7 @@ export function TutorExplorer({
 
       {/* ── Cards ────────────────────────────────────────────────── */}
       {filtered.length === 0 ? (
-        <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white/70 p-16 text-center">
+        <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white/70 p-8 text-center sm:p-16">
           <SearchX className="mx-auto h-8 w-8 text-slate-300" />
           <p className="mt-3 text-sm text-slate-500">
             Try a different search term or clear the subject filter.
@@ -123,7 +123,7 @@ export function TutorExplorer({
           </button>
         </div>
       ) : (
-        <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((tutor) => (
             <TutorCard key={tutor.tutorProfile.id} tutor={tutor} signedIn={signedIn} />
           ))}
@@ -148,7 +148,7 @@ function SubjectChip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "rounded-full border px-3 py-1.5 text-xs font-semibold transition duration-150 active:scale-[0.96]",
+        "inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-semibold transition duration-150 active:scale-[0.96]",
         active
           ? "border-slate-900 bg-slate-900 text-white"
           : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
@@ -280,15 +280,19 @@ function TutorCard({
           {offerings.slice(0, 3).map((o) => (
             <div
               key={o.serviceId}
-              className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-xs"
+              className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-xs"
             >
-              <span className="min-w-0 truncate text-xs font-medium text-slate-700">
-                {o.name}
-                <span className="text-brand-700">
-                  {" "}
-                  · <ServicePrice service={o.service} showModeLabels={false} />
-                </span>
-              </span>
+              {/* Name and price stack: on a 360px card a single line truncated
+                  the price tag ("… · GH₵90…"), which is the number the student
+                  is scanning for. */}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-slate-700">
+                  {o.name}
+                </p>
+                <p className="mt-0.5 text-[11px] font-semibold text-brand-700">
+                  <ServicePrice service={o.service} showModeLabels={false} />
+                </p>
+              </div>
               <RequestTutorButton
                 tutorProfileId={tp.id}
                 // Each row's Request button is about THAT course, and a
@@ -304,7 +308,7 @@ function TutorCard({
                 }
                 offerings={offeringsForRequest}
                 signedIn={signedIn}
-                className="inline-flex h-7 shrink-0 items-center rounded-md bg-brand-600 px-2.5 text-[11px] font-semibold text-white shadow-xs transition hover:bg-brand-700 active:scale-[0.96]"
+                className="inline-flex h-9 shrink-0 items-center rounded-md bg-brand-600 px-3 text-xs font-semibold text-white shadow-xs transition hover:bg-brand-700 active:scale-[0.96]"
               />
             </div>
           ))}

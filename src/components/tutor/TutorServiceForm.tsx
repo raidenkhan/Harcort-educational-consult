@@ -167,7 +167,7 @@ export function TutorServiceForm({
             </Button>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Course code" htmlFor="newCourseCode" hint="e.g. ME 158">
               <Input
                 id="newCourseCode"
@@ -320,7 +320,7 @@ export function TutorServiceForm({
         </div>
       </fieldset>
 
-      <div className={cn("grid gap-3", formats === "both" && "sm:grid-cols-2")}>
+      <div className={cn("grid grid-cols-1 gap-3", formats === "both" && "sm:grid-cols-2")}>
         {(formats === "one_on_one" || formats === "both") && (
           <Field
             label="One-on-one price (GH₵ / semester)"

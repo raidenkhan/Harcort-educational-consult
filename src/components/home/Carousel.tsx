@@ -183,11 +183,11 @@ export function AutoCarousel({
             type="button"
             onClick={() => step(-1)}
             aria-label="Previous"
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:border-slate-300 hover:text-slate-900 active:scale-[0.96]"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:border-slate-300 hover:text-slate-900 active:scale-[0.96]"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <div className="flex items-center gap-2" role="tablist" aria-label={ariaLabel}>
+          <div className="flex items-center" role="tablist" aria-label={ariaLabel}>
             {Array.from({ length: pageCount }).map((_, i) => (
               <button
                 key={i}
@@ -196,20 +196,27 @@ export function AutoCarousel({
                 aria-selected={i === active}
                 aria-label={`Go to slide ${i + 1}`}
                 onClick={() => goTo(i)}
-                className={cn(
-                  "h-1.5 rounded-full transition-[width,background-color] duration-300",
-                  i === active
-                    ? "w-6 bg-brand-600"
-                    : "w-1.5 bg-slate-300 hover:bg-slate-400",
-                )}
-              />
+                // 36px tall hit area around a 6px visual bar — a 6px tap
+                // target is unusable on a phone. The horizontal padding keeps
+                // the bars the same distance apart they were at `gap-2`.
+                className="group flex h-9 items-center px-1.5"
+              >
+                <span
+                  className={cn(
+                    "block h-1.5 rounded-full transition-[width,background-color] duration-300",
+                    i === active
+                      ? "w-6 bg-brand-600"
+                      : "w-1.5 bg-slate-300 group-hover:bg-slate-400",
+                  )}
+                />
+              </button>
             ))}
           </div>
           <button
             type="button"
             onClick={() => step(1)}
             aria-label="Next"
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:border-slate-300 hover:text-slate-900 active:scale-[0.96]"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-xs transition hover:border-slate-300 hover:text-slate-900 active:scale-[0.96]"
           >
             <ChevronRight className="h-4 w-4" />
           </button>

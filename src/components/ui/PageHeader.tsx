@@ -32,11 +32,16 @@ export function PageHeader({
       )}
     >
       <div className="min-w-0">
-        <h1 className="font-display text-3xl font-bold tracking-[-0.02em] text-slate-900">
+        {/* 24px on phones: a 30px display line plus a long first name wraps
+            awkwardly at 320px, and the dashboard's greeting is the first thing
+            a student sees. */}
+        <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-slate-900 sm:text-3xl">
           {title}
         </h1>
         {description && (
-          <p className="mt-2 max-w-xl text-slate-600">{description}</p>
+          <p className="mt-2 max-w-xl text-sm text-slate-600 sm:text-base">
+            {description}
+          </p>
         )}
       </div>
       {actions && <div className="shrink-0">{actions}</div>}

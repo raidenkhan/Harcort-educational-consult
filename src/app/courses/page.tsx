@@ -111,7 +111,7 @@ export default async function CoursesPage() {
           <PerspectiveGrid tone="purple" className="-z-10" />
           <Container className="relative py-12 sm:py-16">
             {courses.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-16 text-center">
+              <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-8 text-center sm:p-16">
                 <p className="text-sm text-slate-500">
                   No courses published yet — check back soon.
                 </p>
@@ -140,7 +140,7 @@ export default async function CoursesPage() {
       {profile && <MobileTabBar role={profile.role} />}
 
       <footer className="border-t border-slate-800 bg-slate-950">
-        <Container className="flex flex-col items-center justify-between gap-4 py-8 text-sm text-lilac-200/80 sm:flex-row">
+        <Container className="flex flex-col items-center justify-between gap-4 pb-24 pt-8 text-sm text-lilac-200/80 sm:flex-row lg:pb-8">
           <Logo dark />
           <p>
             © {new Date().getFullYear()} Harcourt Educational Consult · Kumasi,

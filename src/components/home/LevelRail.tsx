@@ -139,7 +139,7 @@ export function LevelRail({
         ref={trackRef}
         role="group"
         aria-label="Choose a level"
-        className="-mx-6 mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain px-6 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0"
+        className="-mx-4 mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0"
       >
         {chips.map((chip) => {
           const isOpen = chip.key === openKey;

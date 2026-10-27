@@ -100,6 +100,20 @@ function friendlyError(error: string): string {
   if (error.startsWith("amount_exceeds_outstanding")) {
     return "That amount is more than the outstanding balance on this agreement.";
   }
+  // The RPC raises these as bare tokens. Never let `installment_not_found`
+  // (or any other machine word) reach a student's screen.
+  if (error.startsWith("installment_not_found")) {
+    return "We couldn't match that payment to your agreement. Refresh and try again — if you've already paid, contact the admin team.";
+  }
+  if (error.startsWith("installment_not_payable")) {
+    return "That installment is already settled — refresh to see your updated balance.";
+  }
+  if (error.startsWith("engagement_not_found")) {
+    return "We couldn't find that payment agreement. Refresh and try again.";
+  }
+  if (error.startsWith("currency_mismatch")) {
+    return "That payment's currency doesn't match the agreement — contact the admin team.";
+  }
   return error;
 }
 
@@ -148,8 +162,10 @@ export async function createEngagement(
 /**
  * Shared checkout pipeline: ownership check, payability check, Paystack
  * init. Returns checkoutUrl for the client to redirect to. The payments row
- * is created here as 'initialized' and flipped to 'paid' ONLY by the
- * verified webhook — the callback redirect alone never marks anything paid.
+ * is created here as 'initialized' and flipped to 'paid' only after Paystack
+ * confirms the charge — by the webhook, by `/api/payments/return` when the
+ * browser comes back, or by the cron sweep. The callback redirect is never
+ * itself proof of payment: every path re-verifies with Paystack first.
  *
  * The amount charged is the installment's OUTSTANDING balance, not its face
  * value: after a part payment (0029) the installment stays 'pending' with
@@ -328,7 +344,9 @@ async function runCheckout(
       email,
       amountPesewas: Number(chargePesewas), // pesewas — server-derived
       reference,
-      callbackUrl: `${APP_URL}${opts.returnPath ?? "/dashboard?payment=return"}`,
+      callbackUrl: `${APP_URL}/api/payments/return?next=${encodeURIComponent(
+        opts.returnPath ?? "/dashboard?payment=return",
+      )}`,
       metadata: {
         engagement_id: engagementId,
         installment_id: installmentId,

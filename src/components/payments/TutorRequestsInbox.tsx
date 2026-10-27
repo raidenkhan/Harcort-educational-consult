@@ -10,8 +10,10 @@ import { RespondRequestButtons } from "./RespondRequestButtons";
 /**
  * Tutor requests inbox — "Tutoring requests" on the tutor page.
  *
- * Pending requests land here with the student's note and course; Accept
- * unlocks the student's Pay 50% path, Decline closes it. Pending first.
+ * Pending requests land here with the student's note and course. Payment is
+ * the commitment (0029): a paid request is auto-accepted by the DB and moves
+ * to Confirmed, so the tutor never has to approve money they have already
+ * received. Accept/decline remains for requests still waiting.
  */
 
 const STATUS_BADGE: Record<
@@ -19,7 +21,7 @@ const STATUS_BADGE: Record<
   { label: string; tone: "amber" | "green" | "red" | "neutral" }
 > = {
   pending: { label: "New request", tone: "amber" },
-  accepted: { label: "Accepted", tone: "green" },
+  accepted: { label: "Confirmed", tone: "green" },
   declined: { label: "Declined", tone: "red" },
   withdrawn: { label: "Withdrawn", tone: "neutral" },
 };
@@ -42,14 +44,15 @@ export async function TutorRequestsInbox() {
             {pending.length > 0 ? ` (${pending.length})` : ""}
           </h2>
           <p className="mt-1 max-w-xl text-sm text-slate-600">
-            Students who asked for your help. Accepting unlocks their payment
-            button; you schedule sessions once the payment lands.
+            Students who asked for your help. A payment confirms the booking
+            automatically and moves it to Confirmed — you don&apos;t need to
+            approve a paid request. Accept or decline the ones still waiting.
           </p>
         </div>
       </div>
 
       {inbox.length === 0 && (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-10 text-center text-sm text-slate-500">
+        <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm text-slate-500 sm:p-10">
           <Inbox className="mx-auto h-8 w-8 text-slate-300" />
           <p className="mt-3">
             No requests yet. Students find you in the directory and tap

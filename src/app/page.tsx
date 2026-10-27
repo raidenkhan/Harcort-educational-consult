@@ -674,7 +674,7 @@ export default async function Home() {
               </BeamCard>
             </Reveal>
           ) : (
-            <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {tutors.map(
                 ({ tutorProfile, profile, services, courses }, i) => (
                 <Reveal
@@ -752,7 +752,7 @@ export default async function Home() {
                 read as a generic video box. Letter's split content section:
                 copy left, media right. On small screens the copy stacks first
                 and the video follows. */}
-            <div className="grid items-center gap-12 lg:grid-cols-5 lg:gap-16">
+            <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-5 lg:gap-16">
               <div className="lg:col-span-2">
                 <Reveal variant="left">
                   <h2 className={cn(SECTION_HEADING, "text-white")}>

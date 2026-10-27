@@ -21,7 +21,7 @@ export function TutorExplorerSkeleton() {
 
       <p className="mt-6 h-5 w-40 animate-pulse rounded bg-slate-100" />
 
-      <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (
           <div
             key={i}

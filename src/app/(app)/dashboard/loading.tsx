@@ -7,7 +7,7 @@ export default function DashboardLoading() {
   return (
     <div className="relative overflow-hidden">
       <BentoBackdrop tone="petrol" />
-      <Container className="py-12">
+      <Container className="py-6 sm:py-12">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="mt-3 h-8 w-64" />
         <Skeleton className="mt-3 h-4 w-80 max-w-full" />
@@ -16,7 +16,7 @@ export default function DashboardLoading() {
         <Skeleton className="mt-8 h-16 w-full rounded-lg" />
 
         {/* Card grid */}
-        <div className="mt-10 grid gap-6 sm:grid-cols-2">
+        <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2">
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />

@@ -107,7 +107,7 @@ export function LessonSlider({ className }: { className?: string }) {
           {/* 1 card on phones, 3 across from `sm` up (pages of 3). */}
           <div
             className={cn(
-              "grid gap-6",
+              "grid grid-cols-1 gap-6",
               chunk.length === 1 && "sm:grid-cols-1",
               chunk.length === 2 && "sm:grid-cols-2 lg:grid-cols-3",
               chunk.length === 3 && "sm:grid-cols-2 lg:grid-cols-3",

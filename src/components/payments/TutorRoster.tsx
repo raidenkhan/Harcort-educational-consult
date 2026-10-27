@@ -63,7 +63,7 @@ export async function TutorRoster() {
 
   if (entries.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-10 text-center text-sm text-slate-500">
+      <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm text-slate-500 sm:p-10">
         No students yet — accept a tutoring request and the student appears
         here with their payments, topics, and meeting times.
       </div>
@@ -141,7 +141,7 @@ export async function TutorRoster() {
               )}
 
               {/* Meetings + topics grid */}
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Meeting times

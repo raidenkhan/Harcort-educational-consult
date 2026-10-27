@@ -107,12 +107,12 @@ export const FIELD_ICONS: Record<string, LucideIcon> = {
  * dozen-plus courses and a single-column stack runs the page forever — then
  * the normal 2/3-column grid from `sm` up. The negative margin bleeds the
  * track to the Container's edges (both call sites sit inside Container's
- * px-6) so the next card peeks past the fold: that peek *is* the scroll
- * affordance, no caption needed. Card height stays even because a flex row
- * stretches its items; at `sm` the grid takes over and `w-auto` re-opens.
+ * px-4/sm:px-6) so the next card peeks past the fold: that peek *is* the
+ * scroll affordance, no caption needed. Card height stays even because a flex
+ * row stretches its items; at `sm` the grid takes over and `w-auto` re-opens.
  */
 const LIST =
-  "-mx-6 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-6 pt-1.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pt-0 sm:pb-0 lg:grid-cols-3";
+  "-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pt-1.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pt-0 sm:pb-0 lg:grid-cols-3";
 const LIST_ITEM = "w-[76%] shrink-0 snap-start sm:w-auto";
 
 /**

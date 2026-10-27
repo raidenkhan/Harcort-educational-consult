@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock } from "lucide-react";
 import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
 import { getOwnTutorProfile } from "@/services/tutors/queries";
 import { listCourses } from "@/services/courses/queries";
@@ -57,8 +57,15 @@ const STATUS_BADGE: Record<
   rejected: { label: "Not approved", tone: "red" },
 };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ payment?: string; payment_status?: string }>;
+}) {
   const profile = await requireProfile();
+  const params = await searchParams;
+  const paymentReturn = params.payment === "return";
+  const paymentConfirmed = params.payment_status === "received";
 
   const [tutor, studentSessions, tutorSessions, allCourses] = await Promise.all([
     profile.role === "tutor" ? getOwnTutorProfile() : Promise.resolve(null),
@@ -104,7 +111,7 @@ export default async function DashboardPage() {
   return (
     <div className="relative overflow-hidden">
       <BentoBackdrop tone="petrol" />
-      <Container className="py-12">
+      <Container className="py-6 sm:py-12">
         <PageHeader
           title={`Welcome, ${profile.full_name.split(" ")[0]}.`}
           description={roleHeading[profile.role]}
@@ -119,6 +126,31 @@ export default async function DashboardPage() {
             ) : null
           }
         />
+
+        {/* Back from Paystack. `/api/payments/return` already verified the
+            charge and applied it, so "received" is the normal happy path;
+            "pending" means Paystack had not settled it yet (or verify was
+            momentarily unavailable) and the sweep will retry. */}
+        {paymentReturn && (
+          <div
+            className={
+              paymentConfirmed
+                ? "mt-6 flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+                : "mt-6 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            }
+          >
+            {paymentConfirmed ? (
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            ) : (
+              <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+            )}
+            <span>
+              {paymentConfirmed
+                ? "Payment received — your booking is confirmed. We've emailed you and your tutor."
+                : "Paystack sent you back. We're confirming the payment with Paystack — refresh in a minute if it doesn't show below."}
+            </span>
+          </div>
+        )}
 
         {/* Urgent first: an open request is the thing a student most needs to
             see — it carries the paywall and the "pay now" button. The ground
@@ -191,7 +223,7 @@ export default async function DashboardPage() {
                             {bucket.items.length === 1 ? "course" : "courses"}
                           </span>
                         </div>
-                        <ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <ul className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                           {bucket.items.map((course) => (
                             <li key={course.id} className="h-full">
                               <Link
@@ -242,7 +274,7 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        <div className="mt-10 grid gap-6 sm:grid-cols-2">
+        <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2">
           {profile.role === "student" && (
             <Card>
               <h2 className="text-lg font-semibold text-slate-900">Find a tutor</h2>

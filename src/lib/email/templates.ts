@@ -82,6 +82,23 @@ function p(text: string): string {
   return `<p style="margin:0 0 12px;color:#3A2B4A;font-size:14px;line-height:1.6;">${text}</p>`;
 }
 
+/** A compact two-column detail table (label left, value right). Empty values
+ *  are dropped so a thin row never prints a dangling label. Every value is
+ *  escaped here — callers pass raw names/course titles. */
+function detailTable(rows: Array<{ label: string; value: string }>): string {
+  const cells = rows
+    .filter((row) => row.value.trim().length > 0)
+    .map(
+      (row) => `<tr>
+        <td style="padding:7px 0;color:#8A7A9B;font-size:13px;">${escapeHtml(row.label)}</td>
+        <td style="padding:7px 0;color:#1C0F2B;font-size:13px;font-weight:600;text-align:right;">${escapeHtml(row.value)}</td>
+      </tr>`,
+    )
+    .join("");
+  if (!cells) return "";
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;border-top:1px solid #EFE7F7;border-bottom:1px solid #EFE7F7;">${cells}</table>`;
+}
+
 // ---------------------------------------------------------------------------
 // Chat
 // ---------------------------------------------------------------------------
@@ -324,24 +341,79 @@ function paymentUrl(audience: string): string {
   return `${process.env.APP_URL ?? ""}/dashboard`;
 }
 
-/** A payment landed — student, tutor, and admins are all told. */
+/**
+ * A payment landed — student, tutor, and admins are all told.
+ *
+ * 0029 is 100% upfront, so the old "(installment N of 2)" copy was a lie.
+ * The email now names the people and the course, and says what the money
+ * means: for a fully paid booking there is nothing for the tutor to approve.
+ */
 export function paymentReceivedEmail(opts: {
   audience: "student" | "tutor" | "admin";
-  installmentIdx: number;
   amountDisplay: string;
+  /** Names/course resolved from the engagement (best-effort; may be empty). */
+  studentName?: string | null;
+  courseTitle?: string | null;
+  tutorName?: string | null;
+  /** True when the agreement is active — i.e. the booking is confirmed. */
+  confirmed?: boolean;
 }): EmailMessage {
   const url = paymentUrl(opts.audience);
-  const line =
+  const student = opts.studentName?.trim() || "A student";
+  const course = opts.courseTitle?.trim() || "your course";
+  const tutor = opts.tutorName?.trim() || "your tutor";
+  const confirmed = opts.confirmed === true;
+
+  const intro =
     opts.audience === "student"
-      ? `Your payment of <strong>${escapeHtml(opts.amountDisplay)}</strong> (installment ${opts.installmentIdx} of 2) was received. Thank you.`
+      ? confirmed
+        ? "Your payment was received and your booking is <strong>confirmed</strong>. You don't need to wait for your tutor to approve it — they've been notified and will schedule your sessions with you."
+        : "Your payment was received and added to your course agreement. Thank you."
       : opts.audience === "tutor"
-        ? `A payment of <strong>${escapeHtml(opts.amountDisplay)}</strong> (installment ${opts.installmentIdx} of 2) was received for one of your engagements.`
-        : `Installment ${opts.installmentIdx} of 2 paid: <strong>${escapeHtml(opts.amountDisplay)}</strong>.`;
-  const label = opts.audience === "admin" ? "Open payments" : "Open my dashboard";
+        ? confirmed
+          ? `<strong>${escapeHtml(student)}</strong> paid for <strong>${escapeHtml(course)}</strong>. The booking is <strong>confirmed automatically</strong> — there is nothing to approve. It is on your dashboard now.`
+          : `<strong>${escapeHtml(student)}</strong> made a payment toward <strong>${escapeHtml(course)}</strong>. It has been added to the agreement.`
+        : `<strong>${escapeHtml(student)}</strong> paid <strong>${escapeHtml(opts.amountDisplay)}</strong> for <strong>${escapeHtml(course)}</strong>.`;
+
+  const details = detailTable([
+    { label: "Student", value: opts.studentName ?? "" },
+    { label: "Course", value: opts.courseTitle ?? "" },
+    { label: "Tutor", value: opts.tutorName ?? "" },
+    { label: "Amount received", value: opts.amountDisplay },
+    { label: "Status", value: confirmed ? "Paid — booking confirmed" : "Payment received" },
+  ]);
+
+  const subject =
+    opts.audience === "tutor"
+      ? `Payment received: ${student} — ${opts.amountDisplay}`
+      : `Payment received: ${opts.amountDisplay}`;
+
+  const text = [
+    opts.audience === "student"
+      ? `Payment received: ${opts.amountDisplay} for ${course} with ${tutor}.`
+      : opts.audience === "tutor"
+        ? `${student} paid ${opts.amountDisplay} for ${course}.`
+        : `${student} paid ${opts.amountDisplay} for ${course} (tutor: ${tutor}).`,
+    confirmed
+      ? "The booking is confirmed — no approval is needed."
+      : "The payment has been added to the agreement.",
+    url,
+  ].join("\n\n");
+
+  const label =
+    opts.audience === "admin"
+      ? "Open payments"
+      : opts.audience === "tutor"
+        ? "Open my dashboard"
+        : "Open my dashboard";
+
   return {
-    subject: `Payment received: ${opts.amountDisplay}`,
-    text: `Payment received: ${opts.amountDisplay} (installment ${opts.installmentIdx} of 2). ${url}`,
-    html: wrap("Payment received", `${p(line)}${actionButton(url, label)}`),
+    subject,
+    text,
+    html: wrap(
+      "Payment received",
+      `${p(intro)}${details}${actionButton(url, label)}`,
+    ),
   };
 }
 

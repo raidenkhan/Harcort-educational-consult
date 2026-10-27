@@ -277,6 +277,131 @@ export async function listTutorEngagements(profile: Profile): Promise<Engagement
   );
 }
 
+// ---------------------------------------------------------------------------
+// Tutor payments — the "who paid me" table on the tutor dashboard
+// ---------------------------------------------------------------------------
+
+export interface TutorPaymentView {
+  id: string;
+  studentName: string;
+  studentCode: string | null;
+  courseTitle: string;
+  /** The course amount the student paid (excludes Paystack's fee). */
+  amount: bigint;
+  status: string;
+  reference: string;
+  createdAt: string;
+  /** When Paystack's charge was verified — null while still initialized. */
+  paidAt: string | null;
+}
+
+/**
+ * Payments for this tutor's courses, newest first.
+ *
+ * This is deliberately separate from `listTutorEngagements`: the earnings tab
+ * answers "how much is left", while the dashboard table answers "who paid me,
+ * for what, and when". A tutor should not have to open Earnings to learn that
+ * a student has paid — payment confirms the booking by itself.
+ *
+ * Scoped by the engagement's `tutor_profile_id` (the join is inner, so a
+ * payment for another tutor can never appear). `fee_amount` is 0034 —
+ * tolerant read, like every other money query.
+ */
+export async function listTutorPayments(
+  profile: Profile,
+  limit = 25,
+): Promise<TutorPaymentView[]> {
+  const supabase = createAdminClient();
+
+  const { data: tutorProfile, error: tutorError } = await supabase
+    .from("tutor_profiles")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .maybeSingle();
+  if (tutorError) throw new Error(`listTutorPayments: ${tutorError.message}`);
+  if (!tutorProfile) return [];
+
+  const tutorProfileId = (tutorProfile as { id: string }).id;
+  const base = `
+    id, amount, status, paystack_reference, created_at, verified_at,
+    engagements!inner(
+      tutor_profile_id,
+      courses(name),
+      profiles!engagements_student_id_fkey(full_name, public_code)
+    )
+  `;
+  const withFee = `
+    id, amount, fee_amount, status, paystack_reference, created_at, verified_at,
+    engagements!inner(
+      tutor_profile_id,
+      courses(name),
+      profiles!engagements_student_id_fkey(full_name, public_code)
+    )
+  `;
+
+  const run = (select: string) =>
+    supabase
+      .from("payments")
+      .select(select)
+      .eq("engagements.tutor_profile_id", tutorProfileId)
+      .neq("status", "failed")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+  let { data, error } = await run(withFee);
+  if (error && isMissingColumn(error)) {
+    ({ data, error } = await run(base));
+  }
+  if (error) throw new Error(`listTutorPayments: ${error.message}`);
+
+  const views = (data ?? []).map((raw) => {
+    const row = raw as unknown as {
+      id: string;
+      amount: unknown;
+      status: string;
+      paystack_reference: string;
+      created_at: string;
+      verified_at: string | null;
+      engagements?:
+        | {
+            courses?: { name: string } | { name: string }[] | null;
+            profiles?:
+              | { full_name: string; public_code: string | null }
+              | { full_name: string; public_code: string | null }[]
+              | null;
+          }
+        | Array<{
+            courses?: { name: string } | { name: string }[] | null;
+            profiles?:
+              | { full_name: string; public_code: string | null }
+              | { full_name: string; public_code: string | null }[]
+              | null;
+          }>
+        | null;
+    };
+    const engagement = one(row.engagements);
+    return {
+      id: row.id,
+      studentName: one(engagement?.profiles)?.full_name ?? "",
+      studentCode: one(engagement?.profiles)?.public_code ?? null,
+      courseTitle: one(engagement?.courses)?.name ?? "",
+      amount: toBigint(row.amount),
+      status: row.status,
+      reference: row.paystack_reference,
+      createdAt: row.created_at,
+      paidAt: row.verified_at,
+    } satisfies TutorPaymentView;
+  });
+
+  // Confirmed money first (that is what the tutor came to see), then the
+  // still-initializing rows so a "I paid" question has somewhere to look.
+  return views.sort((a, b) => {
+    const rank = (s: string) => (s === "paid" ? 0 : 1);
+    if (rank(a.status) !== rank(b.status)) return rank(a.status) - rank(b.status);
+    return (b.paidAt ?? b.createdAt).localeCompare(a.paidAt ?? a.createdAt);
+  });
+}
+
 /** Does the profile own an APPROVED tutor profile? (payout-account gate) */
 export async function hasApprovedTutorProfile(profile: Profile): Promise<boolean> {
   const supabase = createAdminClient();

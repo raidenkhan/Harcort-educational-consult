@@ -88,7 +88,7 @@ export async function TutorEarningsCard() {
       </div>
 
       {/* Summary tiles */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Collected
@@ -130,7 +130,7 @@ export async function TutorEarningsCard() {
       {/* Engagement rows */}
       <div className="space-y-4">
         {rows.length === 0 && (
-          <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-10 text-center text-sm text-slate-500">
+          <div className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm text-slate-500 sm:p-10">
             No payment agreements yet — earnings appear once a student commits
             to your quoted course price.
           </div>
@@ -174,7 +174,7 @@ export async function TutorEarningsCard() {
                 </div>
               </div>
 
-              <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+              <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {engagement.installments.map((installment) => (
                   <li
                     key={installment.id}

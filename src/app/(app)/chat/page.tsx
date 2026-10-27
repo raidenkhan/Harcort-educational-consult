@@ -74,7 +74,7 @@ export default async function ChatPage({
   return (
     <div className="relative overflow-hidden">
       <BentoBackdrop tone="petrol" />
-      <Container className="py-12">
+      <Container className="py-6 sm:py-12">
         <PageHeader
           title={roleCopy.title}
           description={

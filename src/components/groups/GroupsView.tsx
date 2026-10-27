@@ -228,7 +228,7 @@ export function GroupsView({
   // ── Empty state: no groups at all ──────────────────────────────────
   if (groups.length === 0) {
     return (
-      <Card className="mt-10 p-16 text-center">
+      <Card className="mt-10 p-8 text-center sm:p-16">
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-slate-100">
           <Users className="h-6 w-6 text-slate-500" />
         </span>

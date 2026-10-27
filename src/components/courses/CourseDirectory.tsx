@@ -215,7 +215,7 @@ export function CourseDirectory({ courses }: { courses: DirectoryCourse[] }) {
                   No programmes are published yet — check back soon.
                 </p>
               ) : (
-                <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <ul className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {programs.map((name) => {
                     const Icon = FIELD_ICONS[name] ?? GraduationCap;
                     const list = courses.filter((c) => c.subject === name);

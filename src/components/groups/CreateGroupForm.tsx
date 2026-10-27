@@ -45,7 +45,7 @@ export function CreateGroupForm({
         </div>
       </div>
 
-      <form action={formAction} className="mt-4 grid gap-3 sm:grid-cols-2">
+      <form action={formAction} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Group name" htmlFor="name">
           <Input
             id="name"

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { drainPaymentOutbox } from "@/lib/email/outbox";
 import { requeryAndFinalizeTransfers } from "@/services/payments/transfers";
+import { reconcileStaleCharges } from "@/services/payments/reconcile";
 import { notifySmsToProfiles } from "@/lib/sms";
 import {
   installmentReminderDedupePrefix,
@@ -13,9 +14,16 @@ import { formatGhs } from "@/lib/money";
 /**
  * GET /api/payments/sweep — cron entry point for payment deadlines.
  *
- * Flips past-due installments to overdue (was_overdue history), writes ledger
- * events, enqueues notifications, then drains the outbox. Idempotent: the RPC
- * only flips rows that are pending AND past due, so double-fires are no-ops.
+ * Three jobs, in this order:
+ *   1. Reconcile charges whose webhook never arrived (belt and braces for a
+ *      misconfigured Paystack webhook — the return path covers the student
+ *      who comes straight back; this covers the one who closes the tab).
+ *   2. Flip past-due installments to overdue (was_overdue history).
+ *   3. Requery in-flight payouts and drain queued notifications.
+ *
+ * Idempotent: reconciliation short-circuits already-paid rows, the overdue
+ * RPC only flips pending rows that are past due, and the outbox marks each
+ * row sent once.
  *
  * Auth: CRON_SECRET header check (Authorization: Bearer <secret>). Vercel Cron
  * sends exactly that. Configure in vercel.json: { "crons": [{ "path":
@@ -31,13 +39,23 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
+
+  // 1) Self-heal charges Paystack says are paid but our rows still call
+  // 'initialized'. Bounded (5 per run) so the cron stays fast.
+  let reconciled: { checked: number; applied: number } | null = null;
+  try {
+    reconciled = await reconcileStaleCharges(10, 5);
+  } catch (err) {
+    console.error("[payments] stale charge reconciliation failed", err);
+  }
+
   const { data: flipped, error } = await supabase.rpc("payment_sweep_overdue");
   if (error) {
     console.error("[payments] overdue sweep failed", error);
     return NextResponse.json({ error: "sweep failed" }, { status: 500 });
   }
 
-  // Self-heal missed transfer webhooks: requery Paystack for payouts stuck
+  // 2) Self-heal missed transfer webhooks: requery Paystack for payouts stuck
   // 'transferring' and finalize paid/failed. Best-effort — a requery failure
   // is logged inside the helper and retried on the next run.
   let transfers: { checked: number; finalized: number } | null = null;
@@ -47,13 +65,19 @@ export async function GET(request: NextRequest) {
     console.error("[payments] transfer requery failed", err);
   }
 
-  // Same run drains any queued notifications (overdue emails included).
+  // 3) Same run drains any queued notifications (payment + overdue emails).
   await drainPaymentOutbox();
 
   // …and texts the students whose money is due today or already overdue.
   const texted = await textInstallmentReminders(supabase, Date.now());
 
-  return NextResponse.json({ ok: true, flipped, transfers, texted });
+  return NextResponse.json({
+    ok: true,
+    reconciled,
+    flipped,
+    transfers,
+    texted,
+  });
 }
 
 /**

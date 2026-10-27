@@ -186,7 +186,7 @@ export function BounceDeck({
     <div
       ref={containerRef}
       className={cn(
-        "grid gap-6 sm:grid-cols-2 lg:grid-cols-4",
+        "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4",
         // Room for the pushed cards so they never clip mid-hover.
         "lg:px-10",
         className,

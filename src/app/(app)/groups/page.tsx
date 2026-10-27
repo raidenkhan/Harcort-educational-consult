@@ -64,7 +64,7 @@ export default async function GroupsPage({
   return (
     <div className="relative overflow-hidden">
       <BentoBackdrop tone="purple" />
-      <Container className="py-12">
+      <Container className="py-6 sm:py-12">
         <PageHeader title="Learn together" description={subtitle} />
 
         <Card className="mt-8">

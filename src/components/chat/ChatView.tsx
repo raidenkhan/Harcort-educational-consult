@@ -237,7 +237,7 @@ export function ChatView({
   // ── Empty state: no conversations at all ──────────────────────────
   if (conversations.length === 0) {
     return (
-      <Card className="mt-10 p-16 text-center">
+      <Card className="mt-10 p-8 text-center sm:p-16">
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-slate-100">
           <Inbox className="h-6 w-6 text-slate-500" />
         </span>

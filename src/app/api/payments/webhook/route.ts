@@ -1,11 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isMissingColumn } from "@/lib/postgres";
 import {
-  verifyTransaction,
   verifyTransfer,
   verifyWebhookSignature,
 } from "@/services/payments/paystack";
+import { reconcileChargeByReference } from "@/services/payments/reconcile";
 import { notifySmsToProfiles } from "@/lib/sms";
 import { formatGhs } from "@/lib/money";
 
@@ -131,132 +130,55 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true, ignored: eventName || "unknown" });
   }
 
-  const supabase = createAdminClient();
-
-  // Our row (written at checkout init) supplies the engagement/installment
-  // mapping — never the payload. `fee_amount` (0034) and
-  // `payment_request_id` (0032) are read tolerantly: a database that hasn't
-  // applied one of those migrations must still reconcile.
-  const baseColumns = ["id", "engagement_id", "installment_id", "status", "amount"];
-  const optionalColumns = ["fee_amount", "payment_request_id"];
-
-  const readPayment = (columns: string[]) =>
-    supabase
-      .from("payments")
-      .select(columns.join(", "))
-      .eq("paystack_reference", reference)
-      .maybeSingle();
-
-  let columns = [...baseColumns, ...optionalColumns];
-  let paymentResult = await readPayment(columns);
-  while (
-    paymentResult.error &&
-    isMissingColumn(paymentResult.error) &&
-    columns.length > baseColumns.length
-  ) {
-    // PostgREST names the column it couldn't find ("Could not find the
-    // 'fee_amount' column…"). Drop it and retry; if the message doesn't name
-    // one, fall back to the columns every version has.
-    const message = paymentResult.error.message ?? "";
-    const missing = optionalColumns.filter((column) => message.includes(column));
-    columns =
-      missing.length > 0
-        ? columns.filter((column) => !missing.includes(column))
-        : baseColumns;
-    paymentResult = await readPayment(columns);
-  }
-
-  const row = paymentResult.data as
-    | {
-        id: string;
-        engagement_id: string;
-        installment_id: string;
-        status: string;
-        amount: string | number;
-        fee_amount?: string | number | null;
-        payment_request_id?: string | null;
-      }
-    | null;
-
-  if (!row) {
-    // No mapping: the init row was lost (rolled-back request). Log loudly for
-    // reconciliation — we can still recover from Paystack metadata later, but
-    // never guess an installment from webhook data.
-    console.error(`[payments] webhook for unknown reference ${reference} — reconcile manually`);
-    return NextResponse.json({ received: true, unmatched: true });
-  }
-
-  // 4) Verify-then-trust: re-fetch the transaction from Paystack itself.
+  // 4) Verify-then-trust + apply. The SAME helper runs on the return path
+  // and from the cron sweep, so a missing/misconfigured webhook can no longer
+  // strand a paid charge. It reads our row, asks Paystack, checks the amount
+  // against what checkout stored, and calls the idempotent RPC.
   try {
-    const txn = await verifyTransaction(reference);
+    const outcome = await reconcileChargeByReference(reference);
 
-    if (txn.status !== "success") {
-      // Not actually paid (e.g. a spoofed success event with a valid key
-      // would still fail this). Ack so Paystack doesn't retry.
-      return NextResponse.json({ received: true, verifyStatus: txn.status });
-    }
-
-    // Amount comes from the VERIFY response, not the webhook body. Since
-    // 0034 the student is charged the course amount PLUS Paystack's fee; the
-    // stored row is the authority on both, and the agreement receives only
-    // the course amount (so the 0029 guards and tutor earnings stay net).
-    const verifiedAmount = BigInt(txn.amount);
-    const courseAmount = pesewasFrom(row.amount);
-    const feeAmount = pesewasFrom(row.fee_amount);
-    if (verifiedAmount !== courseAmount + feeAmount) {
-      // A charge we cannot map exactly is never applied on a guess. Ack so
-      // Paystack stops retrying, and log loudly for reconciliation.
+    if (outcome.status === "not_found") {
+      // No mapping: the init row was lost (rolled-back request). Log loudly
+      // for reconciliation — never guess an installment from webhook data.
       console.error(
-        `[payments] amount mismatch for ${reference}: expected ${courseAmount + feeAmount} (course ${courseAmount} + fee ${feeAmount}), verified ${verifiedAmount}`,
+        `[payments] webhook for unknown reference ${reference} — reconcile manually`,
       );
-      return NextResponse.json({ received: true, refused: "amount_mismatch" });
+      return NextResponse.json({ received: true, unmatched: true });
     }
 
-    const { data: appliedId, error: applyError } = await supabase.rpc(
-      "payment_apply_verified_payment",
-      {
-        p_engagement_id: row.engagement_id,
-        p_installment_id: row.installment_id,
-        p_paystack_reference: reference,
-        p_amount: courseAmount.toString(),
-        p_currency: txn.currency,
-        p_paystack_status: txn.status,
-        p_raw: JSON.parse(rawBody) as object,
-      },
-    );
+    if (outcome.status === "already_paid") {
+      // A replayed event, or the return path won the race. No-op.
+      return NextResponse.json({ received: true, alreadyPaid: true });
+    }
 
-    if (applyError) {
+    if (outcome.status === "pending") {
+      // Not actually paid (a spoofed success event with a valid key still
+      // fails this). Ack so Paystack doesn't retry.
+      return NextResponse.json({
+        received: true,
+        verifyStatus: outcome.paystackStatus,
+      });
+    }
+
+    if (outcome.status === "refused") {
       // Guard violations (amount mismatch, replay, not payable) land here.
       // Return 200 — the event is recorded; retrying won't change the guard
       // outcome — but make it loud for reconciliation.
-      console.error(`[payments] apply refused for ${reference}: ${applyError.message}`);
-      return NextResponse.json({ received: true, refused: applyError.message });
-    }
-
-    // The money is applied, so the admin-issued link that produced this charge
-    // is now spent (0032 — single use). Marking it AFTER the apply means a
-    // refused charge never burns the student's link. `status = open` keeps a
-    // cancelled link cancelled.
-    if (row.payment_request_id) {
-      const { error: linkError } = await supabase
-        .from("payment_requests")
-        .update({ status: "paid", paid_at: new Date().toISOString() })
-        .eq("id", row.payment_request_id)
-        .eq("status", "open");
-      if (linkError) {
-        console.error(
-          `[payments] payment link ${row.payment_request_id} not marked paid: ${linkError.message}`,
-        );
-      }
+      console.error(`[payments] apply refused for ${reference}: ${outcome.reason}`);
+      return NextResponse.json({ received: true, refused: outcome.reason });
     }
 
     // Text the student that the money landed. Best-effort — the money is
     // already applied either way, and a failed text never rolls that back.
     // The amount is the course portion (what the ledger applied), not the
     // gross that included Paystack's fee.
-    await textPaymentReceived(supabase, row.engagement_id, courseAmount);
+    await textPaymentReceived(
+      createAdminClient(),
+      outcome.engagementId,
+      outcome.courseAmount,
+    );
 
-    return NextResponse.json({ received: true, payment: appliedId });
+    return NextResponse.json({ received: true, payment: outcome.paymentId });
   } catch (err) {
     // Verify call failed (Paystack down / network) — return 500 so Paystack
     // retries; the RPC's idempotency makes replays safe.
@@ -293,14 +215,4 @@ async function textPaymentReceived(
     `Harcourt: we received your payment of ${formatGhs(amountPesewas)} toward your course fee. Thank you.`,
     "payment",
   );
-}
-
-/**
- * PostgREST serializes BIGINT as a JSON number (or a string when it is very
- * large), and `BigInt("250.00")` throws — normalise through Number first.
- * Money here is whole pesewas, far inside the safe-integer range.
- */
-function pesewasFrom(value: string | number | null | undefined): bigint {
-  if (value == null) return BigInt(0);
-  return BigInt(Math.round(Number(value)));
 }

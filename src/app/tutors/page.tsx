@@ -137,7 +137,7 @@ export default async function TutorsPage({
           <PerspectiveGrid tone="purple" className="-z-10" />
           <Container className="relative py-10">
             {tutors.length === 0 ? (
-              <div className="mt-10 rounded-lg border border-dashed border-slate-300 bg-white/70 p-16 text-center">
+              <div className="mt-10 rounded-lg border border-dashed border-slate-300 bg-white/70 p-8 text-center sm:p-16">
                 <Users className="mx-auto h-8 w-8 text-slate-300" />
                 <p className="mt-3 text-sm text-slate-500">
                   No tutors yet — be the first to sign up as a tutor.
@@ -165,7 +165,7 @@ export default async function TutorsPage({
 
       {/* ── Footer ───────────────────────────────────────────────── */}
       <footer className="border-t border-slate-800 bg-slate-950">
-        <Container className="flex flex-col items-center justify-between gap-4 py-8 text-sm text-lilac-200/80 sm:flex-row">
+        <Container className="flex flex-col items-center justify-between gap-4 pb-24 pt-8 text-sm text-lilac-200/80 sm:flex-row lg:pb-8">
           <Logo dark />
           <p>
             © {new Date().getFullYear()} Harcourt Educational Consult · Kumasi,

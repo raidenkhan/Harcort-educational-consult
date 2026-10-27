@@ -28,10 +28,16 @@ import { cn } from "@/lib/cn";
 
 export type RevealVariant = "up" | "left" | "right" | "pop" | "blur";
 
+/**
+ * The horizontal offsets shrink on phones: a full-width block translated by
+ * 40px pushes past the viewport and widens the document (the landing page
+ * used to scroll 16px sideways at 390px because of it). 12px stays well
+ * inside the 16px mobile gutter.
+ */
 const HIDDEN: Record<RevealVariant, string> = {
   up: "translate-y-6",
-  left: "-translate-x-10",
-  right: "translate-x-10",
+  left: "-translate-x-3 sm:-translate-x-10",
+  right: "translate-x-3 sm:translate-x-10",
   pop: "scale-90",
   blur: "translate-y-4 blur-sm",
 };

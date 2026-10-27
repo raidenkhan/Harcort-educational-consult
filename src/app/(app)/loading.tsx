@@ -7,7 +7,7 @@ export default function AppLoading() {
   return (
     <div className="relative overflow-hidden">
       <BentoBackdrop tone="petrol" />
-      <Container className="py-12">
+      <Container className="py-6 sm:py-12">
         {/* Page label */}
         <Skeleton className="h-3 w-24" />
         {/* Heading */}
@@ -16,7 +16,7 @@ export default function AppLoading() {
         <Skeleton className="mt-3 h-4 w-80 max-w-full" />
 
         {/* Card grid — matches the 2-col grid used by most pages */}
-        <div className="mt-10 grid gap-6 sm:grid-cols-2">
+        <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2">
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />

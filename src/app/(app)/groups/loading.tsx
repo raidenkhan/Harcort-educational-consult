@@ -7,13 +7,13 @@ export default function GroupsLoading() {
   return (
     <div className="relative overflow-hidden">
       <BentoBackdrop tone="purple" />
-      <Container className="py-12">
+      <Container className="py-6 sm:py-12">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="mt-3 h-8 w-64" />
         <Skeleton className="mt-3 h-4 w-80 max-w-full" />
         <Skeleton className="mt-8 h-16 w-full rounded-lg" />
 
-        <div className="mt-10 grid gap-6 lg:grid-cols-[280px_1fr]">
+        <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
               <div

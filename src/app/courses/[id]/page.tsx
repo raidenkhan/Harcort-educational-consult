@@ -40,6 +40,8 @@ import { FloatingNav } from "@/components/navigation/FloatingNav";
 import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
+import { TutorAvatar } from "@/components/ui/TutorAvatar";
+import { formatPrices } from "@/services/tutors/pricing";
 import { CourseVideoGrid } from "@/components/courses/CourseVideoGrid";
 import { DriveMaterials } from "@/components/courses/DriveMaterials";
 import { RelatedLessons } from "@/components/courses/RelatedLessons";
@@ -332,26 +334,71 @@ export default async function CoursePage({
               </div>
 
               {tutors.length > 0 ? (
-                <ul className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {tutors.map(({ tutorProfile, profile: tutorProfileOwner, services, courses }) => (
+                <ul className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {tutors.map(({ tutorProfile, profile: tutorProfileOwner, services, courses }) => {
+                    // Same headline rule as /tutors: the cheapest format the
+                    // tutor actually offers (0031). Reading the legacy
+                    // profile-wide rate here printed GH₵800 for a tutor whose
+                    // course actually costs GH₵60.
+                    const offeringPrices = services
+                      .flatMap((s) => {
+                        const prices = formatPrices(s);
+                        return [prices.oneOnOne, prices.group];
+                      })
+                      .filter((price): price is number => price != null);
+                    const lowestOffering =
+                      offeringPrices.length > 0
+                        ? Math.min(...offeringPrices)
+                        : null;
+                    const headlineRate =
+                      lowestOffering ?? tutorProfile.rate_per_semester;
+                    const profileHref = tutorProfileOwner.public_code
+                      ? `/tutors/${encodeURIComponent(tutorProfileOwner.public_code)}`
+                      : null;
+                    return (
                     <li key={tutorProfile.id} className="h-full">
                       {/* Same card as /tutors so a tutor reads identically on
                           both public pages. */}
                       <Card hover className="flex h-full flex-col">
                       <div className="flex items-center gap-3">
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-petrol-900 text-sm font-bold text-white">
-                          {(tutorProfileOwner.full_name || "T").charAt(0).toUpperCase()}
-                        </span>
+                        {profileHref ? (
+                          <Link
+                            href={profileHref}
+                            aria-label={`View ${tutorProfileOwner.full_name || "tutor"}'s profile`}
+                            className="shrink-0 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                          >
+                            <TutorAvatar
+                              name={tutorProfileOwner.full_name || "Tutor"}
+                              src={tutorProfileOwner.avatar_url}
+                              size={44}
+                            />
+                          </Link>
+                        ) : (
+                          <TutorAvatar
+                            name={tutorProfileOwner.full_name || "Tutor"}
+                            src={tutorProfileOwner.avatar_url}
+                            size={44}
+                          />
+                        )}
                         <div className="min-w-0">
                           <p className="flex items-center gap-1.5">
-                            <span className="truncate font-semibold text-slate-900">
-                              {tutorProfileOwner.full_name || "Harcourt tutor"}
-                            </span>
+                            {profileHref ? (
+                              <Link
+                                href={profileHref}
+                                className="truncate font-semibold text-slate-900 transition hover:text-brand-700"
+                              >
+                                {tutorProfileOwner.full_name || "Harcourt tutor"}
+                              </Link>
+                            ) : (
+                              <span className="truncate font-semibold text-slate-900">
+                                {tutorProfileOwner.full_name || "Harcourt tutor"}
+                              </span>
+                            )}
                             {profileIsAdmin(tutorProfileOwner) && <VerifiedBadge />}
                           </p>
                           <p className="text-xs text-slate-500">
-                            {tutorProfile.rate_per_semester != null
-                              ? `GH₵${tutorProfile.rate_per_semester.toLocaleString()}/semester`
+                            {headlineRate != null
+                              ? `${lowestOffering != null ? "From " : ""}GH₵${headlineRate.toLocaleString()}/semester`
                               : "Rates on request"}
                           </p>
                         </div>
@@ -383,7 +430,8 @@ export default async function CoursePage({
                       </div>
                       </Card>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               ) : (
                 <div className="mt-6 rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center">
@@ -414,7 +462,7 @@ export default async function CoursePage({
       {profile && <MobileTabBar role={profile.role} />}
 
       <footer className="border-t border-petrol-800 bg-petrol-950">
-        <Container className="flex flex-col items-center justify-between gap-4 py-8 text-sm text-lilac-200/80 sm:flex-row">
+        <Container className="flex flex-col items-center justify-between gap-4 pb-24 pt-8 text-sm text-lilac-200/80 sm:flex-row lg:pb-8">
           <Logo dark />
           <a
             href="https://www.youtube.com/@harcourt-university"
@@ -502,7 +550,7 @@ function MaterialsBlock({
       </div>
 
       {materials.length > 0 ? (
-        <ul className="mt-6 grid gap-4 sm:grid-cols-2">
+        <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {materials.map((material) => (
             <li key={material.id}>
               <MaterialCard material={material} />
@@ -546,7 +594,7 @@ function TermFolders({
         </p>
       </div>
 
-      <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {buckets.map((bucket) => {
           const videoCount = bucket.items.filter(isVideo).length;
           const materialCount = bucket.items.length - videoCount;
