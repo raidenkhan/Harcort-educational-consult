@@ -8,32 +8,26 @@ import {
 import { SessionCard } from "@/components/sessions/SessionCard";
 import { TimetableViews } from "@/components/sessions/TimetableViews";
 import { ScheduleSessionModal } from "@/components/sessions/ScheduleSessionModal";
+import { splitTimetable } from "@/services/sessions/timetable";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
-/** Sessions can be ticked from 15 minutes before their start time. */
-const GRACE_MS = 15 * 60 * 1000;
-
 /**
  * Split the timetable into upcoming vs past/in-progress and count pending
- * ticks. Module-level so the render stays pure (React Compiler lint).
+ * ticks. Module-level so the render stays pure (React Compiler lint); the
+ * grace window lives in `services/sessions/timetable.ts`, shared with the
+ * dashboard.
  */
-function splitTimetable(sessions: SessionView[]) {
+function timetableView(sessions: SessionView[]) {
   const now = Date.now();
-  const upcoming = sessions.filter(
-    (s) => new Date(s.scheduled_at).getTime() > now + GRACE_MS,
-  );
-  const past = sessions
-    .filter((s) => !upcoming.includes(s))
-    .reverse(); // most recent first
-  // Only sessions that are due/ended and still unticked by me — upcoming
-  // ones haven't started, so they aren't "awaiting" anything yet.
-  const awaitingTick = sessions.filter(
-    (s) =>
-      !s.tutor_confirmed_at &&
-      new Date(s.scheduled_at).getTime() <= now + GRACE_MS,
-  ).length;
-  return { now, upcoming, past, awaitingTick };
+  const { upcoming, past, awaitingTick } = splitTimetable(sessions, now);
+  return {
+    now,
+    upcoming,
+    // Past sessions read most-recent-first, unlike the ascending timetable.
+    past: [...past].reverse(),
+    awaitingTick: awaitingTick.length,
+  };
 }
 
 /** Timetable tab — sessions with the tutor, calendar views, scheduling. */
@@ -47,7 +41,7 @@ export default async function TutorTimetablePage() {
   ]);
 
   const isApproved = tutor.profile?.verification_status === "approved";
-  const { now, upcoming, past, awaitingTick } = splitTimetable(sessions);
+  const { now, upcoming, past, awaitingTick } = timetableView(sessions);
 
   return (
     <section className="mt-10">

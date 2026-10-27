@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CalendarDays, Users, Wallet } from "lucide-react";
+import {
+  CalendarDays,
+  LayoutDashboard,
+  Settings,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -10,12 +16,16 @@ import { cn } from "@/lib/cn";
  * what it shows (the old single-page dashboard fetched everything at once
  * and read as one endless scroll). Active state comes from the pathname, so
  * no client state to keep in sync.
+ *
+ * Settings sits last on purpose: it is a utility surface, not a place a tutor
+ * works from every day.
  */
 const TABS = [
-  { href: "/tutor", label: "Overview", icon: LayoutDashboard },
+  { href: "/tutor", label: "Dashboard", icon: LayoutDashboard },
   { href: "/tutor/timetable", label: "Timetable", icon: CalendarDays },
   { href: "/tutor/students", label: "Students", icon: Users },
   { href: "/tutor/earnings", label: "Earnings", icon: Wallet },
+  { href: "/tutor/settings", label: "Settings", icon: Settings },
 ];
 
 export function TutorTabs() {

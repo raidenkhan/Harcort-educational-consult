@@ -13,7 +13,7 @@ import { AvatarUploadForm } from "./AvatarUploadForm";
 import type { TutorStatus } from "@/types";
 
 /**
- * The tutor's own profile, shown READ-ONLY on the Overview tab — avatar, name,
+ * The tutor's own profile, shown READ-ONLY on the Settings tab — avatar, name,
  * verification badge, bio and qualifications, exactly how a student would see
  * the facts. Nothing here is editable inline: "Edit profile" opens a modal
  * with the photo uploader and the bio/qualifications form, so the nice view

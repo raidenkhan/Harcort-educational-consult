@@ -8,8 +8,9 @@ import { TutorTabs } from "@/components/tutor/TutorTabs";
 
 /**
  * Tutor hub shell — shared header + section tabs. Each tab is its own route
- * (`/tutor`, `/tutor/timetable`, `/tutor/students`, `/tutor/earnings`) and
- * fetches only what it shows, replacing the old single long dashboard.
+ * (`/tutor`, `/tutor/timetable`, `/tutor/students`, `/tutor/earnings`,
+ * `/tutor/settings`) and fetches only what it shows, replacing the old single
+ * long dashboard.
  */
 export default async function TutorLayout({
   children,

@@ -47,7 +47,7 @@ const TABS: Record<UserRole, Tab[]> = {
     { href: "/tutors", label: "Find tutors", icon: Compass },
     { href: "/chat", label: "Messages", icon: MessageCircle },
     { href: "/groups", label: "Groups", icon: Users },
-    { href: "/tutor", label: "My profile", icon: GraduationCap },
+    { href: "/tutor", label: "Tutor hub", icon: GraduationCap },
   ],
   admin: [
     { href: "/dashboard", label: "Home", icon: LayoutDashboard },

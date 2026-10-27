@@ -6,6 +6,7 @@ import {
 } from "@/services/payments/queries";
 import { formatGhs } from "@/lib/money";
 import { dueDateLabel, isOverdue } from "@/lib/time";
+import { summarizeEarnings } from "@/services/payments/summary";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { PayoutAccountForm } from "./PayoutAccountForm";
@@ -41,23 +42,16 @@ const PAYOUT_BADGE: Record<
 /** Module-level (react-hooks/purity): snapshot the clock once. */
 function withDerived(engagements: Awaited<ReturnType<typeof listTutorEngagements>>) {
   const now = Date.now();
-  let collected = BigInt(0);
-  let outstanding = BigInt(0);
-  const rows = engagements.map((e) => {
-    collected += e.paidPesewas;
-    if (e.status !== "cancelled") outstanding += e.remainingPesewas;
-    return {
-      ...e,
-      installments: e.installments.map((i) => ({
-        ...i,
-        displayStatus:
-          i.status === "pending" && isOverdue(new Date(i.dueAt), now)
-            ? ("overdue" as const)
-            : i.status,
-      })),
-    };
-  });
-  return { rows, collected, outstanding };
+  return engagements.map((e) => ({
+    ...e,
+    installments: e.installments.map((i) => ({
+      ...i,
+      displayStatus:
+        i.status === "pending" && isOverdue(new Date(i.dueAt), now)
+          ? ("overdue" as const)
+          : i.status,
+    })),
+  }));
 }
 
 export async function TutorEarningsCard() {
@@ -66,9 +60,9 @@ export async function TutorEarningsCard() {
   const engagements = await listTutorEngagements(profile);
   const payouts = await listTutorPayouts(profile);
   const account = await getPayoutAccount(profile);
-  const { rows, collected, outstanding } = withDerived(engagements);
-  const fee = collected / BigInt(10); // 10% platform fee on what's collected
-  const share = collected - fee;
+  const rows = withDerived(engagements);
+  const { collected, outstanding, platformFee: fee, tutorShare: share } =
+    summarizeEarnings(engagements);
 
   return (
     <section aria-label="Earnings and payouts" className="space-y-6">

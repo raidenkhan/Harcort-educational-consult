@@ -534,6 +534,28 @@ mobile app.
   (`emailErrorReason`, unit-tested) because Resend's own wording names the
   account owner's address. `onboarding@resend.dev` only reaches that owner's
   inbox — a verified domain (`EMAIL_FROM`) is what turns student email on.
+- **Tutor hub: a real dashboard, and settings moved out.** `/tutor` used to be
+  a profile/course/phone form with a payments table bolted on. It is now the
+  tutor's working dashboard: an "awaiting your attendance tick" banner, four
+  KPI tiles (students, collected — with the tutor's 90% share — upcoming
+  lessons, pending requests), the next four lessons, pending requests with
+  accept/decline inline, recent payments, and a compact roster. Everything
+  editable — the read-only profile card + edit modal, course offerings,
+  phone/SMS, the shareable profile link — moved to the new `/tutor/settings`
+  tab (last in `TutorTabs`). The page reads through one aggregate query,
+  `getTutorDashboard()` (`services/tutors/dashboard.ts`), so the tiles and the
+  lists can never disagree, and the money on the dashboard and the Earnings
+  tab come from the same pure `summarizeEarnings()`
+  (`services/payments/summary.ts`, unit-tested). The 15-minute attendance
+  grace window now lives once in `services/sessions/timetable.ts`
+  (`splitTimetable`, unit-tested), shared by the Timetable tab and the
+  dashboard's "awaiting tick" count. The payments table
+  (`TutorPaymentsTable`) renders as stacked rows on phones and a table from
+  `sm` up — no sideways scrolling to find the amount or status — and the
+  Earnings tab now carries the full history while the dashboard shows the
+  newest six. Nav labels followed: "My tutor profile" → "Tutor hub", and the
+  no-profile CTA plus the student dashboard's tutor card point at
+  `/tutor/settings`.
 
 ---
 

@@ -313,7 +313,7 @@ export default async function DashboardPage({
                     : "Not started"}
                 </Badge>
               </div>
-              <Link href="/tutor" className="mt-4 block">
+              <Link href="/tutor/settings" className="mt-4 block">
                 <Button className="w-full sm:w-auto">
                   {tutor.profile ? "Edit tutor profile" : "Set up tutor profile"}
                 </Button>

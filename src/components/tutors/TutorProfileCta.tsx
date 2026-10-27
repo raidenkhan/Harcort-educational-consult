@@ -129,7 +129,7 @@ export function TutorProfileCta({ hasProfile }: { hasProfile: boolean }) {
         </p>
 
         <div className="mt-6 flex flex-col gap-2.5 sm:flex-row">
-          <Link href="/tutor" className="flex-1">
+          <Link href="/tutor/settings" className="flex-1">
             <Button className="w-full">Set up tutor profile</Button>
           </Link>
           <Button variant="secondary" onClick={markDismissed} className="flex-1">

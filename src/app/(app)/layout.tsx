@@ -81,7 +81,7 @@ async function AppHeader() {
         ]
       : []),
     ...(profile?.role === "tutor"
-      ? [{ href: "/tutor", label: "My tutor profile" }]
+      ? [{ href: "/tutor", label: "Tutor hub" }]
       : []),
     ...(profile && profileIsAdmin(profile)
       ? [{ href: "/admin", label: "Admin" }]
