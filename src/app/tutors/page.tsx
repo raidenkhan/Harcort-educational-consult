@@ -2,6 +2,7 @@ import { Users } from "lucide-react";
 import { Suspense } from "react";
 import { safeListApprovedTutors } from "@/services/tutors/queries";
 import { SITE_NAME } from "@/lib/site";
+import { serializeJsonLd } from "@/lib/jsonLd";
 import { getCurrentProfile } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
 import { TutorExplorer } from "@/components/tutors/TutorExplorer";
@@ -65,7 +66,7 @@ export default async function TutorsPage({
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(tutorJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(tutorJsonLd) }}
       />
       <FloatingNav
         links={[

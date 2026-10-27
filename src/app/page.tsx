@@ -20,6 +20,7 @@ import { Logo } from "@/components/ui/Logo";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
 import { cn } from "@/lib/cn";
+import { serializeJsonLd } from "@/lib/jsonLd";
 import {
   SITE_DESCRIPTION,
   SITE_NAME,
@@ -200,7 +201,7 @@ export default async function Home() {
       <BentoBackdrop tone="purple" variant="smooth" className="-z-10" />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(JSON_LD) }}
       />
 
       <FloatingNav

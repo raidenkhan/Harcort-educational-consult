@@ -25,6 +25,7 @@ import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
 import { signOutAction } from "@/services/auth/actions";
 import { findCourseMaterials } from "@/services/library/courseMaterials";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { serializeJsonLd } from "@/lib/jsonLd";
 import { levelLabel } from "@/components/home/courseTaxonomy";
 import type { CourseMaterial, CourseVideo } from "@/types";
 import { Badge } from "@/components/ui/Badge";
@@ -150,7 +151,7 @@ export default async function CoursePage({
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
       <FloatingNav
         links={[
