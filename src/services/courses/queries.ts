@@ -34,7 +34,7 @@ function logAndEmpty<T>(scope: string, message: string | undefined): T[] {
  * column doesn't exist yet (migration pending) the filter is dropped rather
  * than failing the whole query — the catalog must never go blank.
  */
-export const listCourses = unstable_cache(
+const fetchCourses = unstable_cache(
   async (): Promise<Course[]> => {
     const supabase = createAdminClient();
 
@@ -56,12 +56,38 @@ export const listCourses = unstable_cache(
       ({ data, error } = await read(false));
     }
 
-    if (error) return logAndEmpty<Course>("listCourses", error.message);
+    // THROW, never return an empty list here. unstable_cache stores whatever
+    // the callback returns, including [], so a single transient failure used
+    // to blank /courses, the landing page's course band and every course
+    // picker for the whole 5-minute TTL — while the database still had 320
+    // courses. That is exactly what happened on 2026-10-28: one
+    // "JWT issued at future" blip at the first request after a deploy, and
+    // the directory sat on "No courses published yet" until the cache
+    // expired (and survived a server restart, because the cache is on disk).
+    // Throwing keeps the failure out of the cache so the next request
+    // refetches. Same rule as listApprovedTutors in services/tutors.
+    if (error) throw new Error(`listCourses: ${error.message}`);
+
     return (data as Course[]) ?? [];
   },
   ["courses"],
   { revalidate: 300, tags: ["courses"] },
 );
+
+/**
+ * Cached taxonomy with a non-throwing contract: one request degrades (logged,
+ * empty) instead of 500ing a public page, and because `fetchCourses` throws
+ * the empty result is never cached — so the very next request refetches.
+ * Mirrors `safeListApprovedTutors` in `services/tutors/queries.ts`.
+ */
+export async function listCourses(): Promise<Course[]> {
+  try {
+    return await fetchCourses();
+  } catch (error) {
+    console.error("[courses] listCourses failed:", error);
+    return [];
+  }
+}
 
 /** A tutor-added course awaiting review, with the tutor's name. */
 export type PendingCourse = Course & { addedBy: string | null };

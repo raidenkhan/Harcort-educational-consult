@@ -556,6 +556,24 @@ mobile app.
   newest six. Nav labels followed: "My tutor profile" → "Tutor hub", and the
   no-profile CTA plus the student dashboard's tutor card point at
   `/tutor/settings`.
+- **A failed course read is no longer cached, and the framework is patched.**
+  `/courses` served "No courses published yet" for five minutes while the
+  database held 320 approved courses. Cause: `listCourses` swallowed its error
+  and returned `[]` *inside* `unstable_cache`, so a single transient Supabase
+  blip ("JWT issued at future" on the first request after a deploy) was cached
+  as data for the whole 5-minute TTL — and, because the cache lives on disk in
+  `.next/cache`, it survived a server restart too. `listCourses` now throws
+  inside the cached callback and a thin wrapper with the same signature
+  catches it, logs it and returns `[]` for that one request only — the same
+  contract `safeListApprovedTutors` already had (and the reason the tutor
+  directory kept working through the same blip). Verified by starting the
+  server with a bogus service key, confirming the directory degrades without
+  caching, then restoring the key: content returned on the very next request.
+  Separately, `next` 16.3.6 → **16.4.3** and `zod` 4.4.3 → **4.6.7** clear the
+  critical/high npm advisories (`eslint-config-next` and `vitest` bumped with
+  them); lint, typecheck, 314 unit tests, the production build and the
+  320/360/390 overflow audit all pass, and every page's byte size is unchanged
+  from the previous build.
 
 ---
 
@@ -665,6 +683,15 @@ Key security properties:
   `revalidateTag("tutors", "max")` (plus `revalidatePath("/")`) in every
   mutation that changes the cached data — admin approve/reject, tutor
   profile/service edits.
+  **A cached reader must never return a fallback on error.** `unstable_cache`
+  stores whatever the callback *returns*, so returning `[]` after a transient
+  failure caches the failure for the whole TTL — on 2026-10-28 one
+  "JWT issued at future" blip at the first request after a deploy blanked
+  `/courses` and the landing page's course band for 5 minutes, and the empty
+  entry survived a restart because the cache is on disk. The rule: **throw**
+  inside the cached function, and catch in a thin wrapper with the same
+  signature (`safeListApprovedTutors`, `listCourses`) so one request degrades
+  instead of 500ing — and the next request refetches.
 - **UI:** Tailwind v4; design tokens in `src/app/globals.css` — `brand-*`
   vibrant purple (#610B96), `petrol-*` deep navy-purple ink (#1C0F2B),
   `lilac-*` soft accents (#D1B4EF), purple-tinted `slate-*` (slate-900 =
