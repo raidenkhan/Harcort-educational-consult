@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   attendanceConfirmedEmail,
   escapeHtml,
@@ -7,6 +7,7 @@ import {
   sessionCancelledEmail,
   sessionScheduledEmail,
   tutorApplicationEmail,
+  tutorRequestEmail,
   tutorReviewEmail,
 } from "./templates";
 
@@ -178,5 +179,54 @@ describe("email HTML escaping", () => {
     });
     expect(msg.html).not.toContain("javascript:");
     expect(msg.html).toContain('href="#"');
+  });
+});
+
+describe("tutorRequestEmail", () => {
+  const prev = process.env.APP_URL;
+
+  afterEach(() => {
+    if (prev === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = prev;
+  });
+
+  it("received sends the tutor to their dashboard and names the asker", () => {
+    process.env.APP_URL = "https://app.example.com";
+    const msg = tutorRequestEmail({
+      kind: "received",
+      studentName: "Kojo",
+      tutorName: "Ama",
+      courseTitle: "ME 255 Thermodynamics",
+    });
+    expect(msg.subject).toContain("Kojo");
+    expect(msg.text).toContain("Kojo");
+    expect(msg.html).toContain("ME 255 Thermodynamics");
+    expect(msg.html).toContain("https://app.example.com/tutor");
+  });
+
+  it("accepted sends the student to their dashboard, declined to the directory", () => {
+    process.env.APP_URL = "https://app.example.com";
+    const accepted = tutorRequestEmail({ kind: "accepted", tutorName: "Ama" });
+    const declined = tutorRequestEmail({ kind: "declined", tutorName: "Ama" });
+    expect(accepted.html).toContain("https://app.example.com/dashboard");
+    expect(declined.html).toContain("https://app.example.com/tutors");
+    expect(declined.subject).toContain("declined");
+  });
+
+  it("escapes attacker-controllable names and course titles", () => {
+    const msg = tutorRequestEmail({
+      kind: "received",
+      studentName: '<img src=x onerror="alert(1)">',
+      courseTitle: "<script>alert(2)</script>",
+    });
+    expect(msg.html).not.toContain("<img src=x");
+    expect(msg.html).not.toContain("<script>");
+    expect(msg.html).toContain("&lt;img");
+  });
+
+  it("still builds when the request could not be resolved", () => {
+    const msg = tutorRequestEmail({ kind: "received" });
+    expect(msg.subject).toBeTruthy();
+    expect(msg.text).toContain("A student");
   });
 });

@@ -357,6 +357,74 @@ export function passwordResetEmail(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// Tutor requests (drained from notification_outbox — see lib/email/outbox.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * A tutor request moved state.
+ *
+ * All three kinds are queued in the SAME transaction as the row change by the
+ * request RPCs (migrations 0012 and 0024), so the notification can never be
+ * lost — but `buildEmail` had no case for them, so every one of these rows was
+ * discarded as "unbuildable" and marked sent. A tutor was never told a student
+ * had asked for them, and a student was never told their request was answered.
+ */
+export function tutorRequestEmail(opts: {
+  kind: "received" | "accepted" | "declined";
+  /** Names/course resolved from the request (best-effort; may be empty). */
+  studentName?: string | null;
+  tutorName?: string | null;
+  courseTitle?: string | null;
+}): EmailMessage {
+  const student = opts.studentName?.trim() || "A student";
+  const tutor = opts.tutorName?.trim() || "your tutor";
+  const course = opts.courseTitle?.trim() || "this course";
+  const origin = process.env.APP_URL ?? "";
+
+  // The tutor answers on their dashboard; the student manages requests on
+  // theirs — a declined request sends them back to the directory.
+  const href =
+    opts.kind === "received"
+      ? `${origin}/tutor`
+      : opts.kind === "declined"
+        ? `${origin}/tutors`
+        : `${origin}/dashboard`;
+
+  const headline =
+    opts.kind === "received"
+      ? "New tutor request"
+      : opts.kind === "accepted"
+        ? "Request accepted"
+        : "Request declined";
+
+  const intro =
+    opts.kind === "received"
+      ? `<strong>${escapeHtml(student)}</strong> asked you to tutor them in <strong>${escapeHtml(course)}</strong>. Open your dashboard to accept or decline.`
+      : opts.kind === "accepted"
+        ? `<strong>${escapeHtml(tutor)}</strong> accepted your request for <strong>${escapeHtml(course)}</strong>. They'll get in touch to schedule your sessions.`
+        : `<strong>${escapeHtml(tutor)}</strong> isn't taking <strong>${escapeHtml(course)}</strong>. You can request another tutor from the directory.`;
+
+  const subject =
+    opts.kind === "received"
+      ? `New request: ${student} — ${course}`
+      : opts.kind === "accepted"
+        ? `Request accepted: ${course}`
+        : `Request declined: ${course}`;
+
+  const text =
+    opts.kind === "received"
+      ? `${student} asked you to tutor them in ${course}.`
+      : opts.kind === "accepted"
+        ? `${tutor} accepted your request for ${course}.`
+        : `${tutor} declined your request for ${course}.`;
+
+  return {
+    subject,
+    text: `${text}\n\n${href}`,
+    html: wrap(headline, `${p(intro)}${actionButton(href, "Open my dashboard")}`),
+  };
+}
+
 // Payments (drained from notification_outbox — see lib/email/outbox.ts)
 // ---------------------------------------------------------------------------
 

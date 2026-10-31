@@ -9,6 +9,7 @@ import {
   paymentOverdueEmail,
   paymentReceivedEmail,
   payoutStatusEmail,
+  tutorRequestEmail,
   type EmailMessage,
 } from "./templates";
 
@@ -29,6 +30,13 @@ interface OutboxRow {
   engagement_id: string | null;
   data: Record<string, unknown>;
 }
+
+/** Outbox types whose payload is a `request_id` rather than an engagement. */
+const REQUEST_TYPES = new Set([
+  "request.received",
+  "request.accepted",
+  "request.declined",
+]);
 
 /** The people/course a payment row is about. Resolved from the engagement so
  *  the email names them even when the outbox payload (written by the DB RPC)
@@ -98,10 +106,61 @@ async function paymentContext(
   return context;
 }
 
+/** The people/course a tutor-request row is about. The RPCs queue only a
+ *  `request_id`, so the names have to be resolved here. */
+interface RequestContext {
+  studentName: string;
+  tutorName: string;
+  courseTitle: string;
+}
+
+async function requestContext(
+  requestId: string,
+  cache: Map<string, RequestContext | null>,
+): Promise<RequestContext | null> {
+  if (!requestId) return null;
+  if (cache.has(requestId)) return cache.get(requestId) ?? null;
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("tutor_requests")
+    .select(
+      `courses(name), profiles!tutor_requests_student_id_fkey(full_name), tutor_profiles(profiles(full_name))`,
+    )
+    .eq("id", requestId)
+    .maybeSingle();
+
+  if (error || !data) {
+    // Best-effort: the email still goes out with generic copy.
+    cache.set(requestId, null);
+    return null;
+  }
+
+  const row = data as unknown as {
+    courses?: { name?: string } | { name?: string }[] | null;
+    profiles?: { full_name?: string } | { full_name?: string }[] | null;
+    tutor_profiles?:
+      | { profiles?: { full_name?: string } | { full_name?: string }[] | null }
+      | {
+          profiles?: { full_name?: string } | { full_name?: string }[] | null;
+        }[]
+      | null;
+  };
+
+  const context: RequestContext = {
+    studentName: one(row.profiles)?.full_name ?? "",
+    tutorName: one(one(row.tutor_profiles)?.profiles)?.full_name ?? "",
+    courseTitle: one(row.courses)?.name ?? "",
+  };
+  cache.set(requestId, context);
+  return context;
+}
+
 /** Build the email for one outbox row. Returns null for unknown types. */
 function buildEmail(
   row: OutboxRow,
   context: PaymentContext | null,
+  request: RequestContext | null,
 ): EmailMessage | null {
   const idx = Number(row.data.installment_idx ?? 1);
   const amount = typeof row.data.amount === "string" || typeof row.data.amount === "number"
@@ -110,7 +169,10 @@ function buildEmail(
 
   switch (row.type) {
     case "payment.received":
-      if (!row.recipient_id) return null;
+      // Admin rows fan out to every admin and legitimately carry no
+      // recipient_id (recipientsFor resolves the list). Guarding on it here
+      // silently discarded every admin "a payment landed" notification.
+      if (row.audience !== "admin" && !row.recipient_id) return null;
       return paymentReceivedEmail({
         audience: row.audience,
         amountDisplay: amount,
@@ -118,6 +180,27 @@ function buildEmail(
         courseTitle: context?.courseTitle,
         tutorName: context?.tutorName,
         confirmed: context?.confirmed,
+      });
+    case "request.received":
+      return tutorRequestEmail({
+        kind: "received",
+        studentName: request?.studentName,
+        tutorName: request?.tutorName,
+        courseTitle: request?.courseTitle,
+      });
+    case "request.accepted":
+      return tutorRequestEmail({
+        kind: "accepted",
+        studentName: request?.studentName,
+        tutorName: request?.tutorName,
+        courseTitle: request?.courseTitle,
+      });
+    case "request.declined":
+      return tutorRequestEmail({
+        kind: "declined",
+        studentName: request?.studentName,
+        tutorName: request?.tutorName,
+        courseTitle: request?.courseTitle,
       });
     case "payment.engagement_created":
       return paymentEngagementCreatedEmail({ audience: row.audience as "tutor" | "admin" });
@@ -188,16 +271,24 @@ export async function drainPaymentOutbox(): Promise<void> {
   if (rows.length === 0) return;
 
   const contextCache = new Map<string, PaymentContext | null>();
+  const requestCache = new Map<string, RequestContext | null>();
 
   for (const row of rows) {
     try {
       // Payment emails name the student/course/tutor; resolve that once per
       // engagement (three outbox rows — student, tutor, admin — share one).
+      // Request rows queue only a request_id, so their names resolve here.
       const context =
         row.type === "payment.received"
           ? await paymentContext(row.engagement_id, contextCache)
           : null;
-      const email = buildEmail(row, context);
+      const request = REQUEST_TYPES.has(row.type)
+        ? await requestContext(
+            typeof row.data.request_id === "string" ? row.data.request_id : "",
+            requestCache,
+          )
+        : null;
+      const email = buildEmail(row, context, request);
       const recipients = email ? await recipientsFor(row) : [];
 
       if (!email || recipients.length === 0) {
