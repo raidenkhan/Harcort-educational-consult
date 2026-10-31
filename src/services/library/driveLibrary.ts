@@ -1,13 +1,15 @@
 /**
- * The Harcourt study library, mirrored from the public "MECHANICAL ENGINEERING
- * LIBRARY" Google Drive folder.
+ * The Harcourt study library, mirrored from the public Google Drive folders:
+ *
+ *   Mechanical Engineering → "MECHANICAL ENGINEERING LIBRARY"
+ *   Aerospace Engineering  → "Academic Resources"
  *
  * The Drive is the source of truth for the study materials and their links:
  *
  *   Year (MECH ONE…FOUR) → Semester (SEM 1/2) → course folder (a Drive link)
  *
- * This module walks that static tree (extracted once via Drive's public
- * `embeddedfolderview` listing) and exposes it as plain typed data. It is
+ * This module walks those static trees (extracted once via Drive's public
+ * `embeddedfolderview` listing) and exposes them as plain typed data. It is
  * server-safe — no "use client" — so server components can read it directly
  * and pass plain data down.
  *
@@ -359,6 +361,226 @@ const MECHANICAL_YEARS: LibraryYear[] = [
   },
 ];
 
+/**
+ * Aerospace Engineering study folders, from the department's public
+ * "Academic Resources" Drive:
+ *
+ *   https://drive.google.com/drive/folders/10J-Vpk6H0xJhiqGpMbdK0-wWEkz98FdF
+ *
+ * The Drive was filed by hand, so term placement follows 0037's official
+ * outline rather than the folder a link happens to sit in — the same rule the
+ * Mechanical tree follows. Two structural quirks are handled here:
+ *
+ *   * Year 1 Semester 1 has no per-course folders: five documents sit inside
+ *     its "Aerospace Eng" folder. They are attached as term resources instead
+ *     of being mislabelled as course folders.
+ *   * Some Drive titles differ from the outline ("Aircraft Vehicle Design" is
+ *     AERO 473 Aerospace Vehicle Design, "Egonomic" is ME 392 Industrial
+ *     Engineering and Ergonomics). The code is the join key, so the tree
+ *     carries the official code and the folder link.
+ *
+ * Shared foundation courses (MATH 151, ME 255…) are also carried by the
+ * Mechanical tree, which is indexed first — the catalogue resolves those
+ * codes there.
+ */
+const AEROSPACE_YEARS: LibraryYear[] = [
+  {
+    slug: "year-1",
+    title: "Year 1",
+    subtitle: "Aerospace Engineering · Year 1",
+    url: FOLDER + "1--igxYp9oSWtzNV398Hv9OOidAcmqb6m",
+    files: [],
+    terms: [
+      term(
+        "sem-1",
+        "AEROSPACE 1 SEM 1",
+        "1-Ecv-Pgb7bBKFavpZVMGfQZk9TcA8AbG",
+        [],
+        [
+          file("EE textbook (EE 151)", "1V6PzqWwjwLkHww9Lj1y7Kg5jMy28G3SR"),
+          file("IT slides, first semester (ME 157)", "14zYQlmeqqJ2MTBUexAQCqUf2YlgohoA7"),
+          file("MATH 151 Algebra past questions", "1iJdHOQEUmak5Y8-HZBFwlch8UtCxozQs"),
+          file(
+            "Using Information Technology textbook (ME 157)",
+            "1JOn57ufDe5d2NqWzKdJkoRekbugsGbBU",
+          ),
+          file(
+            "Communication Skills textbook (ENGL 157)",
+            "1-xmAK4-17S_m1rmVRHFyjshU_FdBxL43",
+          ),
+        ],
+      ),
+      term(
+        "sem-2",
+        "AEROSPACE 1 SEM 2",
+        "1-WbdFMKDLSz8VGYrHny8J8ngaRR45xAx",
+        [
+          course("MATH 152 CALCULUS WITH ANALYSIS", "1QgyVt-NpWLIGfabpsCvQsA6rviCSbDR8"),
+          course("ENGL 158 COMMUNICATION SKILLS II", "1y2sTmOHD1kgrkYqQmAqJnMcUAlG2edEo"),
+          course("EE 152 BASIC ELECTRONICS", "1BMsFxUy591AYagmUmMmz0x99tK6gPKCl"),
+          course(
+            "ME 164 STATICS OF SOLID MECHANICS",
+            "1tfkMr1ibObB-z7RJTv4M9eXd2jrt175u",
+          ),
+          course(
+            "ME 168 COMPUTER PROGRAMMING FOR ENGINEERS",
+            "1aahhwfFGe-d0zdobo3llNZAYvECDma_L",
+          ),
+          course(
+            "AERO 174 AEROSPACE DESIGN PROJECT I",
+            "1jp0aMUda4BWQiyi9ehbvC8Twb9wCZ8WY",
+          ),
+        ],
+      ),
+    ],
+  },
+  {
+    slug: "year-2",
+    title: "Year 2",
+    subtitle: "Aerospace Engineering · Year 2",
+    url: FOLDER + "1-3L5pVa069GpeXh4sJjCT6G3gHOOWDZz",
+    files: [],
+    terms: [
+      term(
+        "sem-1",
+        "AEROSPACE 2 SEM 1",
+        "1-lSqRxtKwocln5R-pUSixdBkNQd3xsiH",
+        [
+          course("MATH 251 DIFFERENTIAL EQUATIONS", "1MzhBRtiwOtlihGHdFbMQluB36yVF9wcd"),
+          course("ENGL 263 LITERATURE IN ENGLISH I", "1Z1olY7JSPh8VV2DNtq25yS5h5hOR0SlU"),
+          course(
+            "ME 261 DYNAMICS OF SOLID MECHANICS",
+            "1YKckVx2ghDq3cgeVJmrbb6H-uqGkxtLC",
+          ),
+          course(
+            "ME 251 INTRODUCTION TO FLUID MECHANICS",
+            "1NzQrmu6l27Vu0zb1is6UGVsPmnq7phO5",
+          ),
+          course("ME 281 ENGINEERING MATERIALS I", "1TpMKKA4xyROJ_m-H2I1a_Ef0bGLQqwUg"),
+          course("ME 255 STRENGTH OF MATERIALS I", "1GC31zzmX_tigvboWqj22wyq8AS2fSnVl"),
+          course(
+            "ME 295 MECHANICAL ENGINEERING LABORATORY I",
+            "1Qm1mGx_KchbJN8hZAm76-PAGr-Y1I4Ue",
+          ),
+          course("CENG 291 ENGINEERING IN SOCIETY", "1_iMMUKKu5bQMJb4sOd3N9lGm0KxImipE"),
+        ],
+      ),
+      term(
+        "sem-2",
+        "AEROSPACE 2 SEM 2",
+        "1-pk6dutpRIJ5r0Ew-8FG37uTh4yCIXwh",
+        [
+          course(
+            "MATH 252 CALCULUS WITH SEVERAL VARIABLES",
+            "1WwTj74LW-SOSgts2cX6r8xYPN_N0heqS",
+          ),
+          course(
+            "ME 258 COMPUTER-AIDED DESIGN AND MODELLING",
+            "1X6R_9qBZBhpjU9g186ILbvfgHqIogF5H",
+          ),
+          course(
+            "ME 264 MECHANISMS SYNTHESIS AND ANALYSIS I",
+            "1sHUstS4QJ7ZSu8LaKLOi3b9KfM31Pihs",
+          ),
+          course("AERO 256 AEROSPACE STRUCTURES", "13WJdZ4_X19C-iNcjNxqHTD4XPb_fIEfO"),
+          course("ME 266 THERMODYNAMICS I", "1QZuV2U2KPuOJyc3_Prj8bBox0P-RAbqh"),
+          course(
+            "AERO 274 AEROSPACE DESIGN PROJECT II",
+            "12fNA3M1QsCU2h1JhtLV9-YXf0ECGLhuB",
+          ),
+        ],
+      ),
+    ],
+  },
+  {
+    slug: "year-3",
+    title: "Year 3",
+    subtitle: "Aerospace Engineering · Year 3",
+    url: FOLDER + "1-4eJiv_JoVaBcBMj2oEmonETRF1YbkBX",
+    files: [],
+    terms: [
+      term(
+        "sem-1",
+        "AEROSPACE 3 SEM 1",
+        "1rw7Kkd_h_JCRwh3tWGMdV6ee_7faFVC1",
+        [
+          course("MATH 353 PROBABILITY AND STATISTICS", "17Fdyd5ABTJIPlVDtONGLaCTt7n7bn2_5"),
+          course("MATH 351 NUMERICAL METHODS", "16HDis_XVYEfzxb6imyA05y-gnbv7AsV_"),
+          course("ME 363 AUTOMATIC CONTROL I", "14_F3z-24ir5al6oQMx6mb7nccE6jB1Sc"),
+          course("AERO 395 AEROSPACE ENGINEERING LABORATORY I", "1AiXa6mjjeu2JTYaGg2dq4npPD-TsxL8I"),
+          course("AERO 391 AEROSPACE INDUSTRY AND ENGINEERING", "10FNOi43G0OTE4ELLxQHw2ADGuKzWDwC0"),
+          course("AERO 351 AERODYNAMICS I", "1-BWGCWTiKOCrEnJGjuoAl4EKDTqii0I8"),
+          course("ECON 151 INTRODUCTION TO ECONOMICS I", "14xNCppTr4UWLBhL-xeEl_Ttp---8m_YY"),
+        ],
+      ),
+      term(
+        "sem-2",
+        "AEROSPACE 3 SEM 2",
+        "1-32qyOXEp4SfEEjuDkewqVaXYlkwqlZm",
+        [
+          course("AERO 362 AIR VEHICLE STABILITY AND CONTROL", "1kZS-0yTNp-oemQ6U6M3rsapay-0JJ5gu"),
+          course("ME 392 INDUSTRIAL ENGINEERING AND ERGONOMICS", "1hRXA7x2hmVAgBZSMvCXP8iRYismSKJpt"),
+          course("AERO 374 AIRCRAFT PERFORMANCE AND DESIGN", "1Mwh8qR71tiRd7eDXRGLC07Dk3KPS8hGz"),
+          course("AERO 368 PROPULSION", "1YnwOvWzC9770_9-EwPCym_YKd5cpgqa4"),
+          course("ME 366 HEAT TRANSFER", "1IDEZqHrCipshNCXkZcTOS9lcB5CJWbP1"),
+          course("ME 362 VIBRATIONS I", "14Vun7wRWdgwbZLTzddsE-TQ5KQ6hzf3M"),
+          course("AERO 396 AEROSPACE ENGINEERING LABORATORY II", "1tyUhm0WAilKgeN7UvhfIyD1nDvcn4-6R"),
+        ],
+      ),
+    ],
+  },
+  {
+    slug: "year-4",
+    title: "Year 4",
+    subtitle: "Aerospace Engineering · Year 4",
+    url: FOLDER + "1-BnZ22OzwI0OwoO5sv1Ke08bQ_IrMSPQ",
+    files: [],
+    terms: [
+      term(
+        "sem-1",
+        "AEROSPACE 4 SEM 1",
+        "1I5WChPQqy6Xapt_aJa9hwU0NM6Y185Fm",
+        [
+          course("AERO 483 AVIONICS", "1O1zNdn0LoLysz0uIci5yjo2yB3OH5ZBG"),
+          course(
+            "AERO 491 AVIATION BUSINESS MANAGEMENT",
+            "19UUJ9vEH3m5G9PE-DhWkyJDtbQSpdH7G",
+          ),
+          course("AERO 497 FINAL YEAR PROJECT I", "1GaxyGtG5-543X0BgC82TeN8gQV5AA9yK"),
+          course(
+            "AERO 495 AIRCRAFT MAINTENANCE ENGINEERING",
+            "1RhcL1DY5vDUq5JU5PD8C1Nsd7P9Re6KF",
+          ),
+          course("AERO 473 AEROSPACE VEHICLE DESIGN", "1QhWODp3iwu_dhi2f0P-_PPNZh8GDcMxo"),
+          course(
+            "ME 473 COMPUTER AIDED DESIGN AND MANUFACTURING",
+            "1rwNE8OKK0Iiwn9IHuhHMfAbVxzMS8g4g",
+          ),
+        ],
+        [file("Z strategy", "1_oIjdHO8gyq9CYwHY9RgsAspxy_fLdd8")],
+      ),
+      term(
+        "sem-2",
+        "AEROSPACE 4 SEM 2",
+        "158YNXeK39JZeGCQDs19QfAkvMZID4NQL",
+        [
+          course("AERO 452 AERODYNAMICS II", "1Bkey7pv2yxlF0zr6flDH6OMUeDCYOQe9"),
+          course("AERO 456 APPLIED METEOROLOGY", "1CFbB1soH2ZOUeyglszv7nSX2JsE3KTkG"),
+          course(
+            "AERO 492 AEROSPACE SAFETY AND AIR SECURITY",
+            "1sGRU8XCmsW9I6QnAMQoIThivqjI73k7z",
+          ),
+          course(
+            "ME 492 ENTREPRENEURSHIP DEVELOPMENT AND MANAGEMENT",
+            "1dcePr6xi-ENB3iuEB_VxS6a_FCgRhdzt",
+          ),
+          course("ME 468 INTERNAL COMBUSTION ENGINES", "1eAAE0ttoyQMEe_FJi9MI-MfgAQvPTuy-"),
+        ],
+      ),
+    ],
+  },
+];
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -367,12 +589,11 @@ function slugify(name: string): string {
 }
 
 /**
- * Programmes offered by the KNUST College of Engineering, with Mechanical
- * Engineering (the only one with study folders so far) listed first. The rest
- * stay selectable and show an empty state until their materials are added.
+ * Programmes offered by the KNUST College of Engineering, with the two that
+ * have study folders (Mechanical, Aerospace) listed first. The rest stay
+ * selectable and show an empty state until their materials are added.
  */
 const OTHER_PROGRAMMES = [
-  "Aerospace Engineering",
   "Agricultural and Biosystems Engineering",
   "Automobile Engineering",
   "Biomedical Engineering",
@@ -393,6 +614,7 @@ const OTHER_PROGRAMMES = [
 
 export const LIBRARY_PROGRAMS: LibraryProgram[] = [
   { slug: "mechanical-engineering", name: "Mechanical Engineering", years: MECHANICAL_YEARS },
+  { slug: "aerospace-engineering", name: "Aerospace Engineering", years: AEROSPACE_YEARS },
   ...OTHER_PROGRAMMES.map((name) => ({ slug: slugify(name), name, years: [] })),
 ];
 

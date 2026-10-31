@@ -88,3 +88,56 @@ describe("mechanical engineering library", () => {
     expect(codes).toHaveLength(new Set(codes).size);
   });
 });
+
+describe("aerospace engineering library", () => {
+  const aerospace = LIBRARY_PROGRAMS.find(
+    (program) => program.slug === "aerospace-engineering",
+  );
+
+  it("is listed with four years, two semesters each", () => {
+    expect(aerospace?.name).toBe("Aerospace Engineering");
+    expect(aerospace?.years.map((year) => year.slug)).toEqual([
+      "year-1",
+      "year-2",
+      "year-3",
+      "year-4",
+    ]);
+    for (const year of aerospace?.years ?? []) {
+      expect(year.terms.map((term) => term.slug)).toEqual(["sem-1", "sem-2"]);
+    }
+  });
+
+  it("files Year-4 folders under Year 4 and Year-3 folders under Year 3", () => {
+    const year3 = aerospace?.years.find((year) => year.slug === "year-3");
+    const year3Codes = year3?.terms.flatMap((term) =>
+      term.courses.map((course) => course.code),
+    );
+    expect(year3Codes).toEqual(
+      expect.arrayContaining(["AERO 351", "AERO 362", "ME 366"]),
+    );
+
+    const year4 = aerospace?.years.find((year) => year.slug === "year-4");
+    const year4Codes = year4?.terms.flatMap((term) =>
+      term.courses.map((course) => course.code),
+    );
+    expect(year4Codes).toEqual(
+      expect.arrayContaining(["AERO 483", "AERO 495", "AERO 452"]),
+    );
+  });
+
+  it("keeps the Year-1 Semester-1 documents as term resources", () => {
+    const year1 = aerospace?.years.find((year) => year.slug === "year-1");
+    const sem1 = year1?.terms.find((term) => term.slug === "sem-1");
+    expect(sem1?.courses).toEqual([]);
+    expect(sem1?.files.length).toBe(5);
+    expect(sem1?.files[0]?.url).toContain("drive.google.com/file/d/");
+  });
+
+  it("never lists the same course twice inside the programme", () => {
+    const codes =
+      aerospace?.years.flatMap((year) =>
+        year.terms.flatMap((term) => term.courses.map((course) => course.code)),
+      ) ?? [];
+    expect(codes).toHaveLength(new Set(codes).size);
+  });
+});

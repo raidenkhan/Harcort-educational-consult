@@ -73,6 +73,27 @@ describe("findCourseMaterials", () => {
     expect(entry?.driveUrl).toBe(findCourseMaterials("ME 168")?.driveUrl);
     expect(entry?.driveUrl).toContain("drive.google.com/drive/folders/");
   });
+
+  it("finds Aerospace folders and files them by the official curriculum", () => {
+    const structures = findCourseMaterials("AERO 256");
+    expect(structures?.programName).toBe("Aerospace Engineering");
+    expect(structures?.yearTitle).toBe("Year 2");
+    expect(structures?.termTitle).toBe("Semester 2");
+
+    // AERO 495 is a Year-4, Semester-1 course in the department's outline;
+    // the folder title ("Aircraft Maintenance Engineering") matches.
+    const maintenance = findCourseMaterials("aero 495");
+    expect(maintenance?.code).toBe("AERO 495");
+    expect(maintenance?.yearTitle).toBe("Year 4");
+    expect(maintenance?.termTitle).toBe("Semester 1");
+  });
+
+  it("keeps shared courses on the programme that indexes them first", () => {
+    // MATH 151 and ME 255 are taught in both programmes; Mechanical is listed
+    // first, so its folder is the canonical one for the code.
+    expect(findCourseMaterials("MATH 151")?.programName).toBe("Mechanical Engineering");
+    expect(findCourseMaterials("ME 255")?.programName).toBe("Mechanical Engineering");
+  });
 });
 
 describe("allCourseMaterials", () => {
@@ -80,7 +101,7 @@ describe("allCourseMaterials", () => {
     const entries = allCourseMaterials();
     const codes = entries.map((entry) => entry.code);
     expect(new Set(codes).size).toBe(codes.length);
-    expect(entries.length).toBe(78);
+    expect(entries.length).toBe(98);
   });
 
   it("gives every entry a Drive folder and a term", () => {
