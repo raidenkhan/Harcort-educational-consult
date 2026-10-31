@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   const next =
     safeNextPath(url.searchParams.get("next")) ?? "/dashboard?payment=return";
 
-  let confirmed: "received" | "pending" = "pending";
+  let confirmed: "received" | "pending" | "refused" = "pending";
   if (reference) {
     try {
       const outcome = await reconcileChargeByReference(reference);
@@ -39,6 +39,9 @@ export async function GET(request: NextRequest) {
       } else if (outcome.status === "refused") {
         // Paid but our guards refused it — loud for reconciliation, still a
         // normal redirect so the student isn't stranded on an API response.
+        // The marker tells the dashboard to ask for the reference instead of
+        // promising a retry that will never happen.
+        confirmed = "refused";
         console.error(
           `[payments] return refused ${reference}: ${outcome.reason}`,
         );

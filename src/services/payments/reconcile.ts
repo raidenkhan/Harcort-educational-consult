@@ -2,6 +2,8 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isMissingColumn } from "@/lib/postgres";
+import { notifySmsToProfiles } from "@/lib/sms";
+import { formatGhs } from "@/lib/money";
 import { verifyTransaction } from "./paystack";
 
 /**
@@ -48,14 +50,30 @@ interface PaymentRow {
   engagement_id: string;
   installment_id: string;
   status: string;
+  paystack_status?: string | null;
   amount: string | number;
   fee_amount?: string | number | null;
   payment_request_id?: string | null;
 }
 
 /** Columns every version of the schema has, plus the 0032/0034 extras. */
-const BASE_COLUMNS = ["id", "engagement_id", "installment_id", "status", "amount"];
+const BASE_COLUMNS = ["id", "engagement_id", "installment_id", "status", "paystack_status", "amount"];
 const OPTIONAL_COLUMNS = ["fee_amount", "payment_request_id"];
+
+/**
+ * A guard refusal no retry can change. The money moved at Paystack, but the
+ * ledger will never accept it for this row (wrong amount, wrong currency, a
+ * missing or already-settled installment), so the row must stop being
+ * re-verified — otherwise the sweep picks the same five dead rows for ever.
+ * Anything else (a connection drop, a permissions failure) is left
+ * 'initialized' for the next run to retry.
+ */
+const DEFINITIVE_REFUSAL =
+  /(installment_not_found|installment_not_payable|currency_mismatch|amount_mismatch)\b/;
+
+export function isDefinitiveRefusal(message: string): boolean {
+  return DEFINITIVE_REFUSAL.test(message);
+}
 
 /** PostgREST serializes BIGINT as a number or a string; money is whole
  *  pesewas, far inside the safe-integer range. */
@@ -116,14 +134,39 @@ export async function reconcileChargeByReference(
   if (row.status === "paid") {
     return { status: "already_paid", engagementId: row.engagement_id };
   }
-  if (row.status === "failed") {
-    // Checkout init was rejected by Paystack — a later charge cannot exist
-    // for this reference. Do not spend a verify call on it.
-    return { status: "pending", paystackStatus: "failed" };
+  if (row.status === "failed" && row.paystack_status === "success") {
+    // Paystack charged, the ledger refused, and the row was closed with the
+    // reason in `raw_payload.note` (see below). Replaying the webhook or
+    // refreshing the return URL must not re-run a doomed apply.
+    return { status: "refused", reason: "previously_refused" };
   }
 
+  const supabase = createAdminClient();
+
+  // A row we marked 'failed' is NOT proof that no money moved: an init whose
+  // response we never saw, or a checkout page the student completed after the
+  // sweep had already called it abandoned, both end up 'failed' with a real
+  // charge behind them. Only 'paid' is safe to short-circuit, so always ask
+  // Paystack. (One extra verify call on a dead reference, at most.)
   const txn = await verifyTransaction(ref);
   if (txn.status !== "success") {
+    // Abandoned / failed checkouts are terminal for THIS reference. Marking
+    // the row 'failed' takes it out of the sweep's queue — otherwise every
+    // abandoned checkout stayed 'initialized' for ever, and because the sweep
+    // reads the five OLDEST rows, five abandoned attempts were enough to
+    // starve it permanently (new charges would never be checked again).
+    if (txn.status === "abandoned" || txn.status === "failed") {
+      const { error } = await supabase
+        .from("payments")
+        .update({ status: "failed", paystack_status: txn.status })
+        .eq("id", row.id)
+        .eq("status", "initialized");
+      if (error) {
+        console.error(
+          `[payments] could not close abandoned charge ${ref}: ${error.message}`,
+        );
+      }
+    }
     return { status: "pending", paystackStatus: txn.status };
   }
 
@@ -140,7 +183,6 @@ export async function reconcileChargeByReference(
     };
   }
 
-  const supabase = createAdminClient();
   const { data: paymentId, error: applyError } = await supabase.rpc(
     "payment_apply_verified_payment",
     {
@@ -156,6 +198,49 @@ export async function reconcileChargeByReference(
     },
   );
   if (applyError) {
+    // The webhook, the return path and the sweep can all reconcile the same
+    // reference at once. They serialize on the installment row lock, so the
+    // loser then trips the overpay guard ("installment has 0 outstanding")
+    // even though the charge was applied correctly by the winner. Re-read the
+    // row: if it is paid now, this was a race, not a refusal — saying
+    // "amount_mismatch" here sent false alarms to the logs and to Paystack.
+    try {
+      const after = await readPaymentRow(ref);
+      if (after?.status === "paid") {
+        return { status: "already_paid", engagementId: after.engagement_id };
+      }
+    } catch (readError) {
+      console.error(
+        `[payments] could not re-read ${ref} after a refused apply`,
+        readError,
+      );
+    }
+
+    // Paid at Paystack, refused by the ledger, and not a race. Close the row
+    // so the sweep stops re-verifying it (five of these would starve the
+    // oldest-first queue), and leave the reason where an admin already looks:
+    // `raw_payload.note` is rendered in the admin payment log. `failed` is the
+    // only terminal non-paid status; `paystack_status = success` records that
+    // the money DID move, so this is a refund to chase, not a failed attempt.
+    if (isDefinitiveRefusal(applyError.message)) {
+      const { error: closeError } = await supabase
+        .from("payments")
+        .update({
+          status: "failed",
+          paystack_status: txn.status,
+          raw_payload: {
+            note: `Paystack charged ${verifiedAmount} pesewas; the ledger refused it: ${applyError.message}`,
+          },
+        })
+        .eq("id", row.id)
+        .eq("status", "initialized");
+      if (closeError) {
+        console.error(
+          `[payments] could not close refused charge ${ref}: ${closeError.message}`,
+        );
+      }
+    }
+
     return { status: "refused", reason: applyError.message };
   }
   if (!paymentId) {
@@ -178,12 +263,48 @@ export async function reconcileChargeByReference(
     }
   }
 
+  // Tell the student the money landed. This runs from the one place a charge
+  // is applied, so it does not matter which entry point won the race; the
+  // reference-based dedupe key means two concurrent applies still send ONE
+  // text. (It used to live only in the webhook, so a charge applied by the
+  // return path never texted anybody.)
+  await textPaymentReceived(row.engagement_id, courseAmount, ref);
+
   return {
     status: "applied",
     paymentId: String(paymentId),
     engagementId: row.engagement_id,
     courseAmount,
   };
+}
+
+/**
+ * Text the student their payment landed. Best-effort: the money is already
+ * applied, so a notification failure is logged and never rolled back.
+ */
+async function textPaymentReceived(
+  engagementId: string,
+  amountPesewas: bigint,
+  reference: string,
+): Promise<void> {
+  try {
+    const supabase = createAdminClient();
+    const { data } = await supabase
+      .from("engagements")
+      .select("student_id")
+      .eq("id", engagementId)
+      .maybeSingle();
+    const studentId = (data as { student_id?: string } | null)?.student_id;
+    if (!studentId) return;
+    notifySmsToProfiles(
+      [studentId],
+      `Harcourt: we received your payment of ${formatGhs(amountPesewas)} toward your course fee. Thank you.`,
+      "payment",
+      `payment:${reference}`,
+    );
+  } catch (err) {
+    console.error("[payments] payment-received SMS failed", err);
+  }
 }
 
 /**

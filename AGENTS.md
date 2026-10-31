@@ -574,6 +574,57 @@ mobile app.
   them); lint, typecheck, 314 unit tests, the production build and the
   320/360/390 overflow audit all pass, and every page's byte size is unchanged
   from the previous build.
+- **One dashboard per role.** A tutor used to see "Dashboard" in the app header
+  *and* a "Dashboard" tab inside a second "Tutor hub" nav item — two names for
+  the same place, and the header link (`/dashboard`) showed the older, thinner
+  surface. Now a tutor has exactly one dashboard at **`/tutor`**: the header's
+  Dashboard link is role-aware (`/tutor` for tutors, `/dashboard` for
+  students), `/dashboard` redirects tutors to `/tutor`, the "Tutor hub" nav
+  entry is gone, and the tutor tabs are **Timetable / Students / Earnings /
+  Settings** — no Dashboard tab. The page title comes from `TutorTabs` (client,
+  pathname-aware) so the heading always names the section you are on. Account
+  details and the student↔tutor role switch moved from `/dashboard` to
+  `/tutor/settings` (they are settings, not daily work), `switchRoleAction`
+  redirects to the chosen role's dashboard, and the old tutor-profile popup
+  (`TutorProfileCta`) was deleted — the setup card on `/tutor` covers it without
+  a modal.
+- **Paystack audit: no hangs, no double-taps, no starved sweeps.** A read of
+  every money path found five ways the integration could lie to a student or
+  lose a charge. (1) `fetch` has no default timeout, so one stalled Paystack
+  connection held a server action / webhook / return redirect open until the
+  platform killed it — the literal "server is not responding" symptom. Every
+  call now carries a **15s `AbortSignal.timeout`**. (2) The checkout catch
+  marked the row `failed` on ANY error, including a timeout whose transaction
+  may exist — hiding a real charge from the webhook, the return path and the
+  sweep. Only a `PaystackApiError` (Paystack answered and refused) proves no
+  transaction was created; unknown outcomes leave the row `initialized` for
+  reconciliation. (3) Two taps on "Pay now" minted two live references; a
+  repeat submit now reuses the checkout page stored on the row
+  (`raw_payload.checkout_url`, same payer/agreement/installment/amount/link,
+  10-minute window) instead of creating another. (4) The sweep reads the five
+  OLDEST `initialized` rows, so abandoned checkouts — which stayed
+  `initialized` for ever — could starve it permanently; abandoned/failed
+  charges are now closed as `failed`, a webhook/return/sweep race that loses
+  the apply re-reads the row and reports `already_paid`, and a definitive
+  ledger refusal (overpay, currency, settled installment) is closed
+  `failed` with `paystack_status = success` and a `raw_payload.note` — a
+  refund to chase, not a charge to keep re-verifying. (5) A payout whose
+  transfer init never got an answer left the payout `approved`, so a second
+  click could send a second real transfer; it is now recorded as in flight
+  under our reference (the sweep verifies by code OR reference) and cannot be
+  executed twice. Also: `initializeTransaction`'s declared type omitted
+  `authorization_url` (the caller cast to reach it) and is now honest; the
+  "payment received" SMS moved into `reconcileChargeByReference` with a
+  `payment:<reference>` dedupe key, so it fires exactly once no matter which
+  of the three paths applied the charge (it used to fire only from the
+  webhook); `.github/workflows/reminders.yml` now also fires
+  `/api/payments/sweep` every 15 minutes (Vercel's daily cron stays as a
+  backstop); and `PayInstallmentButton` finally renders the action's error
+  instead of failing silently. Residual risk: two *truly simultaneous* submits
+  (before either row is written) can still mint two references — the ledger's
+  overpay guard stops a double credit, but Paystack could take the second
+  payment; the full fix is a unique partial index on
+  `(installment_id) where status = 'initialized'`, which needs a migration.
 
 ---
 
@@ -654,6 +705,7 @@ and all are safe to re-run:
 | `0032_payment_plans_and_links.sql` | `engagements.expected_full_payment_at` (the promised date the balance is settled). `payment_requests` — admin-issued, single-use part-payment links: SHA-256-hashed token, amount in pesewas, `open`/`paid`/`cancelled`, expiry, deny-all RLS. `payments.payment_request_id` ties the Paystack charge to its link so the webhook can mark it paid in the same transaction. `payment_apply_verified_payment` still re-checks the amount under a lock |
 | `0033_knust_mech_brochure_corrections.sql` | The department's brochure is authoritative: adds `EE 252 Electrical Engineering Machines` (Y3S2, 2 cr) and `ME 496 Human Factors and Ergonomics` (Y4S2, 3 cr) — the two courses 0030 dropped because their codes were duplicated in the printed tables |
 | `0034_payment_fee_passthrough.sql` | `payments.fee_amount` — the Paystack processing fee (pesewas) the student paid ON TOP of `amount`; the charge is `amount + fee_amount`, while `amount` stays the money applied to the installment. Also fixes `payment_apply_verified_payment`'s idempotency guard: it returned early for ANY row with the reference, so the `initialized` row written at checkout made the function mark the payment paid without ever crediting the installment. It now short-circuits only an already-`paid` row |
+| `0035_payment_confirms_booking.sql` | Payment IS the booking: applying a verified charge auto-accepts the matching PENDING tutor request for that student + tutor (+ course), so the tutor schedules instead of clearing a queue. Also fixes 0034's activation email, which addressed the TUTOR audience to the STUDENT's profile id (the tutor never got it, the student got a tutor-worded copy) — the recipient is now the tutor's profile |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -799,7 +851,7 @@ every send).
 
 Setup runbook:
 1. `npm install`
-2. Apply migrations `0001` → `0033` in the Supabase SQL Editor, in order
+2. Apply migrations `0001` → `0035` in the Supabase SQL Editor, in order
    (each is safe to re-run)
 3. `npm run dev` → http://localhost:3000 (no confirmation emails — sign-up
    signs you in immediately)

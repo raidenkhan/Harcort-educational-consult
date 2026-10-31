@@ -15,6 +15,31 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 const PAYSTACK_BASE = "https://api.paystack.co";
 
+/**
+ * Hard ceiling on every Paystack call.
+ *
+ * `fetch` has no default timeout. Without one, a stalled connection to
+ * Paystack held the whole server action / webhook / return redirect open
+ * until the platform killed the function — which is exactly what "the server
+ * is not responding" looks like from the student's side. Fifteen seconds is
+ * far longer than a healthy call (usually <1s) and far shorter than any
+ * platform limit.
+ */
+const PAYSTACK_TIMEOUT_MS = 15_000;
+
+/**
+ * A rejection Paystack itself answered. This is the ONLY failure that proves
+ * a transaction was not created — timeouts and dropped connections leave the
+ * outcome unknown, and callers must not treat them as rejections (see
+ * `runCheckout`).
+ */
+export class PaystackApiError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PaystackApiError";
+  }
+}
+
 export function isPaystackConfigured(): boolean {
   return Boolean(process.env.PAYSTACK_SECRET_KEY);
 }
@@ -37,19 +62,41 @@ async function paystackFetch<T>(
   path: string,
   init?: { method?: string; body?: unknown },
 ): Promise<T> {
-  const res = await fetch(`${PAYSTACK_BASE}${path}`, {
-    method: init?.method ?? "GET",
-    headers: {
-      Authorization: `Bearer ${secretKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: init?.body ? JSON.stringify(init.body) : undefined,
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${PAYSTACK_BASE}${path}`, {
+      method: init?.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${secretKey()}`,
+        "Content-Type": "application/json",
+      },
+      body: init?.body ? JSON.stringify(init.body) : undefined,
+      cache: "no-store",
+      signal: AbortSignal.timeout(PAYSTACK_TIMEOUT_MS),
+    });
+  } catch (error) {
+    // Deliberately NOT a PaystackApiError: we never saw an answer, so the
+    // request may or may not have been processed.
+    const name = error instanceof Error ? error.name : "";
+    const reason =
+      name === "TimeoutError" || name === "AbortError"
+        ? `timed out after ${PAYSTACK_TIMEOUT_MS / 1000}s`
+        : "is unreachable";
+    throw new Error(`Paystack ${path} ${reason}`);
+  }
 
-  const json = (await res.json()) as { status: boolean; message?: string; data?: T };
+  // A gateway/proxy can answer with HTML. Treat that as unknown too — it says
+  // nothing about whether the transaction exists.
+  let json: { status: boolean; message?: string; data?: T };
+  try {
+    json = (await res.json()) as typeof json;
+  } catch {
+    throw new Error(`Paystack ${path} returned a non-JSON response (${res.status})`);
+  }
+
   if (!res.ok || !json.status) {
-    throw new Error(`Paystack ${path} failed: ${json.message ?? res.status}`);
+    // Paystack answered and said no: definitive.
+    throw new PaystackApiError(`Paystack ${path} failed: ${json.message ?? res.status}`);
   }
   if (json.data === undefined) {
     throw new Error(`Paystack ${path} returned no data`);
@@ -75,18 +122,31 @@ export interface PaystackTransfer {
   amount: number;
 }
 
+/**
+ * The hosted-checkout handoff. `authorization_url` is the page the student is
+ * sent to and `access_code` is its key — both are returned by initialize, and
+ * the checkout code needs BOTH (a declared return type without the URL is how
+ * the caller ended up casting the response to reach a field Paystack always
+ * sends).
+ */
+export interface PaystackCheckout {
+  authorization_url: string;
+  access_code: string;
+  reference: string;
+}
+
 // ---------------------------------------------------------------------------
 // Transactions
 // ---------------------------------------------------------------------------
 
-/** Initialize a transaction; returns the checkout access code + reference. */
+/** Initialize a transaction; returns the hosted checkout URL + access code. */
 export function initializeTransaction(opts: {
   email: string;
   amountPesewas: number;
   reference: string;
   callbackUrl: string;
   metadata?: Record<string, unknown>;
-}): Promise<{ access_code: string; reference: string }> {
+}): Promise<PaystackCheckout> {
   return paystackFetch("/transaction/initialize", {
     method: "POST",
     body: {

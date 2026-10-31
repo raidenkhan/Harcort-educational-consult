@@ -52,6 +52,20 @@ export function PayInstallmentButton({
         {pending ? "Opening Paystack…" : `Pay ${amountDisplay}`}
         <CreditCard className="ml-2 h-4 w-4" />
       </Button>
+
+      {/* A failed checkout used to be silent: the button stopped spinning and
+          nothing else changed, which reads exactly like "the server is not
+          responding". Say what happened. */}
+      {state?.error && (
+        <p className="mt-2 text-xs font-medium text-red-600" role="alert">
+          {state.error}
+        </p>
+      )}
+      {state?.message && !state.checkoutUrl && (
+        <p className="mt-2 text-xs font-medium text-slate-600" role="status">
+          {state.message}
+        </p>
+      )}
     </form>
   );
 }

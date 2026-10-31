@@ -9,7 +9,12 @@ import { requireProfile } from "@/services/auth/queries";
 import type { Profile } from "@/types";
 import { profileIsAdmin } from "@/lib/auth/admin";
 import { scheduleOutboxDrain } from "@/lib/email/outbox";
-import { createTransferRecipient, initializeTransaction, isPaystackConfigured } from "./paystack";
+import {
+  PaystackApiError,
+  createTransferRecipient,
+  initializeTransaction,
+  isPaystackConfigured,
+} from "./paystack";
 import { formatGhs } from "@/lib/money";
 import {
   cancelPaymentRequestSchema,
@@ -47,6 +52,13 @@ export type PaymentFormState = {
    *  prefixes the current origin (the console works on localhost and prod). */
   linkPath?: string;
 };
+
+/**
+ * How long a hosted checkout page stays reusable for the same payer and
+ * amount. Long enough to absorb a double-click or a page refresh, short enough
+ * that Paystack's access code has not expired. See the guard in `runCheckout`.
+ */
+const CHECKOUT_REUSE_MS = 10 * 60 * 1000;
 
 /** PostgREST RPC errors carry the Postgres message we raised. */
 function rpcError(err: { message?: string } | Error | null): string {
@@ -173,6 +185,11 @@ export async function createEngagement(
  * the webhook as an overpay. A part-payment link (0032) overrides it with an
  * amount the admin already approved — still server-derived, never from the
  * client.
+ *
+ * Two failure modes are handled here rather than left to the caller: a repeat
+ * submit reuses the checkout page minted moments ago (see the guard below),
+ * and a Paystack call whose outcome we never saw leaves the row 'initialized'
+ * so the return path and the sweep can still verify it.
  */
 async function runCheckout(
   profile: Pick<Profile, "id">,
@@ -264,6 +281,67 @@ async function runCheckout(
   }
   if (amount > outstanding) {
     return { error: "That amount is more than the outstanding balance." };
+  }
+
+  /**
+   * Double-tap guard.
+   *
+   * "Pay now" is a server action that mints a Paystack reference and redirects.
+   * Two taps (or a slow response and an impatient second tap) used to mint two
+   * live references against the same installment: the ledger refuses the
+   * second apply as an overpay, but Paystack had already taken the money. A
+   * row we created for this exact payer/agreement/installment/amount in the
+   * last ten minutes already has a hosted checkout page — send the student
+   * back to it instead of minting another. Only 'initialized' rows match, so a
+   * paid or failed attempt is never reused, and ten minutes is short enough
+   * that Paystack's access code is still live.
+   */
+  const readRecentCheckout = (withLinkColumn: boolean) =>
+    supabase
+      .from("payments")
+      .select(
+        withLinkColumn
+          ? "id, raw_payload, payment_request_id"
+          : "id, raw_payload",
+      )
+      .eq("engagement_id", engagementId)
+      .eq("installment_id", installmentId)
+      .eq("initialized_by", profile.id)
+      .eq("status", "initialized")
+      .eq("amount", String(amount))
+      .gte("created_at", new Date(Date.now() - CHECKOUT_REUSE_MS).toISOString())
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+  type RecentCheckout = {
+    id: string;
+    raw_payload?: { checkout_url?: unknown } | null;
+    payment_request_id?: string | null;
+  };
+
+  const recent = await readRecentCheckout(true);
+  let recentRows = recent.data as RecentCheckout[] | null;
+  if (recent.error && isMissingColumn(recent.error)) {
+    // Pre-0032 database: no `payment_request_id` to filter on. Every row is a
+    // dashboard checkout, so the link comparison below is a no-op.
+    const retry = await readRecentCheckout(false);
+    recentRows = retry.data as RecentCheckout[] | null;
+  }
+  // A failed reuse READ must never block a checkout — it only costs us the
+  // guard for this attempt.
+  const reusable = (recentRows ?? []).find((row) => {
+    const url = row.raw_payload?.checkout_url;
+    return (
+      typeof url === "string" &&
+      url.startsWith("https://") &&
+      (row.payment_request_id ?? null) === (opts.paymentRequestId ?? null)
+    );
+  });
+  if (reusable) {
+    return {
+      message: "Redirecting to Paystack…",
+      checkoutUrl: (reusable.raw_payload as { checkout_url: string }).checkout_url,
+    };
   }
 
   // The student's email lives in credentials (self-hosted auth).
@@ -361,21 +439,55 @@ async function runCheckout(
       },
     });
 
-    // Paystack returns both; the hosted page is the redirect target.
-    const full = txn as unknown as { authorization_url?: string; access_code?: string };
-    if (!full.authorization_url) {
-      throw new Error("Paystack returned no checkout URL");
+    // Paystack returns the hosted page and its access code. Without a URL
+    // there is nothing to redirect to — but the transaction may still exist,
+    // so this is NOT a definitive rejection and the row stays 'initialized'.
+    if (!txn.authorization_url) {
+      throw new Error(
+        "Paystack didn't return a checkout link — please try again in a moment.",
+      );
     }
-    return { message: "Redirecting to Paystack…", checkoutUrl: full.authorization_url };
-  } catch (err) {
-    // Paystack rejected the init — mark failed so the student can retry
-    // with a fresh reference later.
-    await supabase
+
+    // Remember the page on the row itself: a second tap within the reuse
+    // window is sent back to it instead of minting another live reference.
+    // Best-effort — the student can still pay if this write fails, they just
+    // lose the double-tap guard for this attempt. (The apply RPC overwrites
+    // `raw_payload` with the verify response, so this never outlives the
+    // charge.)
+    const { error: rememberError } = await supabase
       .from("payments")
-      .update({ status: "failed" })
+      .update({
+        raw_payload: {
+          checkout_url: txn.authorization_url,
+          access_code: txn.access_code ?? null,
+        },
+      })
       .eq("id", init.id);
+    if (rememberError) {
+      console.error(
+        `[payments] could not store the checkout URL for ${reference}: ${rememberError.message}`,
+      );
+    }
+
+    return { message: "Redirecting to Paystack…", checkoutUrl: txn.authorization_url };
+  } catch (err) {
+    // Only an answer from Paystack can prove no transaction was created. A
+    // timeout, a dropped connection or an HTML gateway page leaves the
+    // outcome UNKNOWN: the transaction may exist, so the row must stay
+    // 'initialized' for `/api/payments/return` and the sweep to verify.
+    // Marking it 'failed' here — the old behaviour — hid real charges from
+    // every reconciliation path.
+    if (err instanceof PaystackApiError) {
+      await supabase
+        .from("payments")
+        .update({ status: "failed" })
+        .eq("id", init.id);
+      return { error: err.message };
+    }
+    console.error(`[payments] checkout ${reference}: outcome unknown`, err);
     return {
-      error: err instanceof Error ? err.message : "Payment initialization failed",
+      error:
+        "We couldn't reach Paystack to start this payment. Nothing has been charged — please try again in a moment.",
     };
   }
 }
@@ -1073,8 +1185,39 @@ export async function adminExecutePayout(
     // up by this column.
     if (transfer.transfer_code) paystackTransferCode = transfer.transfer_code;
   } catch (err) {
+    if (err instanceof PaystackApiError) {
+      // Paystack answered and refused the transfer: no transfer exists, the
+      // payout stays 'approved', and the admin can fix the cause and retry.
+      return { error: `Transfer failed: ${err.message}` };
+    }
+
+    // UNKNOWN outcome — a timeout, a dropped connection or a non-JSON gateway
+    // page. The transfer may exist at Paystack, so the payout must not stay
+    // payable: recording our own reference moves it approved → 'transferring'
+    // (the sweep verifies a transfer by code OR reference) and a second click
+    // can no longer send the tutor a second real payment. This is the payout
+    // twin of the checkout rule: only an answer from Paystack proves nothing
+    // happened.
+    console.error(`[payments] payout ${payoutId}: transfer outcome unknown`, err);
+    const { error: recordError } = await supabase.rpc("payment_record_transfer", {
+      p_actor_id: profile.id,
+      p_payout_id: payoutId,
+      p_transfer_code: transferCode,
+    });
+    if (recordError) {
+      console.error(
+        `[payments] payout ${payoutId}: unknown outcome AND could not record it: ${recordError.message}`,
+      );
+      return {
+        error:
+          "Paystack didn't confirm the transfer and we couldn't record it. Check the Paystack dashboard before trying again — the tutor may already have been paid.",
+      };
+    }
+    revalidatePath("/admin", "layout");
+    revalidatePath("/tutor", "layout");
     return {
-      error: `Transfer failed: ${err instanceof Error ? err.message : "unknown error"}`,
+      message:
+        "Paystack didn't confirm the transfer, so it is marked in flight. It finalizes automatically when Paystack reports — do not pay this payout again.",
     };
   }
 

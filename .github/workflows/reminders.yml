@@ -1,13 +1,21 @@
-name: Session reminders
+name: Cron — reminders + payments
 
-# Texts both parties about a session that is about to start.
+# Fires the two scheduled routes GitHub can run for free every 15 minutes:
 #
-# Why a GitHub schedule instead of a Vercel cron: Vercel's free plan allows
-# cron jobs once a DAY, and a reminder that arrives the morning of a 4pm
-# session is useless. GitHub's scheduler runs every 15 minutes for free.
+#   GET {APP_URL}/api/sessions/remind  — texts both parties about a session
+#       that starts in 45–90 minutes. Vercel's free plan only allows a daily
+#       cron, and a reminder that arrives the morning of a 4pm session is
+#       useless, which is why this lives here.
 #
-# The route does the work — this workflow only fires it:
-#   GET {APP_URL}/api/sessions/remind  with  Authorization: Bearer <CRON_SECRET>
+#   GET {APP_URL}/api/payments/sweep   — reconciles charges whose webhook never
+#       arrived (the student closed the tab), closes abandoned checkouts,
+#       flips overdue installments, requeries in-flight payouts and drains the
+#       notification outbox. Vercel still runs it daily as a backstop, but a
+#       missed webhook should not wait until 06:00 the next day to be noticed.
+#       The route is idempotent and bounded, so running it every 15 minutes is
+#       safe.
+#
+# The routes do the work — this workflow only fires them.
 #
 # Repository secrets needed (Settings → Secrets and variables → Actions):
 #   CRON_SECRET — the SAME value as the one in the Vercel project env.
@@ -43,3 +51,17 @@ jobs:
             --max-time 120 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$APP_URL/api/sessions/remind"
+
+      - name: Fire the payment sweep
+        env:
+          APP_URL: ${{ secrets.APP_URL || 'https://harcort-educational-consult.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is not set — add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/payments/sweep"

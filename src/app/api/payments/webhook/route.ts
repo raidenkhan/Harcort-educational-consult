@@ -5,8 +5,6 @@ import {
   verifyWebhookSignature,
 } from "@/services/payments/paystack";
 import { reconcileChargeByReference } from "@/services/payments/reconcile";
-import { notifySmsToProfiles } from "@/lib/sms";
-import { formatGhs } from "@/lib/money";
 
 /**
  * POST /api/payments/webhook — Paystack event receiver.
@@ -168,16 +166,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, refused: outcome.reason });
     }
 
-    // Text the student that the money landed. Best-effort — the money is
-    // already applied either way, and a failed text never rolls that back.
-    // The amount is the course portion (what the ledger applied), not the
-    // gross that included Paystack's fee.
-    await textPaymentReceived(
-      createAdminClient(),
-      outcome.engagementId,
-      outcome.courseAmount,
-    );
-
+    // The student's "payment received" text is sent from
+    // `reconcileChargeByReference` itself, so it fires no matter which of the
+    // three entry points applied the charge — and exactly once per reference.
     return NextResponse.json({ received: true, payment: outcome.paymentId });
   } catch (err) {
     // Verify call failed (Paystack down / network) — return 500 so Paystack
@@ -185,34 +176,4 @@ export async function POST(request: NextRequest) {
     console.error(`[payments] verify failed for ${reference}`, err);
     return NextResponse.json({ error: "verify unavailable" }, { status: 500 });
   }
-}
-
-/**
- * Tell the student their payment landed. The amount is the course portion of
- * the verified charge (0034) — the part that was applied to their agreement,
- * not the gross that included Paystack's fee.
- */
-async function textPaymentReceived(
-  supabase: ReturnType<typeof createAdminClient>,
-  engagementId: string,
-  amountPesewas: bigint,
-): Promise<void> {
-  const { data } = await supabase
-    .from("engagements")
-    .select("student_id, profiles!engagements_student_id_fkey(full_name)")
-    .eq("id", engagementId)
-    .maybeSingle();
-
-  if (!data) return;
-  const row = data as unknown as {
-    student_id: string;
-    profiles?: { full_name?: string } | { full_name?: string }[] | null;
-  };
-  if (!row.student_id) return;
-
-  notifySmsToProfiles(
-    [row.student_id],
-    `Harcourt: we received your payment of ${formatGhs(amountPesewas)} toward your course fee. Thank you.`,
-    "payment",
-  );
 }
