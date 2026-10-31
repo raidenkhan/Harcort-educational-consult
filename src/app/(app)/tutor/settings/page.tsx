@@ -1,19 +1,26 @@
-import { requireRole } from "@/services/auth/queries";
+import { requireRole, profileIsAdmin } from "@/services/auth/queries";
 import { getOwnTutorProfile } from "@/services/tutors/queries";
 import { listCourses } from "@/services/courses/queries";
 import { TutorProfileCard } from "@/components/tutor/TutorProfileCard";
 import { TutorCoursesManager } from "@/components/tutor/TutorCoursesManager";
 import { PhoneForm } from "@/components/auth/PhoneForm";
 import { SmsPreferenceForm } from "@/components/auth/SmsPreferenceForm";
+import { RoleSwitcher } from "@/components/auth/RoleSwitcher";
 import { CopyProfileLink } from "@/components/tutor/CopyProfileLink";
 import { tutorSharePath } from "@/services/tutors/share";
 import { Card } from "@/components/ui/Card";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
+import { accraDate } from "@/lib/time";
 
 /**
  * Settings tab — everything that changes how students see the tutor, or how
  * Harcourt reaches them. It used to crowd the Overview page, which made the
  * tutor hub read like an account form; the dashboard now keeps only what a
  * tutor needs to act on, and the editing lives here, one deliberate click away.
+ *
+ * The account card and the role switch moved here from `/dashboard` when the
+ * tutor's dashboard became `/tutor` — they are settings, not something a tutor
+ * works from every day.
  */
 export default async function TutorSettingsPage() {
   const profile = await requireRole("tutor");
@@ -25,17 +32,6 @@ export default async function TutorSettingsPage() {
 
   return (
     <section className="mt-10 space-y-8">
-      <div>
-        <h2 className="font-display text-2xl font-bold tracking-tight text-slate-900">
-          Profile &amp; settings
-        </h2>
-        <p className="mt-1 max-w-xl text-sm text-slate-600">
-          How students see you, the courses you offer, and how we reach you.
-          Your dashboard shows students, lessons and payments — this is where
-          you change the details behind them.
-        </p>
-      </div>
-
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <div className="space-y-6">
           <TutorProfileCard
@@ -66,6 +62,33 @@ export default async function TutorSettingsPage() {
               />
             </Card>
           )}
+
+          <Card>
+            <h3 className="text-lg font-semibold text-slate-900">Account</h3>
+            <dl className="mt-3 space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-slate-500">Role</dt>
+                <dd className="flex items-center gap-1.5 font-medium capitalize text-slate-900">
+                  {profile.role}
+                  {profileIsAdmin(profile) && <VerifiedBadge />}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-slate-500">Name</dt>
+                <dd className="text-right font-medium text-slate-900">
+                  {profile.full_name}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-slate-500">Member since</dt>
+                <dd className="font-medium text-slate-900">
+                  {accraDate(new Date(profile.created_at))}
+                </dd>
+              </div>
+            </dl>
+          </Card>
+
+          <RoleSwitcher currentRole="tutor" />
         </div>
 
         <div className="space-y-6">

@@ -8,10 +8,11 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
 /**
- * Self-service role switch (student ↔ tutor), shown on the dashboard.
- * Two-step confirm so a stray click can't flip the account; the server
- * action revalidates role-driven pages, and the success message is a
- * bonus — the dashboard re-renders with the new role either way.
+ * Self-service role switch (student ↔ tutor). Students find it on their
+ * dashboard; tutors find it on `/tutor/settings`. Two-step confirm so a stray
+ * click can't flip the account; the server action revalidates role-driven
+ * pages and lands the user on the dashboard of the role they chose, so there
+ * is no stale page in between.
  */
 export function RoleSwitcher({ currentRole }: { currentRole: "student" | "tutor" }) {
   const [confirming, setConfirming] = useState(false);
@@ -39,11 +40,6 @@ export function RoleSwitcher({ currentRole }: { currentRole: "student" | "tutor"
       </div>
       <p className="mt-2 text-sm text-slate-600">{blurb}</p>
 
-      {state?.message && (
-        <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {state.message}
-        </div>
-      )}
       {state?.error && (
         <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {state.error}

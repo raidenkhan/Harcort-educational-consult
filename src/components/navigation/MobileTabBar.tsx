@@ -6,7 +6,6 @@ import { useSyncExternalStore } from "react";
 import {
   CalendarClock,
   Compass,
-  GraduationCap,
   LayoutDashboard,
   MessageCircle,
   ShieldCheck,
@@ -18,8 +17,8 @@ import type { UserRole } from "@/types";
 
 /**
  * App-like bottom tab bar for mobile (hidden on lg+ where the top nav takes
- * over). Role-aware: students get Home / Find tutors / Messages / Timetable,
- * tutors add My profile, admins get Home / Admin.
+ * over). Role-aware: students get Home / Find tutors / Messages / Timetable;
+ * a tutor's Home is their `/tutor` dashboard; admins get Home / Admin.
  *
  * Motion follows the frequency gate: tab switching is a "tens of times per
  * day" interaction, so everything stays fast and subtle — a 200ms ease-out
@@ -43,11 +42,12 @@ const TABS: Record<UserRole, Tab[]> = {
     },
   ],
   tutor: [
-    { href: "/dashboard", label: "Home", icon: LayoutDashboard },
+    // One dashboard per role: a tutor's is `/tutor`, so the Home tab and a
+    // separate "Tutor hub" tab would be the same destination twice.
+    { href: "/tutor", label: "Dashboard", icon: LayoutDashboard },
     { href: "/tutors", label: "Find tutors", icon: Compass },
     { href: "/chat", label: "Messages", icon: MessageCircle },
     { href: "/groups", label: "Groups", icon: Users },
-    { href: "/tutor", label: "Tutor hub", icon: GraduationCap },
   ],
   admin: [
     { href: "/dashboard", label: "Home", icon: LayoutDashboard },

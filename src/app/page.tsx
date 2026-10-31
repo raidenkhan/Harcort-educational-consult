@@ -213,7 +213,7 @@ export default async function Home() {
       >
         {currentProfile ? (
           <Link
-            href="/dashboard"
+            href={currentProfile.role === "tutor" ? "/tutor" : "/dashboard"}
             className="inline-flex h-10 items-center rounded-full bg-slate-900 px-4 text-sm font-semibold text-white shadow-xs transition duration-150 hover:bg-slate-800 active:scale-[0.96]"
           >
             Dashboard

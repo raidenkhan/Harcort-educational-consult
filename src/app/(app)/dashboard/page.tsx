@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { CalendarClock, CheckCircle2, Clock } from "lucide-react";
+import { redirect } from "next/navigation";
+import { CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
-import { getOwnTutorProfile } from "@/services/tutors/queries";
 import { listCourses } from "@/services/courses/queries";
 import { sortFields, groupCoursesForPicker, engineeringCourses } from "@/components/home/courseTaxonomy";
 import {
   listSessionsForStudent,
-  listSessionsForTutor,
   type SessionView,
 } from "@/services/sessions/queries";
 import { Container } from "@/components/ui/Container";
@@ -18,7 +17,6 @@ import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { SessionCard } from "@/components/sessions/SessionCard";
 import { TimetableViews } from "@/components/sessions/TimetableViews";
-import { TutorProfileCta } from "@/components/tutors/TutorProfileCta";
 import { PaymentGroundRules } from "@/components/support/PaymentGroundRules";
 import { StudentPaymentsCard } from "@/components/payments/StudentPaymentsCard";
 import { StudentRequestsCard } from "@/components/payments/StudentRequestsCard";
@@ -41,36 +39,29 @@ function splitStudentTimetable(sessions: SessionView[]) {
   return { now, upcoming, other };
 }
 
-function countTutorUpcoming(sessions: SessionView[]) {
-  const now = Date.now();
-  return sessions.filter(
-    (s) => new Date(s.scheduled_at).getTime() > now + GRACE_MS,
-  ).length;
-}
-
-const STATUS_BADGE: Record<
-  string,
-  { label: string; tone: "amber" | "green" | "red" | "neutral" }
-> = {
-  pending: { label: "Under review", tone: "amber" },
-  approved: { label: "Approved · live to students", tone: "green" },
-  rejected: { label: "Not approved", tone: "red" },
-};
-
 export default async function DashboardPage({
   searchParams,
 }: {
   searchParams: Promise<{ payment?: string; payment_status?: string }>;
 }) {
   const profile = await requireProfile();
+
+  // ONE dashboard per role. A tutor's dashboard is `/tutor` (students, lessons,
+  // money, requests) — this page is the student surface, so a tutor landing
+  // here (a bookmark, an old link, the post-sign-in default) is sent to the
+  // real one instead of being shown a second, older dashboard.
+  if (profile.role === "tutor") redirect("/tutor");
+
   const params = await searchParams;
   const paymentReturn = params.payment === "return";
   const paymentConfirmed = params.payment_status === "received";
+  // Paystack took the money but our ledger refused to credit it (an overpay, a
+  // currency mismatch, a settled installment). The sweep cannot fix it — a
+  // human has to reconcile — so the student must not be told to wait.
+  const paymentRefused = params.payment_status === "refused";
 
-  const [tutor, studentSessions, tutorSessions, allCourses] = await Promise.all([
-    profile.role === "tutor" ? getOwnTutorProfile() : Promise.resolve(null),
+  const [studentSessions, allCourses] = await Promise.all([
     profile.role === "student" ? listSessionsForStudent() : Promise.resolve([]),
-    profile.role === "tutor" ? listSessionsForTutor() : Promise.resolve([]),
     profile.role === "student" ? listCourses() : Promise.resolve([]),
   ]);
   const courses = engineeringCourses(allCourses);
@@ -99,12 +90,9 @@ export default async function DashboardPage({
     profile.role === "student" ? splitStudentTimetable(studentSessions) : null;
   const upcomingSessions = studentTimetable?.upcoming ?? [];
   const otherSessions = studentTimetable?.other ?? [];
-  const tutorUpcomingCount =
-    profile.role === "tutor" ? countTutorUpcoming(tutorSessions) : 0;
 
   const roleHeading: Record<string, string> = {
     student: "Find the right tutor for every course.",
-    tutor: "Manage how you teach on Harcourt.",
     admin: "Run the platform. Approve tutors, review reports.",
   };
 
@@ -130,24 +118,32 @@ export default async function DashboardPage({
         {/* Back from Paystack. `/api/payments/return` already verified the
             charge and applied it, so "received" is the normal happy path;
             "pending" means Paystack had not settled it yet (or verify was
-            momentarily unavailable) and the sweep will retry. */}
+            momentarily unavailable) and the sweep will retry; "refused" means
+            the charge is real but the ledger rejected it, which only a human
+            can resolve. */}
         {paymentReturn && (
           <div
             className={
               paymentConfirmed
                 ? "mt-6 flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-                : "mt-6 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                : paymentRefused
+                  ? "mt-6 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                  : "mt-6 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
             }
           >
             {paymentConfirmed ? (
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            ) : paymentRefused ? (
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             ) : (
               <Clock className="mt-0.5 h-4 w-4 shrink-0" />
             )}
             <span>
               {paymentConfirmed
                 ? "Payment received — your booking is confirmed. We've emailed you and your tutor."
-                : "Paystack sent you back. We're confirming the payment with Paystack — refresh in a minute if it doesn't show below."}
+                : paymentRefused
+                  ? "Your payment went through, but we couldn't apply it to your account automatically. Please contact the admin team with your Paystack reference so we can credit it."
+                  : "Paystack sent you back. We're confirming the payment with Paystack — refresh in a minute if it doesn't show below."}
             </span>
           </div>
         )}
@@ -288,58 +284,6 @@ export default async function DashboardPage({
             </Card>
           )}
 
-          {profile.role === "tutor" && tutor && (
-            <Card>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Your tutor profile
-              </h2>
-              {tutor.profile ? (
-                <p className="mt-1 text-sm text-slate-600">
-                  <span className="font-semibold text-slate-900">
-                    {tutor.services.length}
-                  </span>{" "}
-                  course{tutor.services.length === 1 ? "" : "s"} offered — each
-                  with its own one-on-one and group price per semester.
-                </p>
-              ) : (
-                <p className="mt-1 text-sm text-slate-600">
-                  You haven&apos;t set up your tutor profile yet.
-                </p>
-              )}
-              <div className="mt-3">
-                <Badge tone={tutor.profile ? STATUS_BADGE[tutor.profile.verification_status].tone : "neutral"}>
-                  {tutor.profile
-                    ? STATUS_BADGE[tutor.profile.verification_status].label
-                    : "Not started"}
-                </Badge>
-              </div>
-              <Link href="/tutor/settings" className="mt-4 block">
-                <Button className="w-full sm:w-auto">
-                  {tutor.profile ? "Edit tutor profile" : "Set up tutor profile"}
-                </Button>
-              </Link>
-            </Card>
-          )}
-
-          {profile.role === "tutor" && (
-            <Card>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-slate-900">Timetable</h2>
-                {tutorUpcomingCount > 0 && <Badge tone="amber">{tutorUpcomingCount} upcoming</Badge>}
-              </div>
-              <p className="mt-1 text-sm text-slate-600">
-                Schedule sessions with your students and tick attendance when
-                you meet.
-              </p>
-              <Link href="/tutor/timetable" className="mt-4 block">
-                <Button className="w-full sm:w-auto">
-                  <CalendarClock className="h-4 w-4" />
-                  Open timetable
-                </Button>
-              </Link>
-            </Card>
-          )}
-
           {profileIsAdmin(profile) && (
             <Card>
               <h2 className="text-lg font-semibold text-slate-900">
@@ -355,7 +299,7 @@ export default async function DashboardPage({
             </Card>
           )}
 
-          {(profile.role === "student" || profile.role === "tutor") && (
+          {profile.role === "student" && (
             <RoleSwitcher currentRole={profile.role} />
           )}
 
@@ -470,11 +414,6 @@ export default async function DashboardPage({
           </section>
         )}
       </Container>
-
-      {/* Popup for tutors who haven't created a profile yet (review gate). */}
-      {profile.role === "tutor" && (
-        <TutorProfileCta hasProfile={Boolean(tutor?.profile)} />
-      )}
     </div>
   );
 }

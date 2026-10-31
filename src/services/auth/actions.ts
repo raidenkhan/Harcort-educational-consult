@@ -485,12 +485,11 @@ export async function switchRoleAction(
   revalidatePath("/tutor", "layout");
   revalidatePath("/admin", "layout");
 
-  return {
-    message:
-      parsed.data.role === "tutor"
-        ? "You're now a tutor. Set up your tutor profile to get reviewed."
-        : "You're now a student. Your tutor profile is hidden until you switch back.",
-  };
+  // Land on the dashboard of the role just chosen. This is explicit rather
+  // than left to the guards: a tutor's dashboard is `/tutor` (there is no
+  // second one at `/dashboard`), and a tutor switching to student must leave
+  // `/tutor/settings`, whose layout only admits tutors.
+  redirect(parsed.data.role === "tutor" ? "/tutor" : "/dashboard");
 }
 
 /** One-time onboarding for brand-new Google accounts (0010). Picks the role

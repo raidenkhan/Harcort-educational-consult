@@ -72,16 +72,19 @@ function TabBarSkeleton() {
 async function AppHeader() {
   const profile = await getProfile();
 
+  // ONE dashboard per role. A tutor's is `/tutor` — the workspace with their
+  // students, lessons and money — so the header must not also offer a second
+  // "Dashboard" (`/dashboard`) beside a "Tutor hub" link. `/dashboard` sends
+  // tutors here (see app/(app)/dashboard/page.tsx).
+  const dashboardHref = profile?.role === "tutor" ? "/tutor" : "/dashboard";
+
   const links = [
-    { href: "/dashboard", label: "Dashboard" },
+    { href: dashboardHref, label: "Dashboard" },
     ...(profile?.role === "student" || profile?.role === "tutor"
       ? [
           { href: "/chat", label: "Messages" },
           { href: "/groups", label: "Groups" },
         ]
-      : []),
-    ...(profile?.role === "tutor"
-      ? [{ href: "/tutor", label: "Tutor hub" }]
       : []),
     ...(profile && profileIsAdmin(profile)
       ? [{ href: "/admin", label: "Admin" }]
