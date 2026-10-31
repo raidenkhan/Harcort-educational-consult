@@ -144,6 +144,32 @@ export function studyGroupMessageEmail(opts: {
   return { subject, text, html };
 }
 
+/**
+ * A tutor (or admin) added the recipient to a study group.
+ *
+ * This is the "how do the students get the group" path: before 0036 the only
+ * way in was a code the student had to be told out-of-band. The email says who
+ * added them and what the group is for, so the link is self-explanatory even
+ * when it lands days later.
+ */
+export function studyGroupAddedEmail(opts: {
+  tutorName: string;
+  groupName: string;
+  courseName: string | null;
+  groupUrl: string;
+}): EmailMessage {
+  const course = opts.courseName ? ` for ${opts.courseName}` : "";
+  const subject = `${opts.tutorName} added you to ${opts.groupName}`;
+  const text = `${opts.tutorName} added you to the study group "${opts.groupName}"${course} on Harcourt Educational Consult.\n\nOpen the group: ${opts.groupUrl}`;
+  const html = wrap(
+    `You're in ${opts.groupName}`,
+    `${p(`<strong>${escapeHtml(opts.tutorName)}</strong> added you to the study group <strong>${escapeHtml(opts.groupName)}</strong>${opts.courseName ? ` for ${escapeHtml(opts.courseName)}` : ""}.`)}${p(
+      "Open the group to see what your coursemates are discussing — you can reply there.",
+    )}${actionButton(opts.groupUrl, "Open the group")}`,
+  );
+  return { subject, text, html };
+}
+
 // ---------------------------------------------------------------------------
 // Sessions (timetable)
 // ---------------------------------------------------------------------------

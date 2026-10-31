@@ -72,10 +72,13 @@ function useHash() {
 export function MobileTabBar({
   role,
   isAdmin = false,
+  groupUnread = 0,
 }: {
   role?: UserRole;
   /** Admin privilege flag (0008) — admin-tutors get an extra Admin tab. */
   isAdmin?: boolean;
+  /** Unread study-group messages (0036) — pill on the Groups tab. */
+  groupUnread?: number;
 }) {
   const pathname = usePathname();
   const hash = useHash();
@@ -125,11 +128,17 @@ export function MobileTabBar({
 
         {tabs.map((tab, i) => {
           const active = i === activeIndex;
+          const badge = tab.href === "/groups" ? groupUnread : 0;
           return (
             <Link
               key={`${tab.href}${tab.hash ?? ""}`}
               href={`${tab.href}${tab.hash ?? ""}`}
               aria-current={active ? "page" : undefined}
+              aria-label={
+                badge > 0
+                  ? `${tab.label}, ${badge} unread`
+                  : undefined
+              }
               onClick={() => {
                 // App convention: tapping the active tab scrolls back to top.
                 if (active) window.scrollTo({ top: 0 });
@@ -141,12 +150,19 @@ export function MobileTabBar({
                   : "text-slate-500 hover:text-slate-700",
               )}
             >
-              <tab.icon
-                className={cn(
-                  "h-5 w-5",
-                  active && "stroke-[2.2]",
+              <span className="relative">
+                <tab.icon
+                  className={cn(
+                    "h-5 w-5",
+                    active && "stroke-[2.2]",
+                  )}
+                />
+                {badge > 0 && (
+                  <span className="absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-bold leading-none text-white">
+                    {badge > 99 ? "99+" : badge}
+                  </span>
                 )}
-              />
+              </span>
               <span className="text-[11px] font-semibold">{tab.label}</span>
             </Link>
           );

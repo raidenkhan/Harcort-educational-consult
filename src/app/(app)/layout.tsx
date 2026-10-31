@@ -1,5 +1,6 @@
 import { Suspense, cache } from "react";
 import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
+import { countUnreadGroupMessages } from "@/services/groups/queries";
 import { signOutAction } from "@/services/auth/actions";
 import { Badge } from "@/components/ui/Badge";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
@@ -78,12 +79,19 @@ async function AppHeader() {
   // tutors here (see app/(app)/dashboard/page.tsx).
   const dashboardHref = profile?.role === "tutor" ? "/tutor" : "/dashboard";
 
+  // 0036: a group message the student hasn't opened shows as a pill on the
+  // Groups link, so "your tutor added you" is visible from any page.
+  const groupUnread =
+    profile && (profile.role === "student" || profile.role === "tutor")
+      ? await countUnreadGroupMessages(profile)
+      : 0;
+
   const links = [
     { href: dashboardHref, label: "Dashboard" },
     ...(profile?.role === "student" || profile?.role === "tutor"
       ? [
           { href: "/chat", label: "Messages" },
-          { href: "/groups", label: "Groups" },
+          { href: "/groups", label: "Groups", badge: groupUnread },
         ]
       : []),
     ...(profile && profileIsAdmin(profile)
@@ -115,7 +123,17 @@ async function AppHeader() {
 async function AppTabBar() {
   const profile = await getProfile();
   if (!profile) return null;
-  return <MobileTabBar role={profile.role} isAdmin={profileIsAdmin(profile)} />;
+  const groupUnread =
+    profile.role === "student" || profile.role === "tutor"
+      ? await countUnreadGroupMessages(profile)
+      : 0;
+  return (
+    <MobileTabBar
+      role={profile.role}
+      isAdmin={profileIsAdmin(profile)}
+      groupUnread={groupUnread}
+    />
+  );
 }
 
 /* ------------------------------------------------------------------ */

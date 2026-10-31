@@ -58,6 +58,7 @@ export type SmsKind =
   | "request_response"
   | "payment"
   | "payment_reminder"
+  | "group_added"
   | "reset"
   | "test";
 

@@ -3,11 +3,15 @@
 import { randomInt } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { notifyGroupMessage } from "@/lib/email/notify";
-import { optionalText } from "@/lib/forms";
+import { notifyGroupAdded, notifyGroupMessage } from "@/lib/email/notify";
+import { formText, optionalText } from "@/lib/forms";
+import { siteUrl } from "@/lib/site";
+import { notifySmsToProfiles } from "@/lib/sms";
 import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
-import { getGroupMembership } from "./queries";
+import { listTutorRoster } from "@/services/tutors/roster";
+import { getGroupMembership, listJoinableGroupsForStudent } from "./queries";
 import {
+  addGroupMembersSchema,
   createGroupSchema,
   groupIdSchema,
   joinGroupSchema,
@@ -15,15 +19,17 @@ import {
 } from "./schemas";
 
 /**
- * Study-group mutations (0023).
+ * Study-group mutations (0023 + 0036).
  * The acting user is derived from the session cookie on every call; the
  * service-role client bypasses RLS, so authorization (tutor-or-admin create,
- * member-only send/read) is enforced here explicitly.
+ * owner-only add/archive, member-only send/read) is enforced here explicitly.
  */
 
 export type GroupFormState = {
   ok?: boolean;
   groupId?: string;
+  /** How many students a tutor just added (addGroupMembers). */
+  added?: number;
   error?: string;
 };
 
@@ -130,6 +136,173 @@ export async function joinGroup(
   return { ok: true, groupId: g.id };
 }
 
+/**
+ * The owner (or an admin) adds students to a group.
+ *
+ * This is the answer to "how do the students get the group": before 0036 the
+ * only way in was a join code the student had to be told out-of-band. The
+ * tutor picks from their own roster (accepted requests, engagements or
+ * sessions — `listTutorRoster`), and every newly-added student gets an email
+ * and a text with a link straight into the group.
+ *
+ * Idempotent: a student already in the group is skipped, so re-submitting the
+ * picker (or two tutors adding the same person) never duplicates a membership
+ * or re-sends a notification.
+ */
+export async function addGroupMembers(
+  _prev: GroupFormState,
+  formData: FormData,
+): Promise<GroupFormState> {
+  const profile = await requireProfile();
+
+  const parsed = addGroupMembersSchema.safeParse({
+    groupId: formText(formData.get("groupId")),
+    profileIds: formData.getAll("studentId"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Pick a student." };
+  }
+  const { groupId, profileIds } = parsed.data;
+
+  const supabase = createAdminClient();
+
+  const isAdmin = profileIsAdmin(profile);
+  const membership = await getGroupMembership(groupId, profile.id);
+  if (!isAdmin && membership?.role !== "owner") {
+    return { error: "Only the group's tutor can add students." };
+  }
+
+  const { data: group } = await supabase
+    .from("study_groups")
+    .select("name, is_archived, courses(name)")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (!group) return { error: "Group not found." };
+  const g = group as unknown as {
+    name: string;
+    is_archived: boolean;
+    courses: { name: string }[] | null;
+  };
+  if (g.is_archived) return { error: "This group has been archived." };
+
+  // A tutor may only add students they actually work with. Admins may add
+  // anyone (they run the platform and may need to repair a group).
+  if (!isAdmin) {
+    const roster = await listTutorRoster(profile);
+    const rosterIds = new Set(roster.map((entry) => entry.studentId));
+    if (profileIds.some((id) => !rosterIds.has(id))) {
+      return {
+        error: "You can only add students you're already working with.",
+      };
+    }
+  }
+
+  // Names for the "added you" system message, and a reality check that every
+  // id exists (a stale roster entry must not abort the whole add).
+  const { data: profileRows } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", profileIds);
+  const nameById = new Map(
+    ((profileRows ?? []) as { id: string; full_name: string }[]).map((row) => [
+      row.id,
+      row.full_name || "a student",
+    ]),
+  );
+  const validIds = profileIds.filter((id) => nameById.has(id));
+  if (validIds.length === 0) return { error: "Those students no longer exist." };
+
+  const { data: existingRows } = await supabase
+    .from("study_group_members")
+    .select("profile_id")
+    .eq("group_id", groupId)
+    .in("profile_id", validIds);
+  const alreadyIn = new Set(
+    ((existingRows ?? []) as { profile_id: string }[]).map((row) => row.profile_id),
+  );
+  const toAdd = validIds.filter((id) => !alreadyIn.has(id));
+  if (toAdd.length === 0) return { ok: true, groupId, added: 0 };
+
+  const { error } = await supabase.from("study_group_members").upsert(
+    toAdd.map((id) => ({ group_id: groupId, profile_id: id, role: "member" })),
+    { onConflict: "group_id,profile_id", ignoreDuplicates: true },
+  );
+  if (error) return { error: error.message };
+
+  // A visible trace in the feed — a student opening the group sees why they
+  // are there, and the rest of the group sees who joined. Inserted AFTER the
+  // memberships, so `last_read_at` (default now()) leaves it unread for the
+  // students who were just added.
+  const actorName = profile.full_name || "Your tutor";
+  const addedNames = toAdd.map((id) => nameById.get(id) ?? "a student");
+  const body =
+    addedNames.length === 1
+      ? `${actorName} added ${addedNames[0]} to the group.`
+      : `${actorName} added ${addedNames.length} students to the group.`;
+  await supabase.from("study_group_messages").insert({
+    group_id: groupId,
+    sender_id: profile.id,
+    body,
+  });
+
+  const courseName = g.courses?.[0]?.name ?? null;
+  notifyGroupAdded({
+    recipientProfileIds: toAdd,
+    tutorName: actorName,
+    groupName: g.name,
+    courseName,
+    groupId,
+  });
+  notifySmsToProfiles(
+    toAdd,
+    `Harcourt: ${actorName} added you to the study group "${g.name}"${courseName ? ` for ${courseName}` : ""}. Open it here: ${siteUrl(`/groups?g=${groupId}`)}`,
+    "group_added",
+    `group-added:${groupId}`,
+  );
+
+  revalidatePath("/groups");
+  return { ok: true, groupId, added: toAdd.length };
+}
+
+/**
+ * One-tap join for a student who is already eligible: a group run by a tutor
+ * they have an accepted request with, or attached to a course they've booked.
+ * Eligibility is re-checked here against `listJoinableGroupsForStudent` — the
+ * same function that rendered the suggestion — so a crafted post cannot join
+ * a group the student has no relationship with.
+ */
+export async function joinGroupById(
+  _prev: GroupFormState,
+  formData: FormData,
+): Promise<GroupFormState> {
+  const profile = await requireProfile();
+
+  const parsed = groupIdSchema.safeParse({
+    groupId: formText(formData.get("groupId")),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Missing group." };
+  }
+  const { groupId } = parsed.data;
+
+  const joinable = await listJoinableGroupsForStudent(profile);
+  if (!joinable.some((group) => group.id === groupId)) {
+    return { error: "This group isn't open to you yet." };
+  }
+
+  const supabase = createAdminClient();
+  const existing = await getGroupMembership(groupId, profile.id);
+  if (!existing) {
+    const { error } = await supabase
+      .from("study_group_members")
+      .insert({ group_id: groupId, profile_id: profile.id, role: "member" });
+    if (error && error.code !== "23505") return { error: error.message };
+  }
+
+  revalidatePath("/groups");
+  return { ok: true, groupId };
+}
+
 /** Send a message into a group the caller belongs to. */
 export async function sendGroupMessage(
   formData: FormData,
@@ -207,6 +380,28 @@ export async function leaveGroup(formData: FormData): Promise<void> {
     .eq("profile_id", profile.id);
 
   revalidatePath("/groups");
+}
+
+/**
+ * Stamp the caller's read watermark (0036). Called by the workspace when a
+ * group is opened, so the unread pill clears and the nav badge drops. The
+ * client refreshes afterwards — this is a write, not a read.
+ */
+export async function markGroupRead(groupId: string): Promise<void> {
+  const profile = await requireProfile();
+
+  const parsed = groupIdSchema.safeParse({ groupId });
+  if (!parsed.success) return;
+
+  const membership = await getGroupMembership(parsed.data.groupId, profile.id);
+  if (!membership) return;
+
+  const supabase = createAdminClient();
+  await supabase
+    .from("study_group_members")
+    .update({ last_read_at: new Date().toISOString() })
+    .eq("group_id", parsed.data.groupId)
+    .eq("profile_id", profile.id);
 }
 
 /** The owner archives a group (soft-delete — messages are kept). */

@@ -36,7 +36,7 @@ export function FloatingNav({
   showSearch = true,
   className,
 }: {
-  links?: { href: string; label: string }[];
+  links?: { href: string; label: string; badge?: number }[];
   /** Right-hand side: auth buttons, sign-out form, user chip, … */
   children?: React.ReactNode;
   hideOnScroll?: boolean;
@@ -121,6 +121,11 @@ export function FloatingNav({
                     <Link
                       href={link.href}
                       aria-current={active ? "page" : undefined}
+                      aria-label={
+                        link.badge
+                          ? `${link.label}, ${link.badge} unread`
+                          : undefined
+                      }
                       className={cn(
                         "group relative inline-block py-1 text-sm font-medium transition-colors duration-150",
                         active
@@ -129,6 +134,11 @@ export function FloatingNav({
                       )}
                     >
                       {link.label}
+                      {link.badge ? (
+                        <span className="ml-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 py-0.5 align-middle text-[10px] font-bold leading-none text-white">
+                          {link.badge > 99 ? "99+" : link.badge}
+                        </span>
+                      ) : null}
                       {/* Underline grows from the left on hover — one transform,
                           no layout shift. */}
                       <span

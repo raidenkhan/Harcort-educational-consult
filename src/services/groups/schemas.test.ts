@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_GROUP_MEMBERS_PER_ADD,
   MAX_GROUP_MESSAGE_LENGTH,
+  addGroupMembersSchema,
   createGroupSchema,
   joinGroupSchema,
   sendGroupMessageSchema,
 } from "./schemas";
 
 const UUID = "11111111-1111-4111-8111-111111111111";
+const UUID_2 = "22222222-2222-4222-8222-222222222222";
 
 describe("createGroupSchema", () => {
   it("accepts a minimal group (name only)", () => {
@@ -95,6 +98,51 @@ describe("sendGroupMessageSchema", () => {
   it("rejects a non-uuid groupId", () => {
     expect(
       sendGroupMessageSchema.safeParse({ groupId: "nope", body: "hi" }).success,
+    ).toBe(false);
+  });
+});
+
+describe("addGroupMembersSchema", () => {
+  it("accepts one or more student ids", () => {
+    const parsed = addGroupMembersSchema.safeParse({
+      groupId: UUID,
+      profileIds: [UUID, UUID_2],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.profileIds).toEqual([UUID, UUID_2]);
+  });
+
+  it("collapses duplicate ids (a crafted post can repeat a checkbox)", () => {
+    const parsed = addGroupMembersSchema.safeParse({
+      groupId: UUID,
+      profileIds: [UUID, UUID, UUID_2],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.profileIds).toEqual([UUID, UUID_2]);
+  });
+
+  it("rejects an empty selection", () => {
+    expect(
+      addGroupMembersSchema.safeParse({ groupId: UUID, profileIds: [] }).success,
+    ).toBe(false);
+  });
+
+  it("rejects ids that aren't uuids", () => {
+    expect(
+      addGroupMembersSchema.safeParse({ groupId: UUID, profileIds: ["nope"] })
+        .success,
+    ).toBe(false);
+  });
+
+  it("caps how many students one submit can add", () => {
+    const tooMany = Array.from(
+      { length: MAX_GROUP_MEMBERS_PER_ADD + 1 },
+      (_, index) =>
+        `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    );
+    expect(
+      addGroupMembersSchema.safeParse({ groupId: UUID, profileIds: tooMany })
+        .success,
     ).toBe(false);
   });
 });

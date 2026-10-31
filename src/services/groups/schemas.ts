@@ -51,11 +51,38 @@ export const sendGroupMessageSchema = z.object({
     ),
 });
 
-/** A bare group id — for leave / archive. */
+/** A bare group id — for leave / archive / mark-read / one-tap join. */
 export const groupIdSchema = z.object({
   groupId: uuid("Missing group"),
+});
+
+export const MAX_GROUP_MEMBERS_PER_ADD = 50;
+
+/**
+ * A tutor adds students to a group they own (0036).
+ *
+ * The ids arrive as repeated `studentId` controls, not a JSON blob, so the
+ * action collects them with `formData.getAll`. Duplicates are collapsed here
+ * (a checkbox list can't produce them, but a crafted post can) and the cap
+ * keeps one submit from inserting thousands of rows.
+ */
+export const addGroupMembersSchema = z.object({
+  groupId: uuid("Missing group"),
+  profileIds: z
+    .array(uuid("Pick a student"))
+    .transform((ids) => [...new Set(ids)])
+    .pipe(
+      z
+        .array(z.string().uuid())
+        .min(1, "Pick at least one student")
+        .max(
+          MAX_GROUP_MEMBERS_PER_ADD,
+          `Add at most ${MAX_GROUP_MEMBERS_PER_ADD} students at a time`,
+        ),
+    ),
 });
 
 export type CreateGroupInput = z.infer<typeof createGroupSchema>;
 export type JoinGroupInput = z.infer<typeof joinGroupSchema>;
 export type SendGroupMessageInput = z.infer<typeof sendGroupMessageSchema>;
+export type AddGroupMembersInput = z.infer<typeof addGroupMembersSchema>;

@@ -9,6 +9,7 @@ import {
   passwordResetEmail,
   sessionCancelledEmail,
   sessionScheduledEmail,
+  studyGroupAddedEmail,
   studyGroupMessageEmail,
   tutorApplicationEmail,
   tutorReviewEmail,
@@ -116,6 +117,32 @@ export function notifyGroupMessage(opts: {
       senderName: opts.senderName,
       groupName: opts.groupName,
       preview: opts.body,
+      groupUrl,
+    });
+    await Promise.all([...emails.values()].map((to) => deliver(to, message)));
+  });
+}
+
+/**
+ * A tutor added the recipient to a group. Sent once per newly-added student,
+ * from the same action that inserted their membership row — so the email can
+ * never claim an add that didn't happen.
+ */
+export function notifyGroupAdded(opts: {
+  recipientProfileIds: string[];
+  tutorName: string;
+  groupName: string;
+  courseName: string | null;
+  groupId: string;
+}): void {
+  if (opts.recipientProfileIds.length === 0) return;
+  const groupUrl = `${APP_URL}/groups?g=${opts.groupId}`;
+  afterResponse(async () => {
+    const emails = await emailsForProfiles(opts.recipientProfileIds);
+    const message = studyGroupAddedEmail({
+      tutorName: opts.tutorName,
+      groupName: opts.groupName,
+      courseName: opts.courseName,
       groupUrl,
     });
     await Promise.all([...emails.values()].map((to) => deliver(to, message)));

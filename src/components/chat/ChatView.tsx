@@ -13,6 +13,12 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { cn } from "@/lib/cn";
+import {
+  deferPolling,
+  pausePolling,
+  pollingPaused,
+  type PollGate,
+} from "@/lib/pollGate";
 import { chatDay, chatDayKey, chatTime, chatTimestamp } from "@/lib/time";
 
 /**
@@ -139,6 +145,11 @@ export function ChatView({
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
+  // Live updates stand down while a server action is in flight: a refresh
+  // aborts the action's POST, and the aborted response leaves its pending
+  // flag stuck (see lib/pollGate.ts).
+  const pollGate = useRef<PollGate>({ locks: 0, until: 0 });
+
   // Mobile: chats list ↔ open thread, derived from the URL so it can never
   // drift out of sync with the active conversation (the old local state
   // would go stale and every row ended up opening the same fallback chat).
@@ -172,11 +183,19 @@ export function ChatView({
   const rows = buildRows(thread, now);
 
   // Pick up new messages while the page is open (see realtime note above).
-  // Skips refreshes shortly after a manual switch and when the tab is hidden.
+  // Skips refreshes shortly after a manual switch, when the tab is hidden,
+  // and while a server action is in flight (a tick would abort its POST).
+  useEffect(() => {
+    const onAnySubmit = () => deferPolling(pollGate.current);
+    document.addEventListener("submit", onAnySubmit, true);
+    return () => document.removeEventListener("submit", onAnySubmit, true);
+  }, []);
+
   useEffect(() => {
     if (conversations.length === 0) return;
     const timer = setInterval(() => {
       if (document.visibilityState === "hidden") return;
+      if (pollingPaused(pollGate.current)) return;
       if (Date.now() - lastNav.current < 1500) return;
       router.refresh();
     }, POLL_MS);
@@ -218,20 +237,25 @@ export function ChatView({
     fd.set("conversationId", activeId);
     fd.set("body", body);
 
-    const res: ConversationFormState | undefined = await sendMessage(fd);
-    setSending(false);
+    const releasePoll = pausePolling(pollGate.current);
+    try {
+      const res: ConversationFormState | undefined = await sendMessage(fd);
 
-    if (res?.error) {
-      // Failed — drop the bubble and restore the text so they can retry.
-      setSendError(res.error);
-      setPendingMsgs((prev) => prev.filter((p) => p.body !== body));
-      const el = formRef.current?.querySelector<HTMLTextAreaElement>(
-        'textarea[name="body"]',
-      );
-      if (el && !el.value.trim()) el.value = body;
-      return;
+      if (res?.error) {
+        // Failed — drop the bubble and restore the text so they can retry.
+        setSendError(res.error);
+        setPendingMsgs((prev) => prev.filter((p) => p.body !== body));
+        const el = formRef.current?.querySelector<HTMLTextAreaElement>(
+          'textarea[name="body"]',
+        );
+        if (el && !el.value.trim()) el.value = body;
+        return;
+      }
+      router.refresh();
+    } finally {
+      releasePoll();
+      setSending(false);
     }
-    router.refresh();
   };
 
   // ── Empty state: no conversations at all ──────────────────────────
