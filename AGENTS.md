@@ -980,6 +980,19 @@ The dev machine is slow — give compiles 30–60s.
   produces NO CSS — the scanner only reads literal strings in the source.
   Dynamic values must go through an inline `style` prop; only keep static
   literal utilities as classes. See `AnimatedGradient` for the pattern.
+- **One real course can have SEVERAL `courses` rows — match on `code`, not
+  `id`.** 0030 seeds shared courses *per programme* so the directory can browse
+  programme → course, which means the same course appears once per programme:
+  "ME 261 Dynamics of Solid Mechanics" has **four** approved rows, "CE 155
+  Environmental Studies" has four, and **55 name+code pairs** are duplicated
+  across the 393-row catalogue. `courses.id` is therefore NOT a stable identity
+  for a course. Anything that has to agree with something else about "the same
+  course" — a tutor's study group vs. an engagement, the Drive library, a share
+  link — must join through the normalised `code` (upper-case, single-spaced;
+  the same normalisation `services/library/courseMaterials.ts` already uses) and
+  fall back to `id` only when both codes are null. 0038's group seat hit this
+  exactly: a group attached to one copy of ME 261 silently never matched a
+  booking made against another, so the student was never seated.
 - The institution is **Harcourt** Educational Consult (not "Harcot" — brand
   text everywhere is corrected to Harcourt). The GitHub repo
   (`Harcort-educational-consult`) and the local project folder

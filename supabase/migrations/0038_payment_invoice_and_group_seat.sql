@@ -218,12 +218,27 @@ begin
      where tp.id = v_engagement.tutor_profile_id;
 
     if v_tutor_profile_id is not null then
+      -- The catalogue seeds shared courses once PER PROGRAMME (0030), so one
+      -- real course has several rows — "ME 261 Dynamics of Solid Mechanics"
+      -- has four. course_id is therefore NOT a stable identity, and matching
+      -- on it alone means a group attached to one copy never matches a
+      -- booking made against another. The CODE is the identity (the same
+      -- normalisation the library already uses); an exact row match still
+      -- wins when both are qualified.
       select g.id into v_group_id
         from public.study_groups g
+        join public.courses gc on gc.id = g.course_id
+        join public.courses ec on ec.id = v_engagement.course_id
        where g.created_by = v_tutor_profile_id
-         and g.course_id = v_engagement.course_id
          and g.is_archived = false
-       order by g.created_at desc
+         and (
+              (gc.code is not null and ec.code is not null
+               and upper(regexp_replace(gc.code, '\s+', ' ', 'g'))
+                   = upper(regexp_replace(ec.code, '\s+', ' ', 'g')))
+           or (gc.code is null and ec.code is null
+               and g.course_id = v_engagement.course_id)
+         )
+       order by (g.course_id = v_engagement.course_id) desc, g.created_at desc
        limit 1;
 
       if v_group_id is not null then
