@@ -4,6 +4,7 @@ import { formatGhs } from "@/lib/money";
 import { deliver } from "./notify";
 import { adminEmails, emailsForProfiles } from "./recipients";
 import {
+  groupJoinedEmail,
   paymentEngagementActivatedEmail,
   paymentEngagementCreatedEmail,
   paymentOverdueEmail,
@@ -37,6 +38,13 @@ const REQUEST_TYPES = new Set([
   "request.accepted",
   "request.declined",
 ]);
+
+/** Who just joined a tutor's group, and which group (0038's group seat). */
+interface GroupJoinedContext {
+  studentName: string;
+  groupName: string;
+  courseName: string;
+}
 
 /** The people/course a payment row is about. Resolved from the engagement so
  *  the email names them even when the outbox payload (written by the DB RPC)
@@ -156,11 +164,54 @@ async function requestContext(
   return context;
 }
 
+/** Resolve the names behind a `payment.group_joined` row (0038). */
+async function groupJoinedContext(
+  groupId: string,
+  studentId: string,
+): Promise<GroupJoinedContext | null> {
+  const supabase = createAdminClient();
+  const [group, student] = await Promise.all([
+    supabase
+      .from("study_groups")
+      .select("name, courses(name)")
+      .eq("id", groupId)
+      .maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", studentId)
+      .maybeSingle(),
+  ]);
+  if (group.error || !group.data) return null;
+
+  const g = group.data as unknown as {
+    name?: string;
+    courses?: { name?: string } | { name?: string }[] | null;
+  };
+  return {
+    groupName: g.name ?? "",
+    courseName: one(g.courses)?.name ?? "",
+    studentName:
+      ((student.data as { full_name?: string } | null)?.full_name ?? "") ||
+      "A student",
+  };
+}
+
+/** Parse a pesewas value out of an outbox payload. Bad input is simply absent. */
+function pesewas(value: unknown): bigint | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return BigInt(Math.round(value));
+  }
+  if (typeof value === "string" && /^\d+$/.test(value)) return BigInt(value);
+  return null;
+}
+
 /** Build the email for one outbox row. Returns null for unknown types. */
 function buildEmail(
   row: OutboxRow,
   context: PaymentContext | null,
   request: RequestContext | null,
+  group: GroupJoinedContext | null,
 ): EmailMessage | null {
   const idx = Number(row.data.installment_idx ?? 1);
   const amount = typeof row.data.amount === "string" || typeof row.data.amount === "number"
@@ -168,11 +219,20 @@ function buildEmail(
     : "";
 
   switch (row.type) {
-    case "payment.received":
+    case "payment.received": {
       // Admin rows fan out to every admin and legitimately carry no
       // recipient_id (recipientsFor resolves the list). Guarding on it here
       // silently discarded every admin "a payment landed" notification.
       if (row.audience !== "admin" && !row.recipient_id) return null;
+
+      // The student's copy is a receipt, so it itemises the fee and the total
+      // and carries the reference. Older queued rows predate 0038 and carry
+      // neither — those still send, just without the extra lines.
+      const net = pesewas(row.data.amount);
+      const fee = pesewas(row.data.fee_amount);
+      const reference =
+        typeof row.data.reference === "string" ? row.data.reference : null;
+
       return paymentReceivedEmail({
         audience: row.audience,
         amountDisplay: amount,
@@ -180,6 +240,18 @@ function buildEmail(
         courseTitle: context?.courseTitle,
         tutorName: context?.tutorName,
         confirmed: context?.confirmed,
+        reference,
+        feeDisplay: fee != null ? formatGhs(fee) : null,
+        totalDisplay:
+          net != null && fee != null ? formatGhs(net + fee) : null,
+      });
+    }
+    case "payment.group_joined":
+      return groupJoinedEmail({
+        groupId: typeof row.data.group_id === "string" ? row.data.group_id : "",
+        studentName: group?.studentName,
+        groupName: group?.groupName,
+        courseName: group?.courseName,
       });
     case "request.received":
       return tutorRequestEmail({
@@ -288,7 +360,13 @@ export async function drainPaymentOutbox(): Promise<void> {
             requestCache,
           )
         : null;
-      const email = buildEmail(row, context, request);
+      const group =
+        row.type === "payment.group_joined" &&
+        typeof row.data.group_id === "string" &&
+        typeof row.data.student_id === "string"
+          ? await groupJoinedContext(row.data.group_id, row.data.student_id)
+          : null;
+      const email = buildEmail(row, context, request, group);
       const recipients = email ? await recipientsFor(row) : [];
 
       if (!email || recipients.length === 0) {

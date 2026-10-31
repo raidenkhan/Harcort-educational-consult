@@ -34,10 +34,31 @@ const PAYSTACK_TIMEOUT_MS = 15_000;
  * `runCheckout`).
  */
 export class PaystackApiError extends Error {
-  constructor(message: string) {
+  /** HTTP status Paystack answered with (0 when the body said `status:false`
+   *  on a 2xx, which some endpoints do). */
+  readonly statusCode: number;
+
+  constructor(message: string, statusCode = 0) {
     super(message);
     this.name = "PaystackApiError";
+    this.statusCode = statusCode;
   }
+}
+
+/**
+ * Paystack has never heard of this reference.
+ *
+ * Definitive AND terminal for our row: a reference we minted that Paystack
+ * cannot find will never resolve. Leaving the payment `initialized` makes it
+ * the oldest such row forever, and because the sweep reads the five OLDEST
+ * initialized rows, a handful of these permanently starves reconciliation of
+ * every newer charge.
+ */
+export function isReferenceNotFound(error: unknown): boolean {
+  return (
+    error instanceof PaystackApiError &&
+    (error.statusCode === 404 || /reference not found/i.test(error.message))
+  );
 }
 
 export function isPaystackConfigured(): boolean {
@@ -96,7 +117,10 @@ async function paystackFetch<T>(
 
   if (!res.ok || !json.status) {
     // Paystack answered and said no: definitive.
-    throw new PaystackApiError(`Paystack ${path} failed: ${json.message ?? res.status}`);
+    throw new PaystackApiError(
+      `Paystack ${path} failed: ${json.message ?? res.status}`,
+      res.status,
+    );
   }
   if (json.data === undefined) {
     throw new Error(`Paystack ${path} returned no data`);

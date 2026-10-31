@@ -451,12 +451,20 @@ export function paymentReceivedEmail(opts: {
   tutorName?: string | null;
   /** True when the agreement is active — i.e. the booking is confirmed. */
   confirmed?: boolean;
+  /** Paystack reference for this charge — the student quotes it in a dispute. */
+  reference?: string | null;
+  /** The processing fee the student paid on top (already formatted). */
+  feeDisplay?: string | null;
+  /** What Paystack actually charged: amount + fee. */
+  totalDisplay?: string | null;
 }): EmailMessage {
   const url = paymentUrl(opts.audience);
   const student = opts.studentName?.trim() || "A student";
   const course = opts.courseTitle?.trim() || "your course";
   const tutor = opts.tutorName?.trim() || "your tutor";
   const confirmed = opts.confirmed === true;
+  const reference = opts.reference?.trim() || "";
+  const isStudent = opts.audience === "student";
 
   const intro =
     opts.audience === "student"
@@ -469,18 +477,31 @@ export function paymentReceivedEmail(opts: {
           : `<strong>${escapeHtml(student)}</strong> made a payment toward <strong>${escapeHtml(course)}</strong>. It has been added to the agreement.`
         : `<strong>${escapeHtml(student)}</strong> paid <strong>${escapeHtml(opts.amountDisplay)}</strong> for <strong>${escapeHtml(course)}</strong>.`;
 
-  const details = detailTable([
-    { label: "Student", value: opts.studentName ?? "" },
-    { label: "Course", value: opts.courseTitle ?? "" },
-    { label: "Tutor", value: opts.tutorName ?? "" },
-    { label: "Amount received", value: opts.amountDisplay },
-    { label: "Status", value: confirmed ? "Paid — booking confirmed" : "Payment received" },
-  ]);
+  // The student's copy is the receipt: it must itemise what was charged and
+  // carry the reference, or it cannot be used as proof of payment.
+  const details = isStudent
+    ? detailTable([
+        { label: "Course", value: opts.courseTitle ?? "" },
+        { label: "Tutor", value: opts.tutorName ?? "" },
+        { label: "Course fee", value: opts.amountDisplay },
+        { label: "Paystack processing fee", value: opts.feeDisplay ?? "" },
+        { label: "Total charged", value: opts.totalDisplay ?? "" },
+        { label: "Payment reference", value: reference },
+      ])
+    : detailTable([
+        { label: "Student", value: opts.studentName ?? "" },
+        { label: "Course", value: opts.courseTitle ?? "" },
+        { label: "Tutor", value: opts.tutorName ?? "" },
+        { label: "Amount received", value: opts.amountDisplay },
+        { label: "Status", value: confirmed ? "Paid — booking confirmed" : "Payment received" },
+      ]);
 
   const subject =
-    opts.audience === "tutor"
-      ? `Payment received: ${student} — ${opts.amountDisplay}`
-      : `Payment received: ${opts.amountDisplay}`;
+    isStudent && reference
+      ? `Receipt: ${course} — ${opts.amountDisplay}`
+      : opts.audience === "tutor"
+        ? `Payment received: ${student} — ${opts.amountDisplay}`
+        : `Payment received: ${opts.amountDisplay}`;
 
   const text = [
     opts.audience === "student"
@@ -491,8 +512,13 @@ export function paymentReceivedEmail(opts: {
     confirmed
       ? "The booking is confirmed — no approval is needed."
       : "The payment has been added to the agreement.",
+    opts.feeDisplay ? `Processing fee: ${opts.feeDisplay}` : null,
+    opts.totalDisplay ? `Total charged: ${opts.totalDisplay}` : null,
+    reference ? `Payment reference: ${reference}` : null,
     url,
-  ].join("\n\n");
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n\n");
 
   const label =
     opts.audience === "admin"
@@ -505,8 +531,36 @@ export function paymentReceivedEmail(opts: {
     subject,
     text,
     html: wrap(
-      "Payment received",
+      isStudent && reference ? "Payment receipt" : "Payment received",
       `${p(intro)}${details}${actionButton(url, label)}`,
+    ),
+  };
+}
+
+/**
+ * A student who paid for GROUP sessions was seated in the tutor's study group
+ * in the same transaction (0038). The tutor is told, because a group booking
+ * they didn't create by hand is otherwise invisible to them.
+ */
+export function groupJoinedEmail(opts: {
+  studentName?: string | null;
+  groupName?: string | null;
+  courseName?: string | null;
+  groupId: string;
+}): EmailMessage {
+  const student = opts.studentName?.trim() || "A student";
+  const group = opts.groupName?.trim() || "your study group";
+  const course = opts.courseName?.trim() || "this course";
+  const url = `${process.env.APP_URL ?? ""}/groups?g=${encodeURIComponent(opts.groupId)}`;
+
+  const intro = `<strong>${escapeHtml(student)}</strong> paid for group sessions in <strong>${escapeHtml(course)}</strong> and has been added to <strong>${escapeHtml(group)}</strong>. There is nothing for you to approve.`;
+
+  return {
+    subject: `New in ${group}: ${student}`,
+    text: `${student} paid for group sessions in ${course} and has been added to ${group}.\n\n${url}`,
+    html: wrap(
+      "Group updated",
+      `${p(intro)}${actionButton(url, "Open the group")}`,
     ),
   };
 }

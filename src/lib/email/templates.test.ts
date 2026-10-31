@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   attendanceConfirmedEmail,
   escapeHtml,
+  groupJoinedEmail,
   newMessageEmail,
   passwordResetEmail,
+  paymentReceivedEmail,
   sessionCancelledEmail,
   sessionScheduledEmail,
   tutorApplicationEmail,
@@ -228,5 +230,81 @@ describe("tutorRequestEmail", () => {
     const msg = tutorRequestEmail({ kind: "received" });
     expect(msg.subject).toBeTruthy();
     expect(msg.text).toContain("A student");
+  });
+});
+
+describe("paymentReceivedEmail invoice", () => {
+  const base = {
+    audience: "student" as const,
+    amountDisplay: "GH₵60.00",
+    studentName: "Kojo",
+    courseTitle: "ME 255 Thermodynamics",
+    tutorName: "Ama",
+    confirmed: true,
+  };
+
+  it("itemises the fee, the total and the reference for the student", () => {
+    const msg = paymentReceivedEmail({
+      ...base,
+      reference: "HARC-abc-123",
+      feeDisplay: "GH₵1.17",
+      totalDisplay: "GH₵61.17",
+    });
+    expect(msg.subject).toContain("Receipt");
+    expect(msg.html).toContain("Paystack processing fee");
+    expect(msg.html).toContain("GH₵61.17");
+    expect(msg.html).toContain("HARC-abc-123");
+    expect(msg.text).toContain("Payment reference: HARC-abc-123");
+  });
+
+  it("still sends for a legacy row that has no reference or fee", () => {
+    const msg = paymentReceivedEmail(base);
+    expect(msg.subject).toBeTruthy();
+    expect(msg.html).not.toContain("Payment reference");
+    expect(msg.html).not.toContain("Paystack processing fee");
+  });
+
+  it("tutors get the notification copy, not the receipt", () => {
+    const msg = paymentReceivedEmail({
+      ...base,
+      audience: "tutor",
+      reference: "HARC-abc-123",
+      feeDisplay: "GH₵1.17",
+      totalDisplay: "GH₵61.17",
+    });
+    expect(msg.subject).not.toContain("Receipt");
+    expect(msg.html).toContain("nothing to approve");
+  });
+});
+
+describe("groupJoinedEmail", () => {
+  const before = process.env.APP_URL;
+
+  afterEach(() => {
+    if (before === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = before;
+  });
+
+  it("names the student, group and course and links to the group", () => {
+    process.env.APP_URL = "https://app.example.com";
+    const msg = groupJoinedEmail({
+      studentName: "Kojo",
+      groupName: "Thermodynamics Crew",
+      courseName: "ME 255",
+      groupId: "abc-123",
+    });
+    expect(msg.subject).toContain("Kojo");
+    expect(msg.text).toContain("ME 255");
+    expect(msg.html).toContain("https://app.example.com/groups?g=abc-123");
+  });
+
+  it("escapes the student and group names", () => {
+    const msg = groupJoinedEmail({
+      studentName: "<script>alert(1)</script>",
+      groupName: '"><img src=x onerror=alert(1)>',
+      groupId: "abc",
+    });
+    expect(msg.html).not.toContain("<script>");
+    expect(msg.html).not.toContain("<img src=x");
   });
 });

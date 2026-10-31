@@ -4,7 +4,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isMissingColumn } from "@/lib/postgres";
 import { notifySmsToProfiles } from "@/lib/sms";
 import { formatGhs } from "@/lib/money";
-import { verifyTransaction } from "./paystack";
+import {
+  isReferenceNotFound,
+  verifyTransaction,
+  type PaystackTransaction,
+} from "./paystack";
 
 /**
  * Charge reconciliation — the one place a Paystack charge is applied.
@@ -148,7 +152,28 @@ export async function reconcileChargeByReference(
   // sweep had already called it abandoned, both end up 'failed' with a real
   // charge behind them. Only 'paid' is safe to short-circuit, so always ask
   // Paystack. (One extra verify call on a dead reference, at most.)
-  const txn = await verifyTransaction(ref);
+  let txn: PaystackTransaction;
+  try {
+    txn = await verifyTransaction(ref);
+  } catch (err) {
+    if (!isReferenceNotFound(err)) throw err;
+
+    // Paystack has no such transaction, so this can never resolve. Close it —
+    // an unclosed row stays the OLDEST `initialized` row, and the sweep only
+    // ever reads the five oldest, so a few of these would block reconciliation
+    // of every newer charge for ever.
+    const { error } = await supabase
+      .from("payments")
+      .update({ status: "failed", paystack_status: "not_found" })
+      .eq("id", row.id)
+      .eq("status", "initialized");
+    if (error) {
+      console.error(
+        `[payments] could not close unknown reference ${ref}: ${error.message}`,
+      );
+    }
+    return { status: "refused", reason: "reference_not_found" };
+  }
   if (txn.status !== "success") {
     // Abandoned / failed checkouts are terminal for THIS reference. Marking
     // the row 'failed' takes it out of the sweep's queue — otherwise every

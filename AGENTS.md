@@ -660,6 +660,34 @@ mobile app.
   ("Aircraft Vehicle Design" = AERO 473, "Egonomic" = ME 392). Shared
   foundation codes (MATH 151, ME 255…) stay canonical to Mechanical, which is
   listed first, so the index grew 78 → **98** course folders.
+- **Payment receipts, group seats, and an un-starved sweep (0038).** Two real
+  mobile-money charges were run end-to-end and the whole money path held —
+  verify-then-trust, the 0034 fee gross-up (GH₵60 net → GH₵61.17 charged), the
+  ledger re-check under row locks, the 0035 auto-accept firing 14 s after the
+  charge with no tutor action, and the **return path** applying both because
+  Paystack can never webhook `localhost`. Three gaps it exposed, all fixed:
+  (1) **the sweep could starve permanently.** It reads the five OLDEST
+  `initialized` rows; a reference Paystack has never heard of throws from
+  `verifyTransaction`, the catch logged it, and the row stayed `initialized` —
+  so every later run picked the identical five, for ever, and no newer charge
+  would ever be reconciled by cron. This is the failure this file already
+  documents as fixed, but that fix only covered the `abandoned`/`failed`
+  statuses returned by a *successful* verify; "reference not found" throws
+  before reaching that branch. `PaystackApiError` now carries the HTTP status
+  and `isReferenceNotFound` closes such rows `failed`/`not_found` — verified by
+  draining a queue that had 7 dead references jammed at its head. (2) **the
+  student got no invoice.** Their `payment.received` email carried only the net
+  amount, so it could not prove payment; it now itemises course fee, processing
+  fee, total charged and the Paystack reference, with a "Receipt:" subject. (3)
+  **a group booking left the student outside the group** — 0035 auto-accepted
+  the request but nobody seated them, so it was manual. 0038 seats them in the
+  tutor's group for that course in the same transaction and notifies the tutor.
+  Also fixed in the same stretch: every admin `payment.received` row was being
+  silently dropped (the builder guarded on `recipient_id`, which admin fan-out
+  rows legitimately don't have), and all three `request.*` email types had no
+  builder case at all — 28 queued rows discarded, so a tutor was never told a
+  student had asked for them. The drop path marks rows `sent_at`, which is why
+  neither showed up as an error anywhere but the drain log.
 
 ---
 
@@ -743,6 +771,7 @@ and all are safe to re-run:
 | `0035_payment_confirms_booking.sql` | Payment IS the booking: applying a verified charge auto-accepts the matching PENDING tutor request for that student + tutor (+ course), so the tutor schedules instead of clearing a queue. Also fixes 0034's activation email, which addressed the TUTOR audience to the STUDENT's profile id (the tutor never got it, the student got a tutor-worded copy) — the recipient is now the tutor's profile |
 | `0036_group_read_state.sql` | `study_group_members.last_read_at` (default `now()`) + an index — the watermark behind the per-group unread count, the list's bold row/pill and the Groups nav badge. Defaulting to `now()` means deploying does not turn history into unread; a student added by a tutor is inserted before the "added you" system message, so that message is unread for them |
 | `0037_knust_aerospace_curriculum.sql` | The KNUST Aerospace Engineering curriculum, from the department's own "Aerospace engineering course outline" PDF (Academic Resources Drive, sections 11.1–11.8): 73 rows across Years 1–4, both semesters, including the Year-4 technical electives. Completes the programme set 0030 left at four (Aerospace published no structure then) |
+| `0038_payment_invoice_and_group_seat.sql` | Two things a successful payment does, both inside the apply transaction: (1) the student's `payment.received` outbox row carries the Paystack `reference` + `fee_amount` so the email renders as an itemised **invoice** (course fee, processing fee, total charged, reference) instead of a bare "we got your money" note; (2) a **GROUP** booking seats the student in the tutor's non-archived `study_group` for that course, writes a feed line and notifies the tutor (`payment.group_joined`). Membership is written before the message so 0036's `last_read_at` leaves it unread for the joiner, and `FOUND` guards the block so a replayed payment adds nobody twice |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -888,7 +917,7 @@ every send).
 
 Setup runbook:
 1. `npm install`
-2. Apply migrations `0001` → `0037` in the Supabase SQL Editor, in order
+2. Apply migrations `0001` → `0038` in the Supabase SQL Editor, in order
    (each is safe to re-run)
 3. `npm run dev` → http://localhost:3000 (no confirmation emails — sign-up
    signs you in immediately)
