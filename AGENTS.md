@@ -625,6 +625,41 @@ mobile app.
   overpay guard stops a double credit, but Paystack could take the second
   payment; the full fix is a unique partial index on
   `(installment_id) where status = 'initialized'`, which needs a migration.
+- **Study groups you can see yourself in (0036).** The room existed but nobody
+  could tell they were in it: every group looked identical, a message preview
+  never said who spoke, and the only way in was a code the student had to be
+  told out-of-band. `study_group_members.last_read_at` (default `now()`, so
+  deploying creates no unread storm) now backs an unread count
+  (`messages newer than the watermark, excluding your own`), surfaced as a
+  bold row + pill in the workspace, a badge on the desktop **Groups** link and
+  the mobile tab bar, and cleared by `markGroupRead` when a thread opens. The
+  list gained initials avatars, `Sender: preview` lines, activity ordering and
+  a search box. The **members sheet** (tap the member count) lists everyone and
+  — for the owner — an **Add students** picker fed by `listTutorRoster`; the
+  action is idempotent, writes an "added … to the group" system message and
+  sends each newly-added student an email **and** an SMS
+  (`notifyGroupAdded`, `group_added`). A student who already has an accepted
+  request with the tutor (or a booking for the course) sees a **Groups you can
+  join** band and joins in one tap (`listJoinableGroupsForStudent` +
+  `joinGroupById`, eligibility re-checked server-side). The code still works:
+  `/groups?code=…` prefills the join form. The workspace now comes **first**,
+  with join/create below it. A database that hasn't run 0036 degrades to
+  no-unread-badges instead of an empty page (`readMemberships`).
+- **Aerospace Engineering: real curriculum + Drive materials (0037).** 0030
+  deliberately skipped Aerospace because the department published no structure
+  — that source now exists: the "Aerospace engineering course outline" PDF in
+  the public Academic Resources Drive (sections 11.1–11.8). 0037 seeds its 73
+  rows (Years 1–4, both semesters, including the Year-4 technical electives),
+  so Aerospace students get the same programme → level → semester → course
+  directory as the other programmes. `AEROSPACE_YEARS` in `driveLibrary.ts`
+  mirrors the Drive, indexed by course code like Mechanical. The Drive was
+  checked folder-by-folder against the outline: Year 3 does have material
+  (Aerodynamics I, Propulsion, Heat Transfer…), Year 1 Semester 1 carries five
+  documents inside its "Aerospace Eng" folder (attached as **term resources**,
+  not fake course folders), and a few folder titles differ from the outline
+  ("Aircraft Vehicle Design" = AERO 473, "Egonomic" = ME 392). Shared
+  foundation codes (MATH 151, ME 255…) stay canonical to Mechanical, which is
+  listed first, so the index grew 78 → **98** course folders.
 
 ---
 
@@ -706,6 +741,8 @@ and all are safe to re-run:
 | `0033_knust_mech_brochure_corrections.sql` | The department's brochure is authoritative: adds `EE 252 Electrical Engineering Machines` (Y3S2, 2 cr) and `ME 496 Human Factors and Ergonomics` (Y4S2, 3 cr) — the two courses 0030 dropped because their codes were duplicated in the printed tables |
 | `0034_payment_fee_passthrough.sql` | `payments.fee_amount` — the Paystack processing fee (pesewas) the student paid ON TOP of `amount`; the charge is `amount + fee_amount`, while `amount` stays the money applied to the installment. Also fixes `payment_apply_verified_payment`'s idempotency guard: it returned early for ANY row with the reference, so the `initialized` row written at checkout made the function mark the payment paid without ever crediting the installment. It now short-circuits only an already-`paid` row |
 | `0035_payment_confirms_booking.sql` | Payment IS the booking: applying a verified charge auto-accepts the matching PENDING tutor request for that student + tutor (+ course), so the tutor schedules instead of clearing a queue. Also fixes 0034's activation email, which addressed the TUTOR audience to the STUDENT's profile id (the tutor never got it, the student got a tutor-worded copy) — the recipient is now the tutor's profile |
+| `0036_group_read_state.sql` | `study_group_members.last_read_at` (default `now()`) + an index — the watermark behind the per-group unread count, the list's bold row/pill and the Groups nav badge. Defaulting to `now()` means deploying does not turn history into unread; a student added by a tutor is inserted before the "added you" system message, so that message is unread for them |
+| `0037_knust_aerospace_curriculum.sql` | The KNUST Aerospace Engineering curriculum, from the department's own "Aerospace engineering course outline" PDF (Academic Resources Drive, sections 11.1–11.8): 73 rows across Years 1–4, both semesters, including the Year-4 technical electives. Completes the programme set 0030 left at four (Aerospace published no structure then) |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -851,7 +888,7 @@ every send).
 
 Setup runbook:
 1. `npm install`
-2. Apply migrations `0001` → `0035` in the Supabase SQL Editor, in order
+2. Apply migrations `0001` → `0037` in the Supabase SQL Editor, in order
    (each is safe to re-run)
 3. `npm run dev` → http://localhost:3000 (no confirmation emails — sign-up
    signs you in immediately)
