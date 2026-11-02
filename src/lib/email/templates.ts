@@ -650,6 +650,38 @@ export function paymentPlanCreatedEmail(opts: {
   };
 }
 
+/**
+ * The admin issued a single-use part-payment link (0032) — this email carries
+ * it, so the admin never has to copy a URL and go hunting for the student.
+ * The link opens `/pay/<token>` with NO sign-in (a locked-out student can
+ * still settle the balance), so the URL itself is the payload: it appears in
+ * full in the text part, as the button, and as a plain link in the HTML.
+ */
+export function paymentLinkEmail(opts: {
+  amountDisplay: string;
+  linkUrl: string;
+  expiresDisplay: string;
+}): EmailMessage {
+  const subject = `Your part-payment link: ${opts.amountDisplay}`;
+  const text =
+    `Here is your part-payment link for ${opts.amountDisplay}:\n\n` +
+    `${opts.linkUrl}\n\n` +
+    `It's single use and expires ${opts.expiresDisplay} — pay the exact ` +
+    `amount straight from the link; no sign-in needed.`;
+  return {
+    subject,
+    text,
+    html: wrap(
+      "Your part-payment link",
+      `${p(
+        `Here is your part-payment link for <strong>${escapeHtml(opts.amountDisplay)}</strong>. It's single use and expires <strong>${escapeHtml(opts.expiresDisplay)}</strong> — pay the exact amount straight from it, no sign-in needed.`,
+      )}${actionButton(opts.linkUrl, `Pay ${opts.amountDisplay}`)}${p(
+        `Or open it directly: ${textLink(opts.linkUrl, opts.linkUrl)}`,
+      )}`,
+    ),
+  };
+}
+
 /** Payout lifecycle — requested / approved / transferring / paid / held / failed. */
 export function payoutStatusEmail(opts: {
   status: "requested" | "approved" | "transferring" | "paid" | "held" | "failed" | "account_verified";

@@ -7,6 +7,7 @@ import {
   attendanceConfirmedEmail,
   newMessageEmail,
   passwordResetEmail,
+  paymentLinkEmail,
   sessionCancelledEmail,
   sessionScheduledEmail,
   studyGroupAddedEmail,
@@ -280,4 +281,51 @@ export async function notifyPasswordReset(opts: {
 }): Promise<string | null> {
   const resetUrl = `${APP_URL}/forgot-password`;
   return deliver(opts.email, passwordResetEmail({ code: opts.code, resetUrl }));
+}
+
+// ---------------------------------------------------------------------------
+// Payments
+// ---------------------------------------------------------------------------
+
+export type PaymentLinkEmailResult =
+  | { sent: true; email: string }
+  | { sent: false; reason: string };
+
+/**
+ * Email a freshly issued part-payment link to the student. AWAITED (like
+ * `notifyPasswordReset`, unlike every `notify*` here): the admin action shows
+ * the admin on screen whether the student was actually reached — "sent by
+ * chat and email" vs "copy the link below" — and that message is only honest
+ * if we wait for Resend's answer. Still never throws: a broken email must not
+ * lose a link that Postgres already minted.
+ */
+export async function deliverPaymentLinkEmail(opts: {
+  toProfileId: string;
+  amountDisplay: string;
+  linkUrl: string;
+  expiresDisplay: string;
+}): Promise<PaymentLinkEmailResult> {
+  // Reasons are interpolated into the admin's success copy — keep them as
+  // phrases (no trailing period), never Resend's raw multi-sentence wording.
+  const phrase = (reason: string) => reason.replace(/\.$/, "");
+  try {
+    if (!isEmailConfigured()) {
+      return { sent: false, reason: "email isn't configured (RESEND_API_KEY)" };
+    }
+    const emails = await emailsForProfiles([opts.toProfileId]);
+    const to = emails.get(opts.toProfileId);
+    if (!to) return { sent: false, reason: "the student has no email on file" };
+    const reason = await deliver(
+      to,
+      paymentLinkEmail({
+        amountDisplay: opts.amountDisplay,
+        linkUrl: opts.linkUrl,
+        expiresDisplay: opts.expiresDisplay,
+      }),
+    );
+    return reason ? { sent: false, reason: phrase(reason) } : { sent: true, email: to };
+  } catch (err) {
+    console.error("[email] payment link email failed", err);
+    return { sent: false, reason: "email failed unexpectedly" };
+  }
 }

@@ -8,6 +8,7 @@ import { notifyNewMessage } from "@/lib/email/notify";
 import { notifySmsToProfiles } from "@/lib/sms";
 import { formatGhs } from "@/lib/money";
 import { requireProfile } from "@/services/auth/queries";
+import { seatGroupBookingForRequest } from "@/services/groups/booking";
 import {
   DEFAULT_SESSION_MODE,
   normalizeSessionMode,
@@ -536,6 +537,12 @@ export async function respondTutorRequest(
     p_accept: parsed.data.accept,
   });
   if (error) return { error: friendlyError(rpcError(error)) };
+
+  // A group booking also lands the student in the tutor's group for the course
+  // (find-or-create). Best-effort, never throws; gates on session_mode='group'.
+  if (parsed.data.accept) {
+    await seatGroupBookingForRequest(parsed.data.requestId);
+  }
 
   // Text the student the verdict — accepted means they can now pay the first
   // 50%, declined means they should stop waiting for it.

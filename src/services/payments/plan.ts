@@ -8,6 +8,8 @@
  * the rules are unit-tested rather than re-derived in JSX.
  */
 
+import { formatGhs } from "@/lib/money";
+
 export type PlanState = "paid" | "part" | "unpaid";
 
 /** Where one agreement stands. A zero total counts as settled (nothing owed). */
@@ -143,4 +145,80 @@ export function daysUntilPromise(
   const today = Date.parse(`${accraDay(now)}T00:00:00Z`);
   if (Number.isNaN(due) || Number.isNaN(today)) return null;
   return Math.round((due - today) / 86_400_000);
+}
+
+// ---------------------------------------------------------------------------
+// One student at a time (admin console grouping)
+// ---------------------------------------------------------------------------
+
+/** A student's agreements, bundled for the console's per-student picker. */
+export interface AgreementsForStudent<T> {
+  studentId: string;
+  studentName: string;
+  studentCode: string | null;
+  rows: T[];
+  /** Still owed across this student's agreements (cancelled ones excluded). */
+  remainingPesewas: bigint;
+}
+
+type GroupableAgreement = {
+  studentId: string;
+  studentName: string;
+  studentCode: string | null;
+  remainingPesewas: bigint;
+  status: string;
+};
+
+/**
+ * Bundle agreements per student, for showing ONE student at a time (the old
+ * console stacked every student's agreements into one endless list).
+ *
+ * Order: students who still owe come first — that's the console's default
+ * selection — ties broken by first appearance, and the incoming list is
+ * newest-first, so that's the student with the most recent activity.
+ * `Array.sort` is stable, so within a rank nothing moves.
+ */
+export function groupAgreementsByStudent<T extends GroupableAgreement>(
+  rows: readonly T[],
+): Array<AgreementsForStudent<T>> {
+  const byStudent = new Map<string, AgreementsForStudent<T>>();
+  for (const row of rows) {
+    let group = byStudent.get(row.studentId);
+    if (!group) {
+      group = {
+        studentId: row.studentId,
+        studentName: row.studentName,
+        studentCode: row.studentCode,
+        rows: [],
+        remainingPesewas: BigInt(0),
+      };
+      byStudent.set(row.studentId, group);
+    }
+    group.rows.push(row);
+    if (row.status !== "cancelled") {
+      group.remainingPesewas += row.remainingPesewas;
+    }
+  }
+  return [...byStudent.values()].sort(
+    (a, b) =>
+      Number(b.remainingPesewas > BigInt(0)) -
+      Number(a.remainingPesewas > BigInt(0)),
+  );
+}
+
+/** Picker label: "Ama Mensah · HC-S-12 · 2 agreements · GH₵120 left". */
+export function agreementGroupLabel(group: {
+  studentName: string;
+  studentCode: string | null;
+  rows: readonly unknown[];
+  remainingPesewas: bigint;
+}): string {
+  const name = group.studentName || "Student";
+  const code = group.studentCode ? ` · ${group.studentCode}` : "";
+  const count = `${group.rows.length} agreement${group.rows.length === 1 ? "" : "s"}`;
+  const balance =
+    group.remainingPesewas > BigInt(0)
+      ? `${formatGhs(group.remainingPesewas)} left`
+      : "settled";
+  return `${name}${code} · ${count} · ${balance}`;
 }

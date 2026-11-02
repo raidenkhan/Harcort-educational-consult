@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   accraDay,
+  agreementGroupLabel,
   daysUntilPromise,
+  groupAgreementsByStudent,
   planProgress,
   planState,
   promiseState,
@@ -149,5 +151,87 @@ describe("daysUntilPromise", () => {
     expect(daysUntilPromise("2026-10-31", NOW)).toBe(7);
     expect(daysUntilPromise("2026-10-20", NOW)).toBe(-4);
     expect(daysUntilPromise("2026-10-24", NOW)).toBe(0);
+  });
+});
+
+/** Minimal engagement row for the per-student grouping helpers. */
+function agreementRow(
+  over: Partial<{
+    studentId: string;
+    studentName: string;
+    studentCode: string | null;
+    remainingPesewas: bigint;
+    status: string;
+  }> = {},
+) {
+  return {
+    studentId: "s1",
+    studentName: "Ama",
+    studentCode: null as string | null,
+    remainingPesewas: BigInt(0),
+    status: "active",
+    ...over,
+  };
+}
+
+describe("groupAgreementsByStudent", () => {
+  it("bundles agreements per student, keeping the incoming order", () => {
+    const groups = groupAgreementsByStudent([
+      agreementRow({ studentId: "a" }),
+      agreementRow({ studentId: "b", studentName: "Kojo" }),
+      agreementRow({ studentId: "a", remainingPesewas: BigInt(5_000) }),
+    ]);
+    expect(groups.map((g) => g.studentId)).toEqual(["a", "b"]);
+    expect(groups[0].rows).toHaveLength(2);
+    expect(groups[1].rows).toHaveLength(1);
+    expect(groups[0].remainingPesewas).toBe(BigInt(5_000));
+  });
+
+  it("puts students who still owe first (ties keep their order)", () => {
+    const groups = groupAgreementsByStudent([
+      agreementRow({ studentId: "settled", studentName: "Kojo" }),
+      agreementRow({ studentId: "owes", remainingPesewas: BigInt(1) }),
+      agreementRow({ studentId: "also-settled", studentName: "Esi" }),
+      agreementRow({ studentId: "owes-too", studentName: "Kofi", remainingPesewas: BigInt(9) }),
+    ]);
+    expect(groups.map((g) => g.studentId)).toEqual([
+      "owes",
+      "owes-too",
+      "settled",
+      "also-settled",
+    ]);
+  });
+
+  it("excludes cancelled agreements from the outstanding total", () => {
+    const groups = groupAgreementsByStudent([
+      agreementRow({ remainingPesewas: BigInt(100), status: "cancelled" }),
+      agreementRow({ remainingPesewas: BigInt(0) }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].remainingPesewas).toBe(BigInt(0));
+  });
+});
+
+describe("agreementGroupLabel", () => {
+  it("names the student, code, agreement count and balance", () => {
+    expect(
+      agreementGroupLabel({
+        studentName: "Ama Mensah",
+        studentCode: "HC-S-12",
+        rows: [1, 2],
+        remainingPesewas: BigInt(12_000),
+      }),
+    ).toBe("Ama Mensah · HC-S-12 · 2 agreements · GH₵120.00 left");
+  });
+
+  it("says 'settled', uses the singular, and falls back when unnamed", () => {
+    expect(
+      agreementGroupLabel({
+        studentName: "",
+        studentCode: null,
+        rows: [1],
+        remainingPesewas: BigInt(0),
+      }),
+    ).toBe("Student · 1 agreement · settled");
   });
 });

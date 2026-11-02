@@ -18,8 +18,11 @@ import { Input } from "@/components/ui/Fields";
  * against the live outstanding balance, so it can never collect more than the
  * student owes.
  *
- * The raw token comes back ONCE (the database stores only its hash), so the
- * copy button is the only way to get it — say so in the UI.
+ * The admin no longer has to deliver it by hand: `createPaymentRequest` posts
+ * the link into the admin↔student chat thread AND emails it, then reports
+ * which channels actually worked in the success copy. The copy button stays
+ * as the fallback (and for sending it elsewhere) — the raw token comes back
+ * ONCE (the database stores only its hash), so this is the only way to get it.
  */
 export function CreatePaymentLinkForm({
   engagementId,
@@ -88,7 +91,7 @@ export function CreatePaymentLinkForm({
         />
         <Button type="submit" variant="secondary" disabled={pending} className="shrink-0">
           <Link2 className="h-4 w-4" />
-          {pending ? "Creating…" : "Create link"}
+          {pending ? "Creating…" : "Create & send"}
         </Button>
       </div>
 
@@ -117,8 +120,9 @@ export function CreatePaymentLinkForm({
             </Button>
           </div>
           <p className="mt-1.5 text-[11px] leading-relaxed text-emerald-800/80">
-            Copy it now — only the link&apos;s hash is stored, so it can&apos;t
-            be shown again. Single use; it stops working once paid or expired.
+            Only the link&apos;s hash is stored, so it can&apos;t be shown again
+            — copy it now if you want it elsewhere. Single use; it stops
+            working once paid or expired.
           </p>
         </div>
       )}

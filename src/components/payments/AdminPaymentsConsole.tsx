@@ -20,13 +20,19 @@ import {
 } from "@/services/payments/queries";
 import { formatGhs } from "@/lib/money";
 import { accraDate, isOverdue } from "@/lib/time";
-import { promiseState, summarizePlans } from "@/services/payments/plan";
+import {
+  agreementGroupLabel,
+  groupAgreementsByStudent,
+  promiseState,
+  summarizePlans,
+} from "@/services/payments/plan";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import {
   listRecentPaymentsForAdmin,
   type PaymentLogRow,
 } from "@/services/payments/queries";
+import { AdminAgreementsByStudent } from "./AdminAgreementsByStudent";
 import { AdminPayoutActions } from "./AdminPayoutActions";
 import { AdminVerifyPayoutAccountButton } from "./AdminVerifyPayoutAccountButton";
 import { CancelPaymentLinkButton } from "./CancelPaymentLinkButton";
@@ -45,8 +51,9 @@ import { RecordPartPaymentForm } from "./RecordPartPaymentForm";
  *   2. Payout queue — every payout, flagged/pending first; approve, send
  *      the MoMo transfer, or hold with a mandatory reason. Every action
  *      lands in payment_events + the tutors are emailed by the outbox.
- *   3. Engagements oversight — all agreements with installment progress
- *      and overdue flags, plus the 0029 record-a-part-payment form for money
+ *   3. Engagements oversight — agreements grouped PER STUDENT behind a
+ *      picker (one student at a time), with installment progress and
+ *      overdue flags, plus the 0029 record-a-part-payment form for money
  *      that arrived outside Paystack, and the combined payment log (both
  *      channels, newest first).
  */
@@ -160,6 +167,10 @@ export async function AdminPaymentsConsole() {
       listPaymentRequestsForAdmin(),
     ]);
   const d = derive({ engagements, payouts });
+  // 0039 UX — one student at a time: the picker's options (labels + order),
+  // while the cards below stay server-rendered and filter themselves by
+  // their own `data-student` attribute.
+  const agreementGroups = groupAgreementsByStudent(d.engagements);
 
   const stats = [
     { label: "Collected", value: formatGhs(d.collected), icon: Wallet, tint: "bg-petrol-50 text-petrol-700" },
@@ -400,20 +411,33 @@ export async function AdminPaymentsConsole() {
         )}
       </div>
 
-      {/* Engagements oversight */}
+      {/* Engagements oversight — ONE student at a time (user report: the old
+          list stacked every student's agreements into one endless scroll). */}
       <div className="mt-10">
         <h3 className="text-lg font-semibold text-slate-900">
           Payment agreements
         </h3>
+        <p className="mt-1 max-w-xl text-sm text-slate-500">
+          One student at a time — pick a student to see their agreements,
+          plans and record-a-payment forms.
+        </p>
         {d.engagements.length === 0 ? (
           <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white/70 p-10 text-center text-sm text-slate-500">
             No agreements yet — when students commit to a quoted course, every
             agreement and its installment progress shows here.
           </div>
         ) : (
-          <ul className="mt-4 space-y-3">
+          <AdminAgreementsByStudent
+            students={agreementGroups.map((group) => ({
+              id: group.studentId,
+              label: agreementGroupLabel(group),
+            }))}
+          >
             {d.engagements.map((engagement) => (
-              <li key={engagement.id}>
+              <li
+                key={engagement.id}
+                data-student={engagement.studentId}
+              >
                 <Card>
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0">
@@ -539,7 +563,7 @@ export async function AdminPaymentsConsole() {
                 </Card>
               </li>
             ))}
-          </ul>
+          </AdminAgreementsByStudent>
         )}
       </div>
 

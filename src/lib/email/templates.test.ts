@@ -5,6 +5,7 @@ import {
   groupJoinedEmail,
   newMessageEmail,
   passwordResetEmail,
+  paymentLinkEmail,
   paymentReceivedEmail,
   sessionCancelledEmail,
   sessionScheduledEmail,
@@ -274,6 +275,39 @@ describe("paymentReceivedEmail invoice", () => {
     });
     expect(msg.subject).not.toContain("Receipt");
     expect(msg.html).toContain("nothing to approve");
+  });
+});
+
+describe("paymentLinkEmail", () => {
+  const base = {
+    amountDisplay: "GH₵120.00",
+    linkUrl: "https://app.example.com/pay/tok_abc-123",
+    expiresDisplay: "14 Aug 2026",
+  };
+
+  it("carries the absolute link, the amount and the expiry", () => {
+    const msg = paymentLinkEmail(base);
+    expect(msg.subject).toContain("GH₵120.00");
+    // The URL is the payload: in the text part AND as the button.
+    expect(msg.text).toContain(base.linkUrl);
+    expect(msg.text).toContain("14 Aug 2026");
+    expect(msg.html).toContain(base.linkUrl);
+    expect(msg.html).toContain("Pay GH₵120.00");
+    expect(msg.html).toContain("no sign-in");
+  });
+
+  it("escapes an attacker-controlled amount into the HTML", () => {
+    const msg = paymentLinkEmail({
+      ...base,
+      amountDisplay: '<script>alert("x")</script>',
+    });
+    expect(msg.html).not.toContain("<script>");
+    expect(msg.html).toContain("&lt;script&gt;");
+  });
+
+  it("never emits a non-http(s) href as a working link", () => {
+    const msg = paymentLinkEmail({ ...base, linkUrl: "javascript:alert(1)" });
+    expect(msg.html).not.toContain('href="javascript:');
   });
 });
 

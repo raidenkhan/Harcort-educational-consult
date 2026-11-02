@@ -9,6 +9,7 @@ import {
   verifyTransaction,
   type PaystackTransaction,
 } from "./paystack";
+import { seatGroupBookingForEngagement } from "@/services/groups/booking";
 
 /**
  * Charge reconciliation — the one place a Paystack charge is applied.
@@ -295,6 +296,12 @@ export async function reconcileChargeByReference(
   // text. (It used to live only in the webhook, so a charge applied by the
   // return path never texted anybody.)
   await textPaymentReceived(row.engagement_id, courseAmount, ref);
+
+  // A group booking is also a group seat: the payment RPC (0038) seats the
+  // student when the tutor already has a group for the course; this closes
+  // the gap it left (no group yet) and covers the admin part-payment path.
+  // Idempotent — never throws.
+  await seatGroupBookingForEngagement(row.engagement_id);
 
   return {
     status: "applied",

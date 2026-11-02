@@ -10,6 +10,7 @@ import {
 import { notifySmsToProfiles } from "@/lib/sms";
 import { sessionWhen } from "@/lib/time";
 import { requireProfile } from "@/services/auth/queries";
+import { broadcastSessionToGroup } from "@/services/groups/booking";
 import { optionalText } from "@/lib/forms";
 import { createSessionSchema } from "./schemas";
 import type { TutoringSession } from "@/types";
@@ -132,11 +133,12 @@ export async function createSession(
     .select("full_name")
     .eq("id", parsed.data.studentId)
     .maybeSingle();
+  const when = sessionWhen(start, parsed.data.durationMinutes);
   notifySessionScheduled({
     studentProfileId: parsed.data.studentId,
     tutorName: profile.full_name || "Your tutor",
     studentName: (studentRow as { full_name: string } | null)?.full_name || "you",
-    when: sessionWhen(start, parsed.data.durationMinutes),
+    when,
     start,
     durationMinutes: parsed.data.durationMinutes,
     topic: parsed.data.topic ?? null,
@@ -148,9 +150,20 @@ export async function createSession(
   notifySmsToProfiles(
     [parsed.data.studentId],
     `Harcourt: ${profile.full_name || "Your tutor"} scheduled a session for ` +
-      `${sessionWhen(start, parsed.data.durationMinutes)}. See your dashboard.`,
+      `${when}. See your dashboard.`,
     "session_scheduled",
   );
+
+  // A group-mode pair's session also lands in the shared group feed, so
+  // the other members see it on their dashboard. Best-effort, never throws.
+  await broadcastSessionToGroup({
+    kind: "scheduled",
+    actorProfileId: profile.id,
+    studentId: parsed.data.studentId,
+    tutorProfileId: tutorProfileIdForGuard,
+    when,
+    topic: parsed.data.topic ?? null,
+  });
 
   revalidatePath("/tutor", "layout");
   revalidatePath("/dashboard");
@@ -368,6 +381,17 @@ export async function cancelSession(
 
   revalidatePath("/tutor", "layout");
   revalidatePath("/dashboard");
+  // A group-mode pair's cancelled session is also announced in the shared
+  // group feed, so the other members see it on their dashboard. Best-effort.
+  await broadcastSessionToGroup({
+    kind: "cancelled",
+    actorProfileId: profile.id,
+    studentId: sessionRow.student_id,
+    tutorProfileId: sessionRow.tutor_profile_id,
+    when,
+    topic: sessionRow.topic,
+  });
+
   revalidatePath("/admin", "layout");
   return { message: "Session cancelled." };
 }

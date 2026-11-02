@@ -9,6 +9,10 @@ import { requireProfile } from "@/services/auth/queries";
 import type { Profile } from "@/types";
 import { profileIsAdmin } from "@/lib/auth/admin";
 import { scheduleOutboxDrain } from "@/lib/email/outbox";
+import { seatGroupBookingForEngagement } from "@/services/groups/booking";
+import { deliverPaymentLinkEmail } from "@/lib/email/notify";
+import { siteUrl } from "@/lib/site";
+import { accraDate } from "@/lib/time";
 import {
   PaystackApiError,
   createTransferRecipient,
@@ -724,6 +728,11 @@ export async function recordPartPayment(
   if (error) return { error: friendlyError(rpcError(error)) };
   void data;
 
+  // Admin-recorded money never runs the payment RPC's group seat (that
+  // block lives in payment_apply_verified_payment), so seat explicitly.
+  // Best-effort, never throws; idempotent with any prior seat.
+  await seatGroupBookingForEngagement(parsed.data.engagementId);
+
   scheduleOutboxDrain();
   revalidatePath("/admin", "layout");
   revalidatePath("/dashboard");
@@ -908,12 +917,75 @@ export async function setPaymentPromise(
 }
 
 /**
+ * Hand a freshly issued part-payment link to the student in chat — the admin
+ * shouldn't have to copy a URL and go hunting for the student (user report).
+ *
+ * Find-or-create the admin↔student thread: the partial unique index
+ * `idx_conversations_admin_student` guarantees one thread per pair, so a lost
+ * insert race comes back as 23505 and we re-read theirs. Nothing in the app
+ * writes `conversations.status = 'closed'`, so any thread found here is open
+ * (only the manual send action checks it; the insert itself has no guard).
+ *
+ * Best-effort: whatever this returns is reported to the admin on screen, so
+ * a failure just falls back to "copy the link below".
+ */
+async function deliverLinkInChat(
+  adminId: string,
+  studentId: string,
+  body: string,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const supabase = createAdminClient();
+  const find = async (): Promise<{ id: string } | null> => {
+    const { data } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("admin_id", adminId)
+      .eq("student_id", studentId)
+      .maybeSingle();
+    return (data as { id: string } | null) ?? null;
+  };
+
+  let conversation = await find();
+  if (!conversation) {
+    const { data, error } = await supabase
+      .from("conversations")
+      .insert({ admin_id: adminId, student_id: studentId })
+      .select("id")
+      .maybeSingle();
+    if (error) {
+      // Partial unique (admin_id, student_id) — someone created it first.
+      if (error.code !== "23505") {
+        return { ok: false, reason: "couldn't open the chat thread" };
+      }
+      conversation = await find();
+    } else {
+      conversation = (data as { id: string } | null) ?? null;
+    }
+  }
+  if (!conversation) return { ok: false, reason: "couldn't open the chat thread" };
+
+  const { error: msgError } = await supabase.from("messages").insert({
+    conversation_id: conversation.id,
+    sender_id: adminId,
+    body,
+  });
+  if (msgError) return { ok: false, reason: "couldn't post the link in chat" };
+  return { ok: true };
+}
+
+/**
  * Issue a single-use part-payment link for a specific amount.
  *
  * The raw token is generated here and never stored — only its SHA-256 hash
  * reaches Postgres (same rule as sessions and reset codes). The RPC re-checks
  * the amount against the live outstanding balance under a row lock, so an
  * admin cannot issue a link for more than the student owes.
+ *
+ * The link is then DELIVERED for the admin — posted into the admin↔student
+ * chat thread and emailed — and both outcomes are awaited and reported in the
+ * success copy ("sent by chat and email" vs "copy it below"). This is the one
+ * money action where waiting on email is worth it: the whole complaint it
+ * answers is "why am I copying a link and finding the student myself?".
  */
 export async function createPaymentRequest(
   _prev: PaymentFormState,
@@ -954,10 +1026,77 @@ export async function createPaymentRequest(
   if (error) return { error: friendlyError(rpcError(error)) };
 
   revalidatePath("/admin", "layout");
-  return {
-    message: `Link ready for ${formatGhs(BigInt(amountPesewas))} — copy it and send it to the student.`,
-    linkPath: paymentLinkPath(token),
-  };
+
+  const linkPath = paymentLinkPath(token);
+  const amountDisplay = formatGhs(BigInt(amountPesewas));
+  const expiresDisplay = accraDate(new Date(expiresAt));
+
+  // One round for the delivery target: the engagement's student and name.
+  const { data: engagementRow } = await supabase
+    .from("engagements")
+    .select("id, student_id, profiles!engagements_student_id_fkey(full_name)")
+    .eq("id", parsed.data.engagementId)
+    .maybeSingle();
+  const engagement = engagementRow as unknown as {
+    student_id: string | null;
+    profiles?:
+      | { full_name: string | null }
+      | { full_name: string | null }[]
+      | null;
+  } | null;
+  const studentId = engagement?.student_id;
+  if (!studentId) {
+    // No student to deliver to — the link exists, so hand it over manually.
+    return {
+      message: `Link ready for ${amountDisplay} — copy it and send it to the student.`,
+      linkPath,
+    };
+  }
+
+  const embedded = engagement?.profiles;
+  const studentName =
+    (Array.isArray(embedded) ? embedded[0]?.full_name : embedded?.full_name) ||
+    "the student";
+  const linkUrl = siteUrl(linkPath);
+
+  const [chat, email] = await Promise.all([
+    deliverLinkInChat(
+      profile.id,
+      studentId,
+      [
+        `Here is your part-payment link for ${amountDisplay}:`,
+        linkUrl,
+        `Single use, expires ${expiresDisplay} — you can pay straight from it without signing in.`,
+      ].join("\n"),
+    ),
+    deliverPaymentLinkEmail({
+      toProfileId: studentId,
+      amountDisplay,
+      linkUrl,
+      expiresDisplay,
+    }),
+  ]);
+  revalidatePath("/chat");
+
+  // Honest delivery report — four cases, each naming what actually happened
+  // (email reasons are phrases, never Resend's raw multi-sentence wording).
+  // Normalise the two results to plain values first: each `? :` narrows its
+  // union on its own, so no else-chain has to re-derive the discriminants.
+  const chatNote = chat.ok ? null : chat.reason; // null = delivered in chat
+  const emailAddr = email.sent ? email.email : null;
+  const emailNote = email.sent ? null : email.reason;
+
+  let message: string;
+  if (chatNote === null && emailAddr !== null) {
+    message = `${amountDisplay} link sent to ${studentName} by chat and email (${emailAddr}).`;
+  } else if (chatNote === null) {
+    message = `${amountDisplay} link sent to ${studentName} in chat, but the email didn't go out — ${emailNote}. Copy the link below as a backup.`;
+  } else if (emailAddr !== null) {
+    message = `${amountDisplay} link emailed to ${emailAddr}, but chat delivery failed — ${chatNote}. Copy the link below as a backup.`;
+  } else {
+    message = `${amountDisplay} link created but not sent — chat: ${chatNote}; email: ${emailNote}. Copy it below and send it to ${studentName}.`;
+  }
+  return { message, linkPath };
 }
 
 /** Cancel an open link. A paid link is immutable: the money row is the record. */

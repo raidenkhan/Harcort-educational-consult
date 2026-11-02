@@ -766,6 +766,8 @@ mobile app.
   optional `knownProfile` skip as the chat queries. `pickNextLesson` is
   module-level (react-hooks/purity) and unit-tested.
 
+- **Group bookings always seat, and the timetable reaches the group.** 0038 seated a group-mode student inside the payment transaction, but only when the tutor had ALREADY created a group for the course — a tutor who never made one left every group booking outside, and admin-recorded part payments never ran the RPC's seat block at all. `services/groups/booking.ts` closes both gaps: `ensureGroupBookingSeat` finds the tutor's group for the course (by CODE, 0038's rule) or creates it (`ME 261 Group`, fresh join code), seats the student, writes the feed line and notifies both sides (student: `notifyGroupAdded`; tutor: a `payment.group_joined` outbox row the drain already renders). It runs from every path money or acceptance can arrive by: `respondTutorRequest` (accept), `reconcileChargeByReference` (webhook/return/sweep) and `recordPartPayment` (admin out-of-band). Idempotent — the RPC's own seat and this one can both run without a duplicate membership, feed line or email. The same module broadcasts timetable changes: when a tutor or student schedules/cancels a session for a pair whose latest request is group-mode, `broadcastSessionToGroup` posts `Session scheduled:`/`Session cancelled:` into the group feed and emails the members who didn't get the direct notification. Pure rules (code matching, group titles, broadcast lines, join codes) live in `services/groups/bookingText.ts`, unit-tested (14 tests); `groups/mutations.ts` now shares its `newJoinCode`.
+
 ---
 
 ## 3. Architecture

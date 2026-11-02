@@ -71,6 +71,40 @@ function buildRows(messages: Message[], now: number): Row[] {
   return rows;
 }
 
+/**
+ * Message body with http(s) URLs turned into real links.
+ *
+ * A part-payment link is delivered into this thread — on a phone it has to be
+ * tappable, not a copy-paste exercise. Only `http(s)` URLs ever become links
+ * (a `javascript:` payload never matches), React escapes the text around
+ * them, and sentence punctuation trailing a URL stays text.
+ */
+function LinkifiedText({ body }: { body: string }) {
+  const parts = body.split(/(https?:\/\/[^\s]+)/);
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (!/^https?:\/\//.test(part)) return part;
+        const url = part.replace(/[.,;:!?'")\]}]+$/, "");
+        const tail = part.slice(url.length);
+        return (
+          <span key={index}>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2"
+            >
+              {url}
+            </a>
+            {tail}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 /** One message bubble. Pure render of a single message — no state except the report flag. */
 function MessageRow({
   message,
@@ -94,7 +128,7 @@ function MessageRow({
         )}
       >
         <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-          {message.body}
+          <LinkifiedText body={message.body} />
         </p>
         <p className="mt-1 flex items-center justify-end gap-1.5 text-right text-[11px] text-slate-400">
           {/* Never report your own message or an admin's. */}
@@ -420,7 +454,7 @@ export function ChatView({
                 <div key={p.tempId} className="flex justify-end">
                   <div className="max-w-[78%] rounded-lg rounded-br-sm bg-slate-900 px-3.5 py-2 shadow-xs text-white">
                     <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                      {p.body}
+                      <LinkifiedText body={p.body} />
                     </p>
                     <p className="mt-1 flex items-center justify-end gap-1 text-right text-[11px] text-slate-400">
                       <Loader2 className="h-3 w-3 animate-spin" />

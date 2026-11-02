@@ -1,6 +1,5 @@
 "use server";
 
-import { randomInt } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyGroupAdded, notifyGroupMessage } from "@/lib/email/notify";
@@ -10,6 +9,7 @@ import { notifySmsToProfiles } from "@/lib/sms";
 import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
 import { listTutorRoster } from "@/services/tutors/roster";
 import { getGroupMembership, listJoinableGroupsForStudent } from "./queries";
+import { newJoinCode } from "./bookingText";
 import {
   addGroupMembersSchema,
   createGroupSchema,
@@ -32,17 +32,6 @@ export type GroupFormState = {
   added?: number;
   error?: string;
 };
-
-/** Unambiguous alphabet — no I/O/0/1, so a shared code is easy to type. */
-const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-function newJoinCode(length = 6): string {
-  let code = "";
-  for (let i = 0; i < length; i++) {
-    code += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
-  }
-  return code;
-}
 
 /** Tutor (or admin) creates a group; they become its owner. */
 export async function createGroup(
