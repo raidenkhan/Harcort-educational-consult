@@ -1,6 +1,7 @@
 import { Clock, GraduationCap, ShieldCheck } from "lucide-react";
 import { requireProfile } from "@/services/auth/queries";
 import { listStudentRequests } from "@/services/requests/queries";
+import type { TutorRequestView } from "@/services/requests/queries";
 import { dueDateLabel } from "@/lib/time";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -9,6 +10,8 @@ import { PayInstallmentButton } from "./PayInstallmentButton";
 import { CommitToCourseButton } from "./CommitToCourseButton";
 import { PaymentPlanRequestButton } from "./PaymentPlanRequestButton";
 import { listStudentEngagements } from "@/services/payments/queries";
+import type { EngagementView } from "@/services/payments/queries";
+import type { Profile } from "@/types";
 import { formatGhs } from "@/lib/money";
 
 /**
@@ -88,6 +91,7 @@ function withPayable(
 
 export async function StudentRequestsCard({
   hideWhenEmpty = false,
+  preloaded,
 }: {
   /**
    * Render nothing instead of the "how this works" placeholder when the
@@ -97,12 +101,24 @@ export async function StudentRequestsCard({
    * their courses instead.
    */
   hideWhenEmpty?: boolean;
+  /**
+   * Rows the caller already fetched (the Home tab reads them once for the
+   * "At a glance" strip and passes them down) — avoids re-running the same
+   * two queries for the same request. Omitted, the card fetches its own.
+   */
+  preloaded?: {
+    profile: Profile;
+    requests: TutorRequestView[];
+    engagements: EngagementView[];
+  };
 }) {
-  const profile = await requireProfile();
-  const [requests, engagements] = await Promise.all([
-    listStudentRequests(profile),
-    listStudentEngagements(profile),
-  ]);
+  const profile = preloaded?.profile ?? (await requireProfile());
+  const [requests, engagements] = preloaded
+    ? [preloaded.requests, preloaded.engagements]
+    : await Promise.all([
+        listStudentRequests(profile),
+        listStudentEngagements(profile),
+      ]);
 
   const rows = withPayable(requests, engagements);
 

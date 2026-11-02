@@ -1,16 +1,24 @@
 import Link from "next/link";
 import { CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
+import { listStudentRequests } from "@/services/requests/queries";
+import type { TutorRequestView } from "@/services/requests/queries";
+import { listStudentEngagements } from "@/services/payments/queries";
+import type { EngagementView } from "@/services/payments/queries";
+import { listSessionsForStudent } from "@/services/sessions/queries";
+import type { SessionView } from "@/services/sessions/queries";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PaymentGroundRules } from "@/components/support/PaymentGroundRules";
 import { StudentRequestsCard } from "@/components/payments/StudentRequestsCard";
+import { StudentGlance } from "@/components/student/StudentGlance";
 
 /**
- * Student dashboard — Home. The urgent surface only: open requests (which
- * carry the paywall), the payment ground rules, and the two doors out
- * (browse tutors, admin console). Courses, timetable, money and settings
- * each have their own tab now; the shell and tabs live in layout.tsx.
+ * Student dashboard — Home. The urgent surface only: an at-a-glance strip
+ * (next lesson / fees due / open requests), open requests (which carry the
+ * paywall), the payment ground rules, and the two doors out (browse tutors,
+ * admin console). Courses, timetable, money and settings each have their own
+ * tab now; the shell and tabs live in layout.tsx.
  */
 export default async function DashboardPage({
   searchParams,
@@ -26,6 +34,24 @@ export default async function DashboardPage({
   // currency mismatch, a settled installment). The sweep cannot fix it — a
   // human has to reconcile — so the student must not be told to wait.
   const paymentRefused = params.payment_status === "refused";
+
+  // ONE round for the whole page: the strip and the requests card read from
+  // the same rows (the card receives them via `preloaded`), so the overview
+  // costs three parallel reads — sessions, requests, agreements — not five.
+  let sessions: SessionView[] = [];
+  let requests: TutorRequestView[] = [];
+  let engagements: EngagementView[] = [];
+  if (profile.role === "student") {
+    [sessions, requests, engagements] = await Promise.all([
+      listSessionsForStudent(),
+      listStudentRequests(profile),
+      listStudentEngagements(profile),
+    ]);
+  }
+  const outstanding = engagements
+    .filter((e) => e.status !== "cancelled" && e.status !== "completed")
+    .reduce((sum, e) => sum + e.remainingPesewas, BigInt(0));
+  const openRequests = requests.filter((r) => r.status === "pending").length;
 
   return (
     <>
@@ -73,12 +99,26 @@ export default async function DashboardPage({
         </div>
       )}
 
-      {/* Urgent first: an open request is the thing a student most needs to
-          see — it carries the paywall and the "pay now" button. The ground
+      {/* At a glance first: the three questions a student opens the dashboard
+          with, each a door to its tab. It reads the same rows the requests
+          card renders, so the overview is one fetch, not two. */}
+      {profile.role === "student" && (
+        <StudentGlance
+          sessions={sessions}
+          outstandingPesewas={outstanding}
+          openRequests={openRequests}
+        />
+      )}
+
+      {/* Then the urgent thing: an open request carries the paywall and the
+          "pay now" button (the strip's Requests tile anchors here). The ground
           rules note sits right after it because it explains payment policy. */}
       {profile.role === "student" && (
-        <div className="mt-10">
-          <StudentRequestsCard hideWhenEmpty />
+        <div id="requests" className="mt-8 scroll-mt-24">
+          <StudentRequestsCard
+            hideWhenEmpty
+            preloaded={{ profile, requests, engagements }}
+          />
         </div>
       )}
       {profile.role === "student" && <PaymentGroundRules className="mt-8" />}

@@ -61,10 +61,13 @@ export function TutorTabs({ status }: { status?: React.ReactNode }) {
 
   // The longest matching href wins, so `/tutor/settings` never resolves to the
   // dashboard entry and a nested route still resolves to its section.
-  const section =
-    SECTIONS.filter(
-      (s) => pathname === s.href || pathname.startsWith(`${s.href}/`),
-    ).sort((a, b) => b.href.length - a.href.length)[0] ?? HOME;
+  const matched = SECTIONS.filter(
+    (s) => pathname === s.href || pathname.startsWith(`${s.href}/`),
+  ).sort((a, b) => b.href.length - a.href.length);
+  const section = matched[0] ?? HOME;
+  // Same rule for the nav: `/tutor` is a prefix of every section, so plain
+  // prefix matching would keep Dashboard lit while you're on Timetable.
+  const activeHref = section.href;
 
   return (
     <div>
@@ -83,7 +86,7 @@ export function TutorTabs({ status }: { status?: React.ReactNode }) {
         className="mt-8 flex gap-1 overflow-x-auto rounded-xl border border-slate-200/80 bg-white/80 p-1.5 backdrop-blur-sm"
       >
         {TABS.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`);
+          const active = href === activeHref;
           return (
             <Link
               key={href}

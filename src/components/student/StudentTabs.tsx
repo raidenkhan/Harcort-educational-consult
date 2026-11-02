@@ -101,12 +101,13 @@ export function StudentTabs({
   const tabs = role === "student" ? TABS : TABS.filter((t) => !t.studentOnly);
   const sections = [home, ...tabs];
 
-  // The longest matching href wins, so `/dashboard/courses` never resolves
-  // to the Home entry.
-  const section =
-    sections
-      .filter((s) => pathname === s.href || pathname.startsWith(`${s.href}/`))
-      .sort((a, b) => b.href.length - a.href.length)[0] ?? home;
+  // Longest matching href wins — `/dashboard` is a PREFIX of every section,
+  // so plain prefix matching would keep Home lit on every other tab.
+  const matched = sections
+    .filter((s) => pathname === s.href || pathname.startsWith(`${s.href}/`))
+    .sort((a, b) => b.href.length - a.href.length);
+  const section = matched[0] ?? home;
+  const activeHref = section.href;
 
   return (
     <div>
@@ -125,7 +126,7 @@ export function StudentTabs({
         className="mt-8 flex gap-1 overflow-x-auto rounded-xl border border-slate-200/80 bg-white/80 p-1.5 backdrop-blur-sm"
       >
         {sections.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`);
+          const active = href === activeHref;
           return (
             <Link
               key={href}

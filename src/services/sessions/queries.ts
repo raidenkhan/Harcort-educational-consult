@@ -84,9 +84,13 @@ export async function listSessionsForTutor(): Promise<SessionView[]> {
   );
 }
 
-/** Scheduled sessions booked with the signed-in student. */
-export async function listSessionsForStudent(): Promise<SessionView[]> {
-  const current = await getCurrentProfile();
+/** Scheduled sessions booked with the signed-in student.
+ *  Pass the caller's profile when you already have it — the internal re-read
+ *  is an extra Supabase round trip. */
+export async function listSessionsForStudent(
+  knownProfile?: Awaited<ReturnType<typeof getCurrentProfile>>,
+): Promise<SessionView[]> {
+  const current = knownProfile ?? (await getCurrentProfile());
   if (!current) return [];
 
   const supabase = createAdminClient();

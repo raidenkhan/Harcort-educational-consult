@@ -727,6 +727,37 @@ mobile app.
   `/dashboard/timetable` (its `#timetable` hash machinery is gone, and the
   bar now picks the longest matching href so Home can't steal
   `/dashboard/timetable`).
+- **Tab light-up, chat latency and a Home that answers at a glance.** Three
+  user reports, one release. (1) **Home stayed highlighted on every other
+  tab** — `/dashboard` is a PREFIX of every section, so prefix matching lit
+  both Home and the section you were on. `StudentTabs` now computes ONE
+  `activeHref` (longest match) used for the heading AND the nav; the same
+  latent bug in `TutorTabs` (Dashboard lit while you were on Timetable) got
+  the same fix, and `MobileTabBar` had already been moved to longest-match.
+  (2) **Messaging felt slow between tapping a tutor and seeing the thread** —
+  measured with `scripts/bench-chat.mjs` (it times the exact Supabase REST
+  calls from this machine), not guessed: the page ran THREE sequential
+  rounds (~2,333ms before a byte rendered) — the session read TWICE
+  (445ms each), then the conversation row for meta read a SECOND time after
+  the thread messages. `/chat` now fetches the list, the admin targets and
+  the thread named by `?c=` in ONE `Promise.all` (`getThreadForUser` merges
+  the membership row + header meta + messages; `listConversationsForUser`
+  takes the profile it was already given; the round-2 fallback only runs
+  when the URL named nothing usable, guarded so the open thread can never
+  disagree with the highlighted row): **~1,054ms, ≈1.3s saved per
+  navigation**. `sendMessage` went from three serial reads (row →
+  membership query → recipients query) to ONE read with an embedded
+  `tutor_profiles(profile_id)` join — the membership gate and the email
+  recipients both come off that row. Re-run the benchmark after touching
+  any chat query. (3) **"does my tutor request have to show first?"** — Home
+  now leads with a `StudentGlance` strip (next lesson → Timetable, fees due
+  → Payments, open requests → the `#requests` anchor below), then the
+  requests card, ground rules and doors. It reads from ONE parallel fetch
+  (sessions + requests + agreements) whose rows are handed to
+  `StudentRequestsCard` via its new `preloaded` prop — so the strip costs
+  only the timetable read, and `listSessionsForStudent` gained the same
+  optional `knownProfile` skip as the chat queries. `pickNextLesson` is
+  module-level (react-hooks/purity) and unit-tested.
 
 ---
 

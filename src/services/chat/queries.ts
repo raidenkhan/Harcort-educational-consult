@@ -81,9 +81,15 @@ export async function isConversationMember(
 }
 
 /** The signed-in user's conversations, newest first, with the other party's
- *  name and a last-message preview for the list sidebar. */
-export async function listConversationsForUser(): Promise<ConversationListItem[]> {
-  const current = await getCurrentProfile();
+ *  name and a last-message preview for the list sidebar.
+ *
+ *  Pass the caller's profile when you already have it — the internal re-read
+ *  is a full extra Supabase round trip (~400ms from here) on a page whose
+ *  latency is almost entirely round trips. */
+export async function listConversationsForUser(
+  knownProfile?: Profile,
+): Promise<ConversationListItem[]> {
+  const current = knownProfile ?? (await getCurrentProfile());
   if (!current) return [];
 
   const supabase = createAdminClient();
@@ -153,65 +159,62 @@ export async function listConversationsForUser(): Promise<ConversationListItem[]
   });
 }
 
-/** Header info for the active thread — membership-checked. */
-export async function getConversationMeta(
-  conversationId: string,
-  profile: Profile,
-): Promise<{
+/** The active thread: messages plus everything the header renders. */
+export interface ThreadView {
+  messages: Message[];
   otherName: string;
   otherIsAdmin: boolean;
   adminId: string | null;
   status: ConversationStatus;
-} | null> {
+}
+
+/**
+ * The active thread in ONE round trip.
+ *
+ * The two functions this replaces (`listMessagesForConversation` +
+ * `getConversationMeta`) ran in a second serial round after the conversation
+ * list, AND each re-read the same conversation row — a row read that cost
+ * ~640ms measured from this machine. Here the row (membership + header meta)
+ * and the messages are fetched together, the membership gate runs before
+ * anything is returned, and the caller gets both halves at once.
+ */
+export async function getThreadForUser(
+  conversationId: string,
+  profile: Profile,
+): Promise<ThreadView | null> {
   const supabase = createAdminClient();
 
-  const { data: row } = await supabase
-    .from("conversations")
-    .select(
-      "student_id, tutor_profile_id, admin_id, status, student:profiles!student_id(full_name), tutor_profile:tutor_profiles(id, profiles(full_name)), admin:profiles!admin_id(full_name)",
-    )
-    .eq("id", conversationId)
-    .maybeSingle();
+  const [rowRes, msgRes] = await Promise.all([
+    supabase
+      .from("conversations")
+      .select(
+        "student_id, tutor_profile_id, admin_id, status, student:profiles!student_id(full_name), tutor_profile:tutor_profiles(id, profiles(full_name)), admin:profiles!admin_id(full_name)",
+      )
+      .eq("id", conversationId)
+      .maybeSingle(),
+    supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true }),
+  ]);
 
+  const row = rowRes.data;
   if (!row) return null;
   const conversation = row as unknown as ConversationRow;
+  // Gate on membership before returning: a non-member gets null for BOTH
+  // halves, so reading them in parallel leaks nothing to the caller.
   if (!(await isConversationMember(conversation, profile.id))) return null;
 
   return {
+    messages: (msgRes.data as Message[] | null) ?? [],
     otherName: otherPartyName(conversation, profile.role),
-    otherIsAdmin: Boolean(conversation.admin_id) && conversation.admin_id !== profile.id,
+    otherIsAdmin:
+      Boolean(conversation.admin_id) && conversation.admin_id !== profile.id,
     adminId: conversation.admin_id ?? null,
     status: conversation.status,
   };
-}
-
-/** Full message thread for one conversation, oldest first. Null when the
- *  conversation doesn't exist or the caller isn't a member. */
-export async function listMessagesForConversation(
-  conversationId: string,
-  profile: Profile,
-): Promise<Message[] | null> {
-  const supabase = createAdminClient();
-
-  const { data: conversation } = await supabase
-    .from("conversations")
-    .select("student_id, tutor_profile_id, admin_id")
-    .eq("id", conversationId)
-    .maybeSingle();
-
-  if (!conversation) return null;
-  if (!(await isConversationMember(conversation as Conversation, profile.id))) {
-    return null;
-  }
-
-  const { data } = await supabase
-    .from("messages")
-    .select("*")
-    .eq("conversation_id", conversationId)
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true });
-
-  return (data as Message[]) ?? [];
 }
 
 /** Approved students + tutors the admin can start a conversation with. */

@@ -4,13 +4,11 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyNewMessage } from "@/lib/email/notify";
 import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
-import { isConversationMember } from "./queries";
 import {
   sendMessageSchema,
   startAdminConversationSchema,
   startConversationSchema,
 } from "./schemas";
-import type { Conversation } from "@/types";
 
 /**
  * Chat mutations.
@@ -101,17 +99,36 @@ export async function sendMessage(
 
   const supabase = createAdminClient();
 
+  // ONE round for the whole pre-send gate: the embedded tutor_profiles join
+  // carries the owner's profile_id, so membership (tutor side) and the email
+  // recipients both come off this row — it used to be three serial reads
+  // (row → membership query → recipients query), ~600ms+ of a send.
   const { data: conversation } = await supabase
     .from("conversations")
-    .select("id, student_id, tutor_profile_id, admin_id, status")
+    .select(
+      "id, student_id, tutor_profile_id, admin_id, status, tutor_profile:tutor_profiles(profile_id)",
+    )
     .eq("id", conversationId)
     .maybeSingle();
 
   if (!conversation) return { error: "Conversation not found." };
-  if (!(await isConversationMember(conversation as Conversation, profile.id))) {
+  const conv = conversation as unknown as {
+    student_id: string | null;
+    tutor_profile_id: string | null;
+    admin_id: string | null;
+    status: string;
+    tutor_profile: { profile_id: string } | null;
+  };
+
+  const isMember =
+    conv.student_id === profile.id ||
+    conv.admin_id === profile.id ||
+    (conv.tutor_profile_id != null &&
+      conv.tutor_profile?.profile_id === profile.id);
+  if (!isMember) {
     return { error: "You don't have access to this conversation." };
   }
-  if ((conversation as { status: string }).status === "closed") {
+  if (conv.status === "closed") {
     return { error: "This conversation is closed." };
   }
 
@@ -123,20 +140,11 @@ export async function sendMessage(
   if (error) return { error: error.message };
 
   // Email the other participant(s) — best-effort, sent after the response.
-  const conv = conversation as Conversation;
   const recipients: string[] = [];
   if (conv.student_id && conv.student_id !== profile.id) recipients.push(conv.student_id);
   if (conv.admin_id && conv.admin_id !== profile.id) recipients.push(conv.admin_id);
-  if (conv.tutor_profile_id) {
-    const { data: tp } = await supabase
-      .from("tutor_profiles")
-      .select("profile_id")
-      .eq("id", conv.tutor_profile_id)
-      .maybeSingle();
-    if (tp && (tp as { profile_id: string }).profile_id !== profile.id) {
-      recipients.push((tp as { profile_id: string }).profile_id);
-    }
-  }
+  const tutorOwnerId = conv.tutor_profile?.profile_id;
+  if (tutorOwnerId && tutorOwnerId !== profile.id) recipients.push(tutorOwnerId);
   if (recipients.length > 0) {
     notifyNewMessage({
       recipientProfileIds: recipients,

@@ -1,8 +1,7 @@
 import { requireProfile, profileIsAdmin } from "@/services/auth/queries";
 import {
   listConversationsForUser,
-  listMessagesForConversation,
-  getConversationMeta,
+  getThreadForUser,
   listChatTargetsForAdmin,
 } from "@/services/chat/queries";
 import { ChatView } from "@/components/chat/ChatView";
@@ -35,9 +34,14 @@ export default async function ChatPage({
   const profile = await requireProfile();
   const { c } = await searchParams;
 
-  const [conversations, chatTargets] = await Promise.all([
-    listConversationsForUser(),
+  // ONE round instead of three. The conversation list, the admin targets and
+  // the thread named by ?c= all start together; ?c= is exactly what the
+  // "Contact tutor" action pushes, so the path a student actually takes to
+  // reach a tutor never waits on the list to learn which thread to open.
+  const [conversations, chatTargets, requestedThread] = await Promise.all([
+    listConversationsForUser(profile),
     profileIsAdmin(profile) ? listChatTargetsForAdmin() : Promise.resolve([]),
+    c ? getThreadForUser(c, profile) : Promise.resolve(null),
   ]);
 
   const activeId =
@@ -45,12 +49,17 @@ export default async function ChatPage({
       ? c
       : (conversations[0]?.id ?? null);
 
-  const [thread, meta] = activeId
-    ? await Promise.all([
-        listMessagesForConversation(activeId, profile),
-        getConversationMeta(activeId, profile),
-      ])
-    : [null, null];
+  // Round 2 only when the URL named nothing usable (plain /chat from the nav,
+  // or a stale ?c= outside the list): the thread has to be picked from the
+  // list first. Guarded on activeId === c so the open thread can never
+  // disagree with the highlighted row.
+  const requestedUsable = activeId != null && activeId === c;
+  const thread =
+    requestedUsable && requestedThread
+      ? requestedThread
+      : activeId
+        ? await getThreadForUser(activeId, profile)
+        : null;
 
   const roleCopy =
     profileIsAdmin(profile)
@@ -108,12 +117,12 @@ export default async function ChatPage({
           key={activeId ?? "none"}
           conversations={conversations}
           activeId={activeId}
-          thread={thread ?? []}
-          otherName={meta?.otherName ?? ""}
-          otherIsAdmin={meta?.otherIsAdmin ?? false}
-          adminId={meta?.adminId ?? null}
+          thread={thread?.messages ?? []}
+          otherName={thread?.otherName ?? ""}
+          otherIsAdmin={thread?.otherIsAdmin ?? false}
+          adminId={thread?.adminId ?? null}
           myId={profile.id}
-          closed={meta?.status === "closed"}
+          closed={thread?.status === "closed"}
           now={nowSnapshot()}
           isAdmin={profileIsAdmin(profile)}
         />
