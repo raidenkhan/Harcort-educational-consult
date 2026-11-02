@@ -76,7 +76,7 @@ async function AppHeader() {
   // ONE dashboard per role. A tutor's is `/tutor` — the workspace with their
   // students, lessons and money — so the header must not also offer a second
   // "Dashboard" (`/dashboard`) beside a "Tutor hub" link. `/dashboard` sends
-  // tutors here (see app/(app)/dashboard/page.tsx).
+  // tutors here (see app/(app)/dashboard/layout.tsx).
   const dashboardHref = profile?.role === "tutor" ? "/tutor" : "/dashboard";
 
   // 0036: a group message the student hasn't opened shows as a pill on the

@@ -8,6 +8,7 @@ import {
   paymentEngagementActivatedEmail,
   paymentEngagementCreatedEmail,
   paymentOverdueEmail,
+  paymentPlanCreatedEmail,
   paymentReceivedEmail,
   payoutStatusEmail,
   tutorRequestEmail,
@@ -278,11 +279,28 @@ function buildEmail(
       return paymentEngagementCreatedEmail({ audience: row.audience as "tutor" | "admin" });
     case "payment.engagement_activated":
       return paymentEngagementActivatedEmail({ audience: row.audience as "tutor" | "admin" });
+    case "payment.plan_created":
+      return paymentPlanCreatedEmail({
+        audience: row.audience === "student" ? "student" : "admin",
+        totalDisplay: pesewas(row.data.agreed_total) != null
+          ? formatGhs(pesewas(row.data.agreed_total) as bigint)
+          : "",
+        parts:
+          typeof row.data.parts === "number"
+            ? row.data.parts
+            : Number(row.data.parts ?? 1),
+      });
     case "payment.overdue":
       return paymentOverdueEmail({
         audience: row.audience,
         installmentIdx: idx,
         amountDisplay: amount,
+        parts:
+          typeof row.data.parts === "number"
+            ? row.data.parts
+            : row.data.parts != null
+              ? Number(row.data.parts)
+              : null,
       });
     case "payment.payout_requested":
       return payoutStatusEmail({ status: "requested", amountDisplay: amount });

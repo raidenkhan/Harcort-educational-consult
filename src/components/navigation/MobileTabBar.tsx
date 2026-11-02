@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSyncExternalStore } from "react";
 import {
   CalendarClock,
   Compass,
@@ -26,7 +25,7 @@ import type { UserRole } from "@/types";
  * transitions, and scale press feedback. Reduced-motion users get instant
  * transitions.
  */
-type Tab = { href: string; hash?: string; label: string; icon: LucideIcon };
+type Tab = { href: string; label: string; icon: LucideIcon };
 
 const TABS: Record<UserRole, Tab[]> = {
   student: [
@@ -34,12 +33,9 @@ const TABS: Record<UserRole, Tab[]> = {
     { href: "/tutors", label: "Find tutors", icon: Compass },
     { href: "/chat", label: "Messages", icon: MessageCircle },
     { href: "/groups", label: "Groups", icon: Users },
-    {
-      href: "/dashboard",
-      hash: "#timetable",
-      label: "Timetable",
-      icon: CalendarClock,
-    },
+    // A real route since the dashboard was split into tabs — the timetable
+    // has its own page, not an anchor on one endless scroll.
+    { href: "/dashboard/timetable", label: "Timetable", icon: CalendarClock },
   ],
   tutor: [
     // One dashboard per role: a tutor's is `/tutor`, so the Home tab and a
@@ -55,20 +51,6 @@ const TABS: Record<UserRole, Tab[]> = {
   ],
 };
 
-function subscribeHash(cb: () => void) {
-  window.addEventListener("hashchange", cb);
-  return () => window.removeEventListener("hashchange", cb);
-}
-
-/** Live location.hash (empty string during SSR/hydration for consistency). */
-function useHash() {
-  return useSyncExternalStore(
-    subscribeHash,
-    () => window.location.hash,
-    () => "",
-  );
-}
-
 export function MobileTabBar({
   role,
   isAdmin = false,
@@ -81,7 +63,6 @@ export function MobileTabBar({
   groupUnread?: number;
 }) {
   const pathname = usePathname();
-  const hash = useHash();
   const base = role ? TABS[role] : [];
   // A tutor who is also an admin gets the Admin tab on top of their tutor tabs
   // (role === "admin" already has it in TABS.admin).
@@ -91,18 +72,13 @@ export function MobileTabBar({
       : base;
   if (tabs.length === 0) return null;
 
-  // Active-tab detection: a hash-specific tab (e.g. /dashboard#timetable) wins
-  // over its plain sibling on the same path, so Home and Timetable never both
-  // light up. Non-hash tabs match the path (and nested sub-routes).
-  const activeIndex = (() => {
-    const exact = tabs.findIndex(
-      (t) => t.hash && pathname === t.href && hash === t.hash,
-    );
-    if (exact >= 0) return exact;
-    return tabs.findIndex(
-      (t) => pathname === t.href || pathname.startsWith(`${t.href}/`),
-    );
-  })();
+  // Active-tab detection: longest matching href wins, so Timetable beats
+  // Home on `/dashboard/timetable` (Home is a prefix of it), while
+  // `/dashboard/courses` still lights Home — it has no mobile tab of its own.
+  const matched = tabs
+    .filter((t) => pathname === t.href || pathname.startsWith(`${t.href}/`))
+    .sort((a, b) => b.href.length - a.href.length);
+  const activeIndex = matched.length > 0 ? tabs.indexOf(matched[0]) : -1;
   const hasActive = activeIndex >= 0;
   const indicatorIndex = hasActive ? activeIndex : 0;
 
@@ -131,8 +107,8 @@ export function MobileTabBar({
           const badge = tab.href === "/groups" ? groupUnread : 0;
           return (
             <Link
-              key={`${tab.href}${tab.hash ?? ""}`}
-              href={`${tab.href}${tab.hash ?? ""}`}
+              key={tab.href}
+              href={tab.href}
               aria-current={active ? "page" : undefined}
               aria-label={
                 badge > 0

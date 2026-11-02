@@ -30,6 +30,7 @@ import {
 import { AdminPayoutActions } from "./AdminPayoutActions";
 import { AdminVerifyPayoutAccountButton } from "./AdminVerifyPayoutAccountButton";
 import { CancelPaymentLinkButton } from "./CancelPaymentLinkButton";
+import { CreateInstallmentPlanForm } from "./CreateInstallmentPlanForm";
 import { CreatePaymentLinkForm } from "./CreatePaymentLinkForm";
 import { OpenPlanForm } from "./OpenPlanForm";
 import { PromiseDateForm } from "./PromiseDateForm";
@@ -441,6 +442,9 @@ export async function AdminPaymentsConsole() {
                         <Badge tone="amber">Promised today</Badge>
                       )}
                       {engagement.hasOverdue && <Badge tone="red">Overdue</Badge>}
+                      {engagement.installments.length === 0 && (
+                        <Badge tone="neutral">One-off</Badge>
+                      )}
                       <Badge
                         tone={
                           ENGAGEMENT_BADGE[engagement.status]?.tone ?? "neutral"
@@ -454,6 +458,66 @@ export async function AdminPaymentsConsole() {
                   {(engagement.status === "active" ||
                     engagement.status === "pending_payment") && (
                     <div className="mt-4 grid gap-5 border-t border-slate-200 pt-4 lg:grid-cols-2">
+                      {/* 0039 — the schedule, once the admin has created one. */}
+                      {engagement.installments.length > 0 && (
+                        <div className="lg:col-span-2">
+                          <p className="text-xs font-semibold text-slate-700">
+                            <CalendarClock className="mr-1 inline h-3.5 w-3.5 align-[-2px] text-slate-400" />
+                            Installment plan ·{" "}
+                            {engagement.installments.length} part
+                            {engagement.installments.length === 1 ? "" : "s"}
+                          </p>
+                          <ul className="mt-1.5 flex flex-wrap gap-2">
+                            {engagement.installments.map((part) => (
+                              <li
+                                key={part.id}
+                                className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs"
+                              >
+                                <span className="font-semibold text-slate-900">
+                                  {formatGhs(part.amount)}
+                                </span>
+                                <span className="text-slate-500">
+                                  by {accraDate(new Date(part.dueAt))}
+                                </span>
+                                <Badge
+                                  tone={
+                                    part.status === "paid"
+                                      ? "green"
+                                      : part.status === "overdue"
+                                        ? "red"
+                                        : "amber"
+                                  }
+                                >
+                                  {part.status === "paid"
+                                    ? "Paid"
+                                    : part.status === "overdue"
+                                      ? "Overdue"
+                                      : part.status === "waived"
+                                        ? "Waived"
+                                        : "Due"}
+                                </Badge>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* 0039 — one-off default: nothing paid and no schedule
+                          yet, so the agreement may still be split. Once any
+                          money lands the RPC refuses (payments_already_started)
+                          and this form simply disappears. */}
+                      {engagement.status === "pending_payment" &&
+                        engagement.paidPesewas === BigInt(0) &&
+                        engagement.installments.length === 0 && (
+                          <div className="lg:col-span-2">
+                            <CreateInstallmentPlanForm
+                              engagementId={engagement.id}
+                              totalPesewas={engagement.agreedTotal.toString()}
+                              totalDisplay={formatGhs(engagement.agreedTotal)}
+                            />
+                          </div>
+                        )}
+
                       <PromiseDateForm
                         engagementId={engagement.id}
                         currentDate={engagement.expectedFullPaymentAt}

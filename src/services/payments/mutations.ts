@@ -19,6 +19,7 @@ import { formatGhs } from "@/lib/money";
 import {
   cancelPaymentRequestSchema,
   createEngagementSchema,
+  createInstallmentPlanSchema,
   createPaymentRequestSchema,
   initializeInstallmentPaymentSchema,
   openPlanSchema,
@@ -63,7 +64,7 @@ const CHECKOUT_REUSE_MS = 10 * 60 * 1000;
 /** PostgREST RPC errors carry the Postgres message we raised. */
 function rpcError(err: { message?: string } | Error | null): string {
   const message = err instanceof Error ? err.message : (err?.message ?? "Payment action failed");
-  return message.replace(/^.*?(?=(forbidden|amount_mismatch|amount_exceeds_outstanding|currency_mismatch|installment_not_payable|installment_not_found|engagement_exists|engagement_not_found|engagement_cancelled|sessions_incomplete|payments_outstanding|payout_account_unverified|payout_account_not_found|payout_exists|payout_not_found|payout_not_approvable|payout_not_cancellable|payout_not_holdable|payout_not_releasable|reason_required|not_completable|service_not_found|service_not_available|format_not_offered|invalid_price|invalid_token|payment_request_not_found|payment_request_not_open))/, "").replace(/\s+/g, " ").trim();
+  return message.replace(/^.*?(?=(forbidden|amount_mismatch|amount_exceeds_outstanding|currency_mismatch|installment_not_payable|installment_not_found|engagement_exists|engagement_not_found|engagement_cancelled|sessions_incomplete|payments_outstanding|payments_already_started|plan_invalid|plan_total_mismatch|payout_account_unverified|payout_account_not_found|payout_exists|payout_not_found|payout_not_approvable|payout_not_cancellable|payout_not_holdable|payout_not_releasable|reason_required|not_completable|service_not_found|service_not_available|format_not_offered|invalid_price|invalid_token|payment_request_not_found|payment_request_not_open))/, "").replace(/\s+/g, " ").trim();
 }
 
 /** Human-friendly copy for the Postgres guard messages. */
@@ -100,7 +101,16 @@ function friendlyError(error: string): string {
     return "That payout can no longer be marked failed (wrong state).";
   }
   if (error.startsWith("payments_outstanding")) {
-    return "Some installments are still unpaid — collect every payment first.";
+    return "Some money is still owed on this agreement — collect every payment first.";
+  }
+  if (error.startsWith("payments_already_started")) {
+    return "This student has already started paying — a plan can only be set before the first payment.";
+  }
+  if (error.startsWith("plan_total_mismatch")) {
+    return "The parts must add up to the full semester fee.";
+  }
+  if (error.startsWith("plan_invalid")) {
+    return "That plan isn't valid — check the parts and their due dates.";
   }
   if (error.startsWith("sessions_incomplete")) {
     return "Attendance isn't fully confirmed yet — both tutor and student must tick every session.";
@@ -179,12 +189,17 @@ export async function createEngagement(
  * browser comes back, or by the cron sweep. The callback redirect is never
  * itself proof of payment: every path re-verifies with Paystack first.
  *
- * The amount charged is the installment's OUTSTANDING balance, not its face
- * value: after a part payment (0029) the installment stays 'pending' with
- * `paid_amount` > 0, and charging the full amount again would be rejected by
- * the webhook as an overpay. A part-payment link (0032) overrides it with an
- * amount the admin already approved — still server-derived, never from the
- * client.
+ * `installmentId` may be NULL (0039): an engagement with no admin-created
+ * schedule is a ONE-OFF payment, and the charge settles the agreement
+ * itself — the outstanding figure then comes from the engagement's own
+ * `paid_amount` counter rather than a schedule row.
+ *
+ * When an installment IS named, the amount charged is its OUTSTANDING
+ * balance, not its face value: after a part payment (0029) the installment
+ * stays 'pending' with `paid_amount` > 0, and charging the full amount again
+ * would be rejected by the webhook as an overpay. A part-payment link (0032)
+ * overrides it with an amount the admin already approved — still
+ * server-derived, never from the client.
  *
  * Two failure modes are handled here rather than left to the caller: a repeat
  * submit reuses the checkout page minted moments ago (see the guard below),
@@ -194,9 +209,9 @@ export async function createEngagement(
 async function runCheckout(
   profile: Pick<Profile, "id">,
   engagementId: string,
-  installmentId: string,
+  installmentId: string | null,
   opts: {
-    /** Charge this amount instead of the installment's outstanding balance. */
+    /** Charge this amount instead of the outstanding balance. */
     amountPesewas?: number;
     /** The 0032 link this charge settles. */
     paymentRequestId?: string;
@@ -213,64 +228,105 @@ async function runCheckout(
   // Ownership: the caller must be the engagement's student.
   // `currency` lives on the ENGAGEMENT, not the installment (0011) — reading it
   // from installments made every checkout fail with a 42703 that surfaced as
-  // "Installment not found."
-  const { data: engagement, error: engError } = await supabase
-    .from("engagements")
-    .select("id, student_id, status, currency")
-    .eq("id", engagementId)
-    .maybeSingle();
+  // "Installment not found." `paid_amount`/`agreed_total` (0039) are only
+  // needed for an installment-less one-off charge.
+  const readEngagement = (withPlanTotals: boolean) =>
+    supabase
+      .from("engagements")
+      .select(
+        withPlanTotals
+          ? "id, student_id, status, currency, agreed_total, paid_amount"
+          : "id, student_id, status, currency",
+      )
+      .eq("id", engagementId)
+      .maybeSingle();
+
+  const firstEng = await readEngagement(installmentId === null);
+  let engagement = firstEng.data;
+  let engError = firstEng.error;
+  if (engError && isMissingColumn(engError)) {
+    // A database without 0039 has no `paid_amount` — but it also has no
+    // installment-less engagements, so this only matters for the columns'
+    // absence, not the flow.
+    const retry = await readEngagement(false);
+    engagement = retry.data;
+    engError = retry.error;
+  }
   if (engError || !engagement) return { error: "Agreement not found." };
-  const eng = engagement as {
+  // Cast via `unknown`: the typed select parser can't infer a string-built
+  // projection (it reports "Unexpected input: , agreed_total, paid_amount"),
+  // and the fallback read may legitimately return fewer columns.
+  const eng = engagement as unknown as {
     id: string;
     student_id: string;
     status: string;
     currency: string;
+    agreed_total?: unknown;
+    paid_amount?: unknown;
   };
   if (eng.student_id !== profile.id) return { error: "forbidden: not your agreement" };
   if (eng.status === "cancelled") return { error: "This agreement was cancelled." };
 
-  // The installment must belong to the engagement and still be payable.
-  // `paid_amount` (0029) is read separately so a pre-0029 database still
-  // checks out — there, a payable installment has nothing paid against it.
-  const readInstallment = (withPartial: boolean) => {
-    const columns = withPartial
-      ? "id, amount, status, idx, paid_amount"
-      : "id, amount, status, idx";
-    return supabase
-      .from("installments")
-      .select(columns)
-      .eq("id", installmentId)
-      .eq("engagement_id", engagementId)
-      .maybeSingle();
-  };
+  let outstanding: number;
+  let instIdx: number | null = null;
 
-  const firstRead = await readInstallment(true);
-  let installment = firstRead.data;
-  let instError = firstRead.error;
-  if (instError && isMissingColumn(instError)) {
-    const retry = await readInstallment(false);
-    installment = retry.data;
-    instError = retry.error;
-  }
-  if (instError) {
-    // A failed READ is not a missing installment — say so, or the next schema
-    // drift hides behind a misleading message again.
-    return { error: "Could not load this payment — please refresh and try again." };
-  }
-  if (!installment) return { error: "Installment not found." };
+  if (installmentId !== null) {
+    // The installment must belong to the engagement and still be payable.
+    // `paid_amount` (0029) is read separately so a pre-0029 database still
+    // checks out — there, a payable installment has nothing paid against it.
+    const readInstallment = (withPartial: boolean) => {
+      const columns = withPartial
+        ? "id, amount, status, idx, paid_amount"
+        : "id, amount, status, idx";
+      return supabase
+        .from("installments")
+        .select(columns)
+        .eq("id", installmentId)
+        .eq("engagement_id", engagementId)
+        .maybeSingle();
+    };
 
-  const inst = installment as unknown as {
-    id: string;
-    amount: string | number;
-    paid_amount?: string | number | null;
-    status: string;
-    idx: number;
-  };
-  if (inst.status !== "pending" && inst.status !== "overdue") {
-    return { error: `This installment is already ${inst.status}.` };
+    const firstRead = await readInstallment(true);
+    let installment = firstRead.data;
+    let instError = firstRead.error;
+    if (instError && isMissingColumn(instError)) {
+      const retry = await readInstallment(false);
+      installment = retry.data;
+      instError = retry.error;
+    }
+    if (instError) {
+      // A failed READ is not a missing installment — say so, or the next schema
+      // drift hides behind a misleading message again.
+      return { error: "Could not load this payment — please refresh and try again." };
+    }
+    if (!installment) return { error: "Installment not found." };
+
+    const inst = installment as unknown as {
+      id: string;
+      amount: string | number;
+      paid_amount?: string | number | null;
+      status: string;
+      idx: number;
+    };
+    if (inst.status !== "pending" && inst.status !== "overdue") {
+      return { error: `This installment is already ${inst.status}.` };
+    }
+
+    outstanding = Number(inst.amount) - Number(inst.paid_amount ?? 0);
+    instIdx = inst.idx;
+  } else {
+    // 0039 one-off: the whole agreement is the thing being paid. The counter
+    // is written by the same RPC that writes the payments row, so it can
+    // never disagree with the ledger; a database without it charges the full
+    // agreed total (it cannot have a paid one-off row either).
+    const total = Number(eng.agreed_total ?? 0);
+    const paid = Number(eng.paid_amount ?? 0);
+    if (!Number.isFinite(total) || total <= 0) {
+      return { error: "That agreement has no payable amount — please refresh." };
+    }
+    outstanding = total - paid;
   }
 
-  const outstanding = Number(inst.amount) - Number(inst.paid_amount ?? 0);
   if (outstanding <= 0) {
     return { message: "This agreement is already fully paid." };
   }
@@ -294,10 +350,11 @@ async function runCheckout(
    * last ten minutes already has a hosted checkout page — send the student
    * back to it instead of minting another. Only 'initialized' rows match, so a
    * paid or failed attempt is never reused, and ten minutes is short enough
-   * that Paystack's access code is still live.
+   * that Paystack's access code is still live. For a one-off charge the row
+   * carries a NULL installment, so the filter matches on that.
    */
-  const readRecentCheckout = (withLinkColumn: boolean) =>
-    supabase
+  const readRecentCheckout = (withLinkColumn: boolean) => {
+    let query = supabase
       .from("payments")
       .select(
         withLinkColumn
@@ -305,13 +362,22 @@ async function runCheckout(
           : "id, raw_payload",
       )
       .eq("engagement_id", engagementId)
-      .eq("installment_id", installmentId)
       .eq("initialized_by", profile.id)
       .eq("status", "initialized")
       .eq("amount", String(amount))
       .gte("created_at", new Date(Date.now() - CHECKOUT_REUSE_MS).toISOString())
       .order("created_at", { ascending: false })
       .limit(5);
+    query =
+      installmentId !== null
+        ? query.eq("installment_id", installmentId)
+        : // `.is(...)` needs the column to exist and be nullable — both are
+          // 0039. A pre-0039 database never reaches this branch (it has no
+          // installment-less engagements), and an error here only costs the
+          // guard for this attempt.
+          query.is("installment_id", null);
+    return query;
+  };
 
   type RecentCheckout = {
     id: string;
@@ -353,8 +419,9 @@ async function runCheckout(
   const email = (cred as { email: string } | null)?.email;
   if (!email) return { error: "Your account has no email on file." };
 
-  // A stable per-attempt reference ties the Paystack charge to our rows.
-  const reference = `HARC-${installmentId.slice(0, 8)}-${randomUUID()
+  // A stable per-attempt reference ties the Paystack charge to our rows. It
+  // is keyed off the installment when there is one, else the agreement.
+  const reference = `HARC-${(installmentId ?? engagementId).slice(0, 8)}-${randomUUID()
     .slice(0, 8)
     .toUpperCase()}`;
 
@@ -376,7 +443,9 @@ async function runCheckout(
   const checkout = checkoutTotal(BigInt(amount));
   const paymentRow = {
     engagement_id: engagementId,
-    installment_id: installmentId,
+    // Omitted (not null) when there is no installment: a pre-0039 database
+    // has a NOT NULL column, and there such a row cannot exist anyway.
+    ...(installmentId !== null ? { installment_id: installmentId } : {}),
     amount: String(amount), // BIGINT as string — BigInt breaks JSON.stringify
     currency: eng.currency,
     paystack_reference: reference,
@@ -427,8 +496,8 @@ async function runCheckout(
       )}`,
       metadata: {
         engagement_id: engagementId,
-        installment_id: installmentId,
-        installment_idx: inst.idx,
+        ...(installmentId !== null ? { installment_id: installmentId } : {}),
+        ...(instIdx !== null ? { installment_idx: instIdx } : {}),
         // What the ledger applies vs what the student is charged — useful
         // when reconciling a charge in the Paystack dashboard.
         course_amount: amount,
@@ -493,7 +562,8 @@ async function runCheckout(
 }
 
 /**
- * Student starts Paystack checkout for one installment (dashboard path).
+ * Student starts Paystack checkout for one installment (dashboard path), or
+ * for the whole agreement when no installment is named (0039 one-off).
  */
 export async function initializeInstallmentPayment(
   _prev: PaymentFormState,
@@ -503,13 +573,17 @@ export async function initializeInstallmentPayment(
 
   const parsed = initializeInstallmentPaymentSchema.safeParse({
     engagementId: formData.get("engagementId"),
-    installmentId: formData.get("installmentId"),
+    installmentId: formData.get("installmentId") || null,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid request" };
   }
 
-  return runCheckout(profile, parsed.data.engagementId, parsed.data.installmentId);
+  return runCheckout(
+    profile,
+    parsed.data.engagementId,
+    parsed.data.installmentId ?? null,
+  );
 }
 
 /**
@@ -591,7 +665,10 @@ export async function commitAndStartCheckout(
   }
   if (!engagementId) return { error: "Could not create the payment agreement." };
 
-  // First payable installment (idx order) — #1, the full semester fee.
+  // First payable installment (idx order), if the agreement has a schedule.
+  // 0039 one-off agreements have none — the charge then settles the agreement
+  // itself, and runCheckout derives the outstanding figure from the
+  // engagement (returning "already fully paid" when nothing is left).
   const { data: instRows } = await supabase
     .from("installments")
     .select("id, idx, status")
@@ -600,11 +677,8 @@ export async function commitAndStartCheckout(
   const payable = (instRows as Array<{ id: string; idx: number; status: string }> | null)?.find(
     (r) => r.status === "pending" || r.status === "overdue",
   );
-  if (!payable) {
-    return { message: "This agreement is already fully paid." };
-  }
 
-  return runCheckout(profile, engagementId, payable.id);
+  return runCheckout(profile, engagementId, payable ? payable.id : null);
 }
 
 // ---------------------------------------------------------------------------
@@ -668,10 +742,11 @@ export async function recordPartPayment(
  *
  * The queue row is a tutor REQUEST — there is no agreement yet, and without
  * one there is nothing to record a part payment against. `create_payment_
- * engagement` accepts an admin actor, so this creates the agreement (with the
- * full semester fee as its single installment) on the student's behalf; the
- * admin can then set a promised date and issue a part-payment link. Re-running
- * it is harmless: `engagement_exists` means the plan is already open.
+ * engagement` accepts an admin actor, so this creates the agreement on the
+ * student's behalf (0039: with NO schedule — one-off is the default); the
+ * admin then splits it into installments with `createInstallmentPlan`, sets
+ * a promised date and issues a part-payment link. Re-running it is harmless:
+ * `engagement_exists` means the plan is already open.
  */
 export async function openPaymentPlan(
   _prev: PaymentFormState,
@@ -741,6 +816,55 @@ export async function openPaymentPlan(
   return {
     message:
       "Plan opened. Set the date the balance will be settled, then send the student a part-payment link.",
+  };
+}
+
+/**
+ * Admin splits a PENDING, entirely unpaid agreement into installments (0039).
+ *
+ * The amounts arrive in cedis and are converted to pesewas here; the RPC
+ * re-checks that the parts sum to the agreed total AND that no payment has
+ * landed yet (`payments_already_started`) — so the admin cannot invent money
+ * or renegotiate a plan mid-payment. The parts are stored with due dates in
+ * `idx` order, and the student is emailed the schedule.
+ */
+export async function createInstallmentPlan(
+  _prev: PaymentFormState,
+  formData: FormData,
+): Promise<PaymentFormState> {
+  const profile = await requireProfile();
+  if (!profileIsAdmin(profile)) {
+    return { error: "Only admins can create installment plans." };
+  }
+
+  const parsed = createInstallmentPlanSchema.safeParse({
+    engagementId: formData.get("engagementId"),
+    amountsCedis: formData.getAll("amountCedis"),
+    dueDates: formData.getAll("dueDate"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid request" };
+  }
+
+  const amountsPesewas = parsed.data.amountsCedis.map((c) => Math.round(c * 100));
+  const dueDates = parsed.data.dueDates.map((d) => `${d}T23:59:59Z`);
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc("admin_create_installment_plan", {
+    actor_id: profile.id,
+    p_engagement_id: parsed.data.engagementId,
+    p_amounts: amountsPesewas,
+    p_due_dates: dueDates,
+  });
+  if (error) return { error: friendlyError(rpcError(error)) };
+
+  const parts = typeof data === "number" ? data : parsed.data.amountsCedis.length;
+  scheduleOutboxDrain();
+  revalidatePath("/admin", "layout");
+  revalidatePath("/dashboard");
+  revalidatePath("/tutor", "layout");
+  return {
+    message: `Plan created — ${parts} part${parts === 1 ? "" : "s"}. The student has been notified.`,
   };
 }
 
@@ -914,12 +1038,14 @@ export async function payPaymentRequest(
   const payable = (
     installmentRows as Array<{ id: string; idx: number; status: string }> | null
   )?.find((row) => row.status === "pending" || row.status === "overdue");
-  if (!payable) return { message: "This agreement is already fully paid." };
 
   const charge =
     link.amount > link.remainingPesewas ? link.remainingPesewas : link.amount;
 
-  return runCheckout(profile, link.engagementId, payable.id, {
+  // A 0039 one-off agreement has no schedule — the link's amount is charged
+  // against the agreement itself. runCheckout derives the outstanding figure
+  // (and rejects a fully-paid one) either way.
+  return runCheckout(profile, link.engagementId, payable ? payable.id : null, {
     amountPesewas: Number(charge),
     paymentRequestId: link.id,
     returnPath: `${paymentLinkPath(parsed.data.token)}?payment=return`,

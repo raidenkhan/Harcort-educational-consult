@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isMissingColumn } from "@/lib/postgres";
 import type { Profile } from "@/types";
 
 /**
@@ -67,7 +68,25 @@ export async function listTutorRoster(profile: Profile): Promise<RosterEntry[]> 
   const tutorProfileId = (tutorProfile as { id: string }).id;
 
   // Three parallel fetches — sessions, accepted requests, engagements.
-  const [sessionsRes, requestsRes, engagementsRes] = await Promise.all([
+  // The engagement select asks for 0039's `paid_amount` first: an engagement
+  // with no installments (a one-off payment) has no schedule rows to sum, so
+  // the installment sum alone reads 0 for a student who has paid in full.
+  const readEngagements = (withPaidAmount: boolean) =>
+    supabase
+      .from("engagements")
+      .select(
+        withPaidAmount
+          ? `id, student_id, status, agreed_total, paid_amount, platform_fee_bps,
+             installments(idx, amount, status, due_at),
+             courses(name)`
+          : `id, student_id, status, agreed_total, platform_fee_bps,
+             installments(idx, amount, status, due_at),
+             courses(name)`,
+      )
+      .eq("tutor_profile_id", tutorProfileId)
+      .order("created_at", { ascending: false });
+
+  const [sessionsRes, requestsRes, firstEngagements] = await Promise.all([
     supabase
       .from("tutoring_sessions")
       .select(
@@ -87,16 +106,13 @@ export async function listTutorRoster(profile: Profile): Promise<RosterEntry[]> 
       .eq("tutor_profile_id", tutorProfileId)
       .eq("status", "accepted")
       .order("created_at", { ascending: false }),
-    supabase
-      .from("engagements")
-      .select(
-        `id, student_id, status, agreed_total, platform_fee_bps,
-         installments(idx, amount, status, due_at),
-         courses(name)`,
-      )
-      .eq("tutor_profile_id", tutorProfileId)
-      .order("created_at", { ascending: false }),
+    readEngagements(true),
   ]);
+
+  let engagementsRes = firstEngagements;
+  if (engagementsRes.error && isMissingColumn(engagementsRes.error)) {
+    engagementsRes = await readEngagements(false);
+  }
 
   const sessions = (sessionsRes.data ?? []) as unknown as Array<{
     id: string;
@@ -125,6 +141,8 @@ export async function listTutorRoster(profile: Profile): Promise<RosterEntry[]> 
     student_id: string;
     status: string;
     agreed_total: unknown;
+    /** 0039 — the engagement's own paid counter (absent pre-migration). */
+    paid_amount?: unknown;
     platform_fee_bps: number;
     installments?: Array<{
       idx: number;
@@ -219,9 +237,16 @@ export async function listTutorRoster(profile: Profile): Promise<RosterEntry[]> 
         status: i.status as "pending" | "paid" | "overdue" | "waived",
         dueAt: i.due_at,
       }));
-    const paid = installments
-      .filter((i) => i.status === "paid")
-      .reduce<bigint>((acc, i) => acc + i.amount, BigInt(0));
+    // 0039's engagement counter is the ledger-backed figure and covers
+    // one-off agreements (which have no schedule rows to sum). A database
+    // without the column falls back to the installment sum — correct for
+    // every pre-0039 engagement, which always had a schedule.
+    const paid =
+      engagement && engagement.paid_amount != null
+        ? toBigint(engagement.paid_amount)
+        : installments
+            .filter((i) => i.status === "paid")
+            .reduce<bigint>((acc, i) => acc + i.amount, BigInt(0));
 
     out.push({
       studentId: entry.studentId,

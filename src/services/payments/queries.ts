@@ -111,6 +111,8 @@ interface EngagementRow {
   platform_fee_bps: number;
   created_at: string;
   student_id: string;
+  /** 0039 — the engagement's own paid counter. Absent before the migration. */
+  paid_amount?: unknown;
   /** 0032 — the promised full-payment date. Absent before the migration. */
   expected_full_payment_at?: string | null;
   installments?: Array<{
@@ -158,7 +160,14 @@ function paidFromInstallments(
 function toEngagementView(row: EngagementRow): EngagementView {
   const total = toBigint(row.agreed_total);
   const installments = [...(row.installments ?? [])].sort((a, b) => a.idx - b.idx);
-  const paid = paidFromInstallments(installments);
+  // 0039's engagement counter is authoritative when the database carries it:
+  // it is written by the same RPC that writes the payments row, so it covers
+  // installment-less one-off agreements (which have no join rows at all).
+  // A database without the column falls back to the installment sum.
+  const paid =
+    row.paid_amount != null
+      ? toBigint(row.paid_amount)
+      : paidFromInstallments(installments);
   const fee = (total * BigInt(row.platform_fee_bps ?? 1000)) / BigInt(10000);
 
   return {
@@ -192,6 +201,16 @@ function toEngagementView(row: EngagementRow): EngagementView {
   };
 }
 
+/** 0039 select — carries the engagement's own paid counter. */
+const ENGAGEMENT_SELECT_V4 = `
+  id, status, agreed_total, platform_fee_bps, created_at, student_id,
+  paid_amount, expected_full_payment_at,
+  installments(id, idx, amount, due_at, status, was_overdue, paid_at, paid_amount),
+  courses(name),
+  profiles!engagements_student_id_fkey(full_name, public_code),
+  tutor_profiles(profiles(full_name))
+`;
+
 const ENGAGEMENT_SELECT_V3 = `
   id, status, agreed_total, platform_fee_bps, created_at, student_id,
   expected_full_payment_at,
@@ -220,9 +239,10 @@ const ENGAGEMENT_SELECT_BASE = `
 
 /**
  * Engagement lists tolerate a database that hasn't caught up: the newest
- * select asks for the 0032 promise date, then 0029's `paid_amount`, then the
- * base set. The mapper reads whichever shape the rows carry — a missing
- * column must never blank the money console.
+ * select asks for the 0039 paid counter, then the 0032 promise date, then
+ * 0029's installment `paid_amount`, then the base set. The mapper reads
+ * whichever shape the rows carry — a missing column must never blank the
+ * money console.
  */
 async function listEngagements(
   filter: { field: string; value: string } | null,
@@ -235,7 +255,10 @@ async function listEngagements(
     return query.order("created_at", { ascending: false });
   };
 
-  let { data, error } = await run(ENGAGEMENT_SELECT_V3);
+  let { data, error } = await run(ENGAGEMENT_SELECT_V4);
+  if (error && isMissingColumn(error)) {
+    ({ data, error } = await run(ENGAGEMENT_SELECT_V3));
+  }
   if (error && isMissingColumn(error)) {
     ({ data, error } = await run(ENGAGEMENT_SELECT_V2));
   }
@@ -745,6 +768,8 @@ interface PaymentRequestRow {
     | {
         status?: string;
         agreed_total?: unknown;
+        /** 0039 — the engagement's own paid counter. */
+        paid_amount?: unknown;
         expected_full_payment_at?: string | null;
         student_id?: string;
         courses?: { name: string } | { name: string }[] | null;
@@ -765,6 +790,7 @@ interface PaymentRequestRow {
     | Array<{
         status?: string;
         agreed_total?: unknown;
+        paid_amount?: unknown;
         expected_full_payment_at?: string | null;
         student_id?: string;
         courses?: { name: string } | { name: string }[] | null;
@@ -785,6 +811,17 @@ interface PaymentRequestRow {
     | null;
 }
 
+const PAYMENT_REQUEST_SELECT_V4 = `
+  id, engagement_id, amount, note, status, created_at, expires_at, paid_at,
+  engagements(
+    status, agreed_total, paid_amount, expected_full_payment_at, student_id,
+    installments(amount, paid_amount, status),
+    courses(name),
+    profiles!engagements_student_id_fkey(full_name, public_code),
+    tutor_profiles(profiles(full_name))
+  )
+`;
+
 const PAYMENT_REQUEST_SELECT = `
   id, engagement_id, amount, note, status, created_at, expires_at, paid_at,
   engagements(
@@ -795,6 +832,16 @@ const PAYMENT_REQUEST_SELECT = `
     tutor_profiles(profiles(full_name))
   )
 `;
+
+/** How much of the agreement has landed, whichever shape the row carries. */
+function engagementPaid(row: {
+  paid_amount?: unknown;
+  installments?: Array<{ amount: unknown; paid_amount?: unknown; status: string }>;
+}): bigint {
+  return row.paid_amount != null
+    ? toBigint(row.paid_amount)
+    : paidFromInstallments(row.installments ?? []);
+}
 
 function toPaymentRequestView(row: PaymentRequestRow): PaymentRequestView {
   const engagement = one(row.engagements);
@@ -838,11 +885,17 @@ export async function getPaymentLinkByToken(
   if (!isPlausiblePaymentToken(token)) return null;
 
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("payment_requests")
-    .select(PAYMENT_REQUEST_SELECT)
-    .eq("token_hash", hashPaymentToken(token))
-    .maybeSingle();
+  const run = (select: string) =>
+    supabase
+      .from("payment_requests")
+      .select(select)
+      .eq("token_hash", hashPaymentToken(token))
+      .maybeSingle();
+
+  let { data, error } = await run(PAYMENT_REQUEST_SELECT_V4);
+  if (error && isMissingColumn(error)) {
+    ({ data, error } = await run(PAYMENT_REQUEST_SELECT));
+  }
 
   if (error) {
     // Pre-0032 there is no such table — the link simply doesn't exist yet.
@@ -857,7 +910,7 @@ export async function getPaymentLinkByToken(
   const engagement = one(row.engagements);
   const base = toPaymentRequestView(row);
   const total = toBigint(engagement?.agreed_total ?? 0);
-  const paid = paidFromInstallments(engagement?.installments ?? []);
+  const paid = engagement ? engagementPaid(engagement) : BigInt(0);
 
   return {
     ...base,

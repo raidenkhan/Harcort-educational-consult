@@ -52,7 +52,8 @@ export type ReconcileOutcome =
 interface PaymentRow {
   id: string;
   engagement_id: string;
-  installment_id: string;
+  /** NULL since 0039 — a one-off charge settles the agreement itself. */
+  installment_id: string | null;
   status: string;
   paystack_status?: string | null;
   amount: string | number;
@@ -224,8 +225,8 @@ export async function reconcileChargeByReference(
   );
   if (applyError) {
     // The webhook, the return path and the sweep can all reconcile the same
-    // reference at once. They serialize on the installment row lock, so the
-    // loser then trips the overpay guard ("installment has 0 outstanding")
+    // reference at once. They serialize on the ENGAGEMENT row lock (0039), so
+    // the loser then trips the overpay guard ("agreement has 0 outstanding")
     // even though the charge was applied correctly by the winner. Re-read the
     // row: if it is paid now, this was a race, not a refusal — saying
     // "amount_mismatch" here sent false alarms to the logs and to Paystack.

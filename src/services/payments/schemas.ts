@@ -14,10 +14,14 @@ export const createEngagementSchema = z.object({
   tutorServiceId: uuid("Select a course to pay for"),
 });
 
-/** Paystack checkout for one installment. */
+/**
+ * Paystack checkout for one installment. `installmentId` may be null (0039):
+ * an engagement with no admin-created schedule is a ONE-OFF payment, and the
+ * charge settles the agreement itself.
+ */
 export const initializeInstallmentPaymentSchema = z.object({
   engagementId: uuid("Missing engagement"),
-  installmentId: uuid("Missing installment"),
+  installmentId: uuid("Missing installment").nullish(),
 });
 
 /** Tutor registers (or updates) their MoMo payout account. */
@@ -100,6 +104,39 @@ export const setPaymentPromiseSchema = z.object({
 export const cancelPaymentRequestSchema = z.object({
   requestId: uuid("Missing payment link"),
 });
+
+/**
+ * Admin splits a PENDING, entirely unpaid agreement into installments (0039).
+ * The parts arrive in cedis (the display unit) with one due date each; the
+ * RPC converts nothing — it re-checks that the parts sum to the agreed total
+ * and refuses once any payment exists, so the admin cannot invent money.
+ */
+export const createInstallmentPlanSchema = z
+  .object({
+    engagementId: uuid("Missing agreement"),
+    amountsCedis: z
+      .array(
+        z.coerce
+          .number({ message: "Enter the amount for every part" })
+          .positive("Every part must be above zero")
+          .max(100000, "Amount looks too high"),
+      )
+      .min(1, "A plan needs at least one part")
+      .max(12, "Keep a plan to 12 parts or fewer"),
+    dueDates: z
+      .array(
+        z
+          .string()
+          .trim()
+          .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date"),
+      )
+      .min(1, "Every part needs a due date")
+      .max(12, "Keep a plan to 12 parts or fewer"),
+  })
+  .refine((value) => value.amountsCedis.length === value.dueDates.length, {
+    message: "Every part needs a due date",
+    path: ["dueDates"],
+  });
 
 /** Student pays an admin-issued link. The token is the whole credential —
  *  the server hashes it and looks the link up. */

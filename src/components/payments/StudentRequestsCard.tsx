@@ -47,13 +47,18 @@ const STATUS_BADGE: Record<
 
 /** Module-level (react-hooks/purity): match accepted requests to payables.
  *  Overdue-but-unpaid installments are still payable, so no day-math here —
-  the DB status alone decides. */
+ *  the DB status alone decides. 0039: an agreement with no schedule is
+ *  payable against the engagement itself (installmentId null). */
 function withPayable(
   requests: Awaited<ReturnType<typeof listStudentRequests>>,
   engagements: Awaited<ReturnType<typeof listStudentEngagements>>,
 ) {
   return requests.map((request) => {
-    let payable: { engagementId: string; installmentId: string; amount: bigint } | null = null;
+    let payable: {
+      engagementId: string;
+      installmentId: string | null;
+      amount: bigint;
+    } | null = null;
     if (request.status === "accepted") {
       const match = engagements.find(
         (e) => e.tutorName === request.tutorName && e.status !== "cancelled",
@@ -66,6 +71,14 @@ function withPayable(
           engagementId: match.id,
           installmentId: installment.id,
           amount: installment.amount,
+        };
+      } else if (match && match.remainingPesewas > BigInt(0)) {
+        // No schedule (0039 one-off) but money still owed — charge the
+        // agreement itself.
+        payable = {
+          engagementId: match.id,
+          installmentId: null,
+          amount: match.remainingPesewas,
         };
       }
     }

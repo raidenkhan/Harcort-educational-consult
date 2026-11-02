@@ -688,6 +688,45 @@ mobile app.
   builder case at all — 28 queued rows discarded, so a tutor was never told a
   student had asked for them. The drop path marks rows `sent_at`, which is why
   neither showed up as an error anywhere but the drain log.
+- **One-off payments, real installment plans, and a tabbed student
+  dashboard (0039).** Three complaints, one release. (1) **Not every payment
+  is an installment** — creating an agreement used to auto-mint one, so a
+  student paying the whole semester fee was shown a "schedule" of exactly
+  one part. `create_payment_engagement` now creates NO installment: the
+  agreement is payable in one charge against itself (`payments.installment_id`
+  is nullable, `on delete set null`), and the engagement carries its own
+  `paid_amount` counter written only by the three RPCs that write a payments
+  row. The paywall, the dashboard pay button and the request card all accept
+  a null installment and charge the remaining balance. (2) **Plans are now
+  real and admin-created** — `admin_create_installment_plan` splits a
+  PENDING, entirely unpaid agreement into dated parts (it re-checks the sum
+  equals the agreed total and refuses once any money has landed, so a plan
+  can be created but never renegotiated mid-payment), the admin console shows
+  a parts stepper with an equal-split prefill that always sums exactly and a
+  live "of GH₵…" balance line (`CreateInstallmentPlanForm`), the schedule is
+  listed on the engagement row, and the student is emailed
+  (`payment.plan_created`). The apply/record/link RPCs now **spill** a charge
+  across installments in `idx` order (one charge can settle part 1 and part
+  2), `request_payout`/`complete_engagement` require `paid_amount` to equal
+  the agreed total, `sync_installment_deadlines` skips engagements that have
+  an `engagement.plan_created` event (it used to auto-create the single 0029
+  installment on any engagement older than an hour — the very thing this
+  removes), and the overdue email says "part 2 of 3" instead of a hardcoded
+  "of 2". Every read goes through an `isMissingColumn` fallback chain, so the
+  app works before the migration lands (no `paid_amount` → installment sum,
+  which was correct for every pre-0039 agreement) and after. (3) **The
+  student dashboard was one jumbled page** — requests, a course catalogue, a
+  timetable, a payments table and four unrelated settings cards in one
+  scroll. It is now five routes with `StudentTabs` (mirroring `TutorTabs`):
+  `/dashboard` (requests + ground rules + quick doors), `/dashboard/courses`
+  (program picker + term-grouped courses), `/dashboard/timetable`,
+  `/dashboard/payments` (agreements + the compact ground-rules banner) and
+  `/dashboard/settings` (phone/SMS, role switch, account). The shell and tab
+  row live in `dashboard/layout.tsx`, admins see only Home + Settings, and
+  the mobile tab bar's Timetable entry is the real route
+  `/dashboard/timetable` (its `#timetable` hash machinery is gone, and the
+  bar now picks the longest matching href so Home can't steal
+  `/dashboard/timetable`).
 
 ---
 
@@ -772,6 +811,7 @@ and all are safe to re-run:
 | `0036_group_read_state.sql` | `study_group_members.last_read_at` (default `now()`) + an index — the watermark behind the per-group unread count, the list's bold row/pill and the Groups nav badge. Defaulting to `now()` means deploying does not turn history into unread; a student added by a tutor is inserted before the "added you" system message, so that message is unread for them |
 | `0037_knust_aerospace_curriculum.sql` | The KNUST Aerospace Engineering curriculum, from the department's own "Aerospace engineering course outline" PDF (Academic Resources Drive, sections 11.1–11.8): 73 rows across Years 1–4, both semesters, including the Year-4 technical electives. Completes the programme set 0030 left at four (Aerospace published no structure then) |
 | `0038_payment_invoice_and_group_seat.sql` | Two things a successful payment does, both inside the apply transaction: (1) the student's `payment.received` outbox row carries the Paystack `reference` + `fee_amount` so the email renders as an itemised **invoice** (course fee, processing fee, total charged, reference) instead of a bare "we got your money" note; (2) a **GROUP** booking seats the student in the tutor's non-archived `study_group` for that course, writes a feed line and notifies the tutor (`payment.group_joined`). Membership is written before the message so 0036's `last_read_at` leaves it unread for the joiner, and `FOUND` guards the block so a replayed payment adds nobody twice |
+| `0039_one_off_payments_and_plans.sql` | One-off payments + real plans. `engagements.paid_amount` (pesewas, backfilled) is the engagement's own counter, written only by the RPCs that write a `payments` row; `payments.installment_id` becomes nullable with `on delete set null` — an agreement can be paid in one charge against itself. `create_payment_engagement` no longer auto-mints an installment; `payment_apply_verified_payment` / `admin_record_part_payment` / `admin_create_payment_request` take an engagement-level lock and **spill** a charge across open installments in `idx` order; `request_payout` / `complete_engagement` require `paid_amount = agreed_total`; `sync_installment_deadlines` skips engagements carrying an `engagement.plan_created` event instead of creating the 0029 single installment; `payment_overdue` gains `parts` (no more "of 2"); new RPC `admin_create_installment_plan` splits a pending, entirely-unpaid agreement into dated parts (re-checks the sum, refuses after any payment) and queues `payment.plan_created` email. Built on 0031's format-aware engagement creation (price_group/price_one_on_one, `format_not_offered`). Every app read uses an `isMissingColumn` fallback so the code works before and after the migration is applied |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -917,7 +957,7 @@ every send).
 
 Setup runbook:
 1. `npm install`
-2. Apply migrations `0001` → `0038` in the Supabase SQL Editor, in order
+2. Apply migrations `0001` → `0039` in the Supabase SQL Editor, in order
    (each is safe to re-run)
 3. `npm run dev` → http://localhost:3000 (no confirmation emails — sign-up
    signs you in immediately)

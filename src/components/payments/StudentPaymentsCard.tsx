@@ -143,6 +143,44 @@ export async function StudentPaymentsCard() {
                 </p>
               )}
 
+            {/* 0039 one-off: no admin-created schedule. The whole fee is the
+                row, and the button charges the agreement itself. */}
+            {engagement.installments.length === 0 &&
+              engagement.remainingPesewas > BigInt(0) &&
+              engagement.status !== "cancelled" && (
+                (() => {
+                  const checkout = checkoutTotal(engagement.remainingPesewas);
+                  return (
+                    <ul className="mt-4">
+                      <li className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            Semester fee · {formatGhs(engagement.agreedTotal)}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            Pay in one go — or message the admin team from the
+                            paywall to set up a plan.
+                            {checkout.feePesewas > BigInt(0) && (
+                              <>
+                                {" · "}
+                                {formatGhs(checkout.feePesewas)} Paystack fee
+                              </>
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge tone="amber">Unpaid</Badge>
+                          <PayInstallmentButton
+                            engagementId={engagement.id}
+                            amountDisplay={formatGhs(checkout.totalPesewas)}
+                          />
+                        </div>
+                      </li>
+                    </ul>
+                  );
+                })()
+              )}
+
             <ul className="mt-4 space-y-3">
               {engagement.installments.map((installment) => {
                 const displayStatus = installment.displayStatus;

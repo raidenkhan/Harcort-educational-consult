@@ -605,18 +605,48 @@ export function paymentOverdueEmail(opts: {
   audience: "student" | "tutor" | "admin";
   installmentIdx: number;
   amountDisplay: string;
+  /** Total parts in the plan (0039). Absent on older queued rows — those
+   *  were written by the 50/50 era, where "of 2" was true. */
+  parts?: number | null;
+}): EmailMessage {
+  const url = paymentUrl(opts.audience);
+  // "part 2 of 3" when the plan's length is known, else just "part 2" —
+  // never a wrong count.
+  const where =
+    opts.parts && opts.parts > 1
+      ? `part ${opts.installmentIdx} of ${opts.parts}`
+      : `part ${opts.installmentIdx}`;
+  const line =
+    opts.audience === "student"
+      ? `Your ${where} (<strong>${escapeHtml(opts.amountDisplay)}</strong>) is <strong>overdue</strong>. Pay as soon as possible to keep your sessions going.`
+      : opts.audience === "tutor"
+        ? `The ${where} (<strong>${escapeHtml(opts.amountDisplay)}</strong>) is <strong>overdue</strong> on one of your engagements.`
+        : `The ${where} (<strong>${escapeHtml(opts.amountDisplay)}</strong>) is overdue.`;
+  return {
+    subject: `Overdue payment: ${opts.amountDisplay}`,
+    text: `The ${where} (${opts.amountDisplay}) is overdue. ${url}`,
+    html: wrap("Payment overdue", `${p(line)}${actionButton(url, opts.audience === "admin" ? "Open payments" : "Open my dashboard")}`),
+  };
+}
+
+/**
+ * The admin split an agreement into installments (0039). The student is told
+ * the schedule so the paywall and the email can never disagree about it.
+ */
+export function paymentPlanCreatedEmail(opts: {
+  audience: "student" | "admin";
+  totalDisplay: string;
+  parts: number;
 }): EmailMessage {
   const url = paymentUrl(opts.audience);
   const line =
     opts.audience === "student"
-      ? `Your installment ${opts.installmentIdx} of 2 (<strong>${escapeHtml(opts.amountDisplay)}</strong>) is <strong>overdue</strong>. Pay as soon as possible to keep your sessions going.`
-      : opts.audience === "tutor"
-        ? `Installment ${opts.installmentIdx} of 2 (<strong>${escapeHtml(opts.amountDisplay)}</strong>) is <strong>overdue</strong> on one of your engagements.`
-        : `Installment ${opts.installmentIdx} of 2 (<strong>${escapeHtml(opts.amountDisplay)}</strong>) is overdue.`;
+      ? `The semester fee for your course (<strong>${escapeHtml(opts.totalDisplay)}</strong>) has been split into <strong>${opts.parts}</strong> installment${opts.parts === 1 ? "" : "s"}. You can pay each part from your dashboard — or the whole balance at any time.`
+      : `A payment plan of <strong>${escapeHtml(opts.totalDisplay)}</strong> was created in <strong>${opts.parts}</strong> installment${opts.parts === 1 ? "" : "s"}.`;
   return {
-    subject: `Overdue payment: ${opts.amountDisplay}`,
-    text: `Installment ${opts.installmentIdx} of 2 (${opts.amountDisplay}) is overdue. ${url}`,
-    html: wrap("Payment overdue", `${p(line)}${actionButton(url, opts.audience === "admin" ? "Open payments" : "Open my dashboard")}`),
+    subject: `Your payment plan: ${opts.totalDisplay} in ${opts.parts} part${opts.parts === 1 ? "" : "s"}`,
+    text: `Your semester fee (${opts.totalDisplay}) is now payable in ${opts.parts} installment${opts.parts === 1 ? "" : "s"}. ${url}`,
+    html: wrap("Payment plan created", `${p(line)}${actionButton(url, opts.audience === "student" ? "Open my dashboard" : "Open the admin console")}`),
   };
 }
 

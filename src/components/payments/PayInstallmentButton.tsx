@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/Button";
 import { initializeInstallmentPayment } from "@/services/payments/mutations";
 
 /**
- * Pay-now button for one installment. On success the action returns a
- * Paystack hosted-checkout URL; the client redirects. Full page load on
- * purpose — the hosted page is a different origin, no popup blockers.
+ * Pay-now button for one installment — or for the whole agreement when no
+ * installment is named (0039 one-off: the charge settles the agreement).
+ * On success the action returns a Paystack hosted-checkout URL; the client
+ * redirects. Full page load on purpose — the hosted page is a different
+ * origin, no popup blockers.
  */
 export function PayInstallmentButton({
   engagementId,
@@ -18,7 +20,8 @@ export function PayInstallmentButton({
   disabledReason,
 }: {
   engagementId: string;
-  installmentId: string;
+  /** Null = a one-off payment with no admin-created schedule (0039). */
+  installmentId?: string | null;
   amountDisplay: string;
   disabled?: boolean;
   disabledReason?: string;
@@ -47,7 +50,11 @@ export function PayInstallmentButton({
   return (
     <form action={formAction}>
       <input type="hidden" name="engagementId" value={engagementId} />
-      <input type="hidden" name="installmentId" value={installmentId} />
+      {/* Omitted when null — an empty string would fail the uuid schema and
+          the action would report "Missing installment" for a valid one-off. */}
+      {installmentId ? (
+        <input type="hidden" name="installmentId" value={installmentId} />
+      ) : null}
       <Button type="submit" disabled={pending}>
         {pending ? "Opening Paystack…" : `Pay ${amountDisplay}`}
         <CreditCard className="ml-2 h-4 w-4" />
