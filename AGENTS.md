@@ -749,7 +749,14 @@ mobile app.
   membership query → recipients query) to ONE read with an embedded
   `tutor_profiles(profile_id)` join — the membership gate and the email
   recipients both come off that row. Re-run the benchmark after touching
-  any chat query. (3) **"does my tutor request have to show first?"** — Home
+  any chat query. `scripts/verify-0039.mjs` is the live 0039 check — it
+  probes the RPCs with their real signatures (PostgREST answers PGRST202
+  for a bad arg name too), exercises the money guards (overcharge, overpay,
+  currency, payout-before-full-payment — refusals only, counters assert
+  nothing was written), creates a real plan and then restores its fixture
+  byte-for-byte. Note: `payment_events` is append-only (a trigger blocks
+  DELETE), so its `engagement.plan_created` rows accumulate on the fixture
+  as audit trail — inert by design. (3) **"does my tutor request have to show first?"** — Home
   now leads with a `StudentGlance` strip (next lesson → Timetable, fees due
   → Payments, open requests → the `#requests` anchor below), then the
   requests card, ground rules and doors. It reads from ONE parallel fetch
@@ -1094,6 +1101,10 @@ The dev machine is slow — give compiles 30–60s.
   button appears the moment a session starts.
 - Cancellation-rate warnings on the admin page for tutors who cancel a lot.
 - Admin moderation UI for `reports`.
+- Remember the last-opened chat thread (user-reported, deferred): returning to
+  `/chat` from the Messages tab is a plain href, so `?c=` is dropped and the
+  NEWEST conversation gets highlighted instead of the one you were in. Fix:
+  persist the last thread (cookie) or `replaceState` `?c=` on click.
 
 **Later:**
 - Payments (Stripe), bookings, reviews.
