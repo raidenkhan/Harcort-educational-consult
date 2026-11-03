@@ -171,7 +171,7 @@ export default async function Home() {
     {
       step: "01",
       title: "Tutoring",
-      body: "Connect with approved tutors who know these exact courses — start a conversation, agree a time, and tick attendance when you meet.",
+      body: "Book a session for ME 255 Thermodynamics with Kofi, who scored 87% in it — or find a tutor for any KNUST engineering course.",
       icon: GraduationCap,
     },
     {
@@ -230,7 +230,7 @@ export default async function Home() {
               href="/tutors"
               className="h-9 rounded-full bg-slate-900 px-3 text-[13px] font-semibold leading-9 text-white shadow-xs hover:bg-slate-800 sm:h-10 sm:px-4 sm:text-sm sm:leading-10"
             >
-              Find Academic Support
+              Find a Tutor
             </Link>
           </>
         )}
@@ -335,7 +335,7 @@ export default async function Home() {
                 href="/tutors"
                 className="inline-flex h-12 items-center justify-center rounded-[2px] bg-white px-7 text-sm font-semibold text-petrol-900 transition duration-150 hover:bg-lilac-100 active:scale-[0.96]"
               >
-                Find Academic Support
+                Find a Tutor
               </Link>
               <AuthTrigger
                 tab="sign-up"
@@ -383,7 +383,7 @@ export default async function Home() {
             </BeamCard>
             <p className="mt-3 text-center text-xs text-lilac-100/60">
               Live platform data — every listed tutor is admin-reviewed before
-              going public.
+              going public. Sessions from GH₵20/semester.
             </p>
           </div>
         </Container>
@@ -452,6 +452,7 @@ export default async function Home() {
 
           <CourseCatalog
             className="mt-10"
+            defaultField="Mechanical Engineering"
             courses={courses.map((course) => ({
               id: course.id,
               subject: course.subject,
@@ -523,56 +524,6 @@ export default async function Home() {
             </a>
             .
           </p>
-        </Container>
-      </section>
-
-      {/* ── The problem (Paper White) ─────────────────────────────── */}
-      {/* Letter rhythm: alternating white / mist surfaces create the
-          gallery-walk pacing. The old PerspectiveGrid line bands fought the
-          flat, shadowless language — surface contrast and hairlines carry
-          depth now. */}
-      <section id="problem" className="relative scroll-mt-24 border-t border-slate-200 bg-white">
-        <Container className="py-20 sm:py-28">
-          <div className="mx-auto max-w-2xl text-center">
-            <Reveal>
-              <h2 className={SECTION_HEADING}>
-                Some courses are difficult. Getting help shouldn&apos;t be.
-              </h2>
-            </Reveal>
-          </div>
-          {/* The subtext alone gets the treatment: a translucent glass panel
-              with a purple halo on hover — the headline stays bare above it,
-              so the panel reads as the "ground" the statement stands on.
-              Harcourt purple via hue=275 (see BeamCard). Hover rather than
-              "always": an active beam repaints every frame (see BeamCard's
-              performance note). */}
-          <BeamCard
-            mode="hover"
-            size="pulse-outside"
-            colorVariant="colorful"
-            hue={275}
-            theme="light"
-            strength={0.45}
-            borderRadius={2}
-          >
-          <div className="mx-auto max-w-[68ch] rounded-[2px] border border-slate-200/80 bg-white/60 p-8 text-center backdrop-blur-sm sm:p-10">
-            {/* Body copy gets the blur-focus variant — it reads as the
-                section "coming into focus" after the headline lands. */}
-            <Reveal variant="blur" delay={120}>
-              <p className="mt-4 text-base leading-relaxed text-slate-600">
-                You attend the lectures, read the notes, watch the videos — and
-                still hit a wall when the worked examples stop making sense.
-                That wall is normal. What shouldn&apos;t be normal is how hard
-                it is to find structured help when it happens.
-              </p>
-              <p className="mt-3 text-base leading-relaxed text-slate-600">
-                Harcourt exists to shorten the distance between being stuck and
-                being understood — with tutors and lessons built around the
-                courses that cause that wall in the first place.
-              </p>
-            </Reveal>
-          </div>
-          </BeamCard>
         </Container>
       </section>
 
@@ -736,10 +687,44 @@ export default async function Home() {
         </Container>
       </section>
 
+      {/* ── CTA band (Mist) ───────────────────────────────────────── */}
+      {/* Letter: filled action carries the brand accent; the low-commitment
+          alternative sits beside it as a ghost text link in the same colour. */}
+      <section className="border-t border-slate-200 bg-slate-100">
+        <Container className="flex flex-col items-center justify-between gap-8 py-20 text-center sm:flex-row sm:text-left">
+          <Reveal variant="left">
+            <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-slate-900 sm:text-3xl">
+              Understand the course. Keep moving.
+            </h2>
+            <p className="mt-2 max-w-md leading-relaxed text-slate-600">
+              Start with a free lesson, or get a tutor who has taken these
+              courses before you — either way, the wall gets smaller.
+            </p>
+          </Reveal>
+          <Reveal variant="right" delay={100} className="shrink-0">
+            <div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-6">
+            <Link
+              href="/tutors"
+              className="inline-flex h-12 items-center justify-center rounded-[2px] bg-brand-600 px-7 text-sm font-semibold text-white transition duration-150 hover:bg-brand-700 active:scale-[0.96]"
+            >
+              Find a Tutor
+            </Link>
+            <a
+              href="#learn"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 transition hover:text-brand-700"
+            >
+              Watch a free lesson
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </a>
+            </div>
+          </Reveal>
+        </Container>
+      </section>
+
       {/* ── Student stories (ink stage) ───────────────────────────── */}
       {/* The one dark band in the light body. Letter's convention is a dark
           stage for the single subject of a section — here, real students —
-          and it puts the proof immediately before the ask. Auto-advancing
+          and it puts the proof immediately BEFORE the ask. Auto-advancing
           slider; vertical Shorts render in a centred portrait column. See
           TestimonialSlider for why the players are click-to-play. */}
       {HAS_TESTIMONIALS && (
@@ -786,40 +771,6 @@ export default async function Home() {
         </section>
       )}
 
-      {/* ── CTA band (Mist) ───────────────────────────────────────── */}
-      {/* Letter: filled action carries the brand accent; the low-commitment
-          alternative sits beside it as a ghost text link in the same colour. */}
-      <section className="border-t border-slate-200 bg-slate-100">
-        <Container className="flex flex-col items-center justify-between gap-8 py-20 text-center sm:flex-row sm:text-left">
-          <Reveal variant="left">
-            <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-slate-900 sm:text-3xl">
-              Understand the course. Keep moving.
-            </h2>
-            <p className="mt-2 max-w-md leading-relaxed text-slate-600">
-              Start with a free lesson, or get a tutor who has taken these
-              courses before you — either way, the wall gets smaller.
-            </p>
-          </Reveal>
-          <Reveal variant="right" delay={100} className="shrink-0">
-            <div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-6">
-            <Link
-              href="/tutors"
-              className="inline-flex h-12 items-center justify-center rounded-[2px] bg-brand-600 px-7 text-sm font-semibold text-white transition duration-150 hover:bg-brand-700 active:scale-[0.96]"
-            >
-              Find Academic Support
-            </Link>
-            <a
-              href="#learn"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 transition hover:text-brand-700"
-            >
-              Watch a free lesson
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </a>
-            </div>
-          </Reveal>
-        </Container>
-      </section>
-
       {/* ── Footer ─────────────────────────────────────────────────── */}
       <footer className="border-t border-petrol-800 bg-petrol-950">
         <Container className="flex flex-col items-center justify-between gap-4 py-8 text-sm text-lilac-200/80 sm:flex-row">
@@ -832,10 +783,18 @@ export default async function Home() {
           >
             Harcourt University on YouTube
           </a>
-          <p>
-            © {new Date().getFullYear()} Harcourt Educational Consult · Kumasi,
-            Ghana. All rights reserved.
-          </p>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <p>
+              © {new Date().getFullYear()} Harcourt Educational Consult · Kumasi,
+              Ghana. All rights reserved.
+            </p>
+            <Link
+              href="/privacy"
+              className="transition hover:text-white"
+            >
+              Privacy Policy
+            </Link>
+          </div>
         </Container>
       </footer>
     </div>

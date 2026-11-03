@@ -170,17 +170,20 @@ export function CourseCatalog({
   courses,
   lessons,
   className,
+  defaultField,
 }: {
   courses: CatalogCourse[];
   /** The free-lesson library (HarcourtUniversity LESSONS). */
   lessons: CatalogLesson[];
   className?: string;
+  /** Initial field selection (e.g., "Mechanical Engineering"). */
+  defaultField?: string;
 }) {
   const fields = sortFields(Array.from(new Set(courses.map((c) => c.subject))));
 
   // `null` means "not chosen yet" — the default resolves to the first field,
   // so the band renders correctly even if data arrives late or empty.
-  const [chosen, setChosen] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<string | null>(defaultField ?? null);
   const [query, setQuery] = useState("");
   // Which level is open, per programme. `key: null` means the student closed
   // every level; the field is part of the state so switching programme
