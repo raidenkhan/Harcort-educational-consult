@@ -14,6 +14,12 @@ import { Skeleton } from "@/components/ui/Skeleton";
  */
 const getProfile = cache(() => getCurrentProfile());
 
+/**
+ * Cached unread count — deduplicates across AppHeader + AppTabBar so the
+ * memberships scan runs once per request, not twice.
+ */
+const getUnreadCount = cache(countUnreadGroupMessages);
+
 const roleTone = {
   student: "neutral",
   tutor: "petrol",
@@ -83,7 +89,7 @@ async function AppHeader() {
   // Groups link, so "your tutor added you" is visible from any page.
   const groupUnread =
     profile && (profile.role === "student" || profile.role === "tutor")
-      ? await countUnreadGroupMessages(profile)
+      ? await getUnreadCount(profile)
       : 0;
 
   const links = [
@@ -125,7 +131,7 @@ async function AppTabBar() {
   if (!profile) return null;
   const groupUnread =
     profile.role === "student" || profile.role === "tutor"
-      ? await countUnreadGroupMessages(profile)
+      ? await getUnreadCount(profile)
       : 0;
   return (
     <MobileTabBar

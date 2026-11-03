@@ -36,6 +36,7 @@ export const SESSION_MODE_OPTIONS = [
 
 export function SessionModePicker({
   name = "sessionMode",
+  value,
   defaultMode = "one_on_one",
   legend = "How do you want your sessions?",
   hint,
@@ -43,6 +44,8 @@ export function SessionModePicker({
   onChange,
 }: {
   name?: string;
+  /** Controlled mode: the currently selected value. If provided, overrides defaultMode. */
+  value?: SessionMode;
   defaultMode?: SessionMode;
   legend?: string;
   hint?: string;
@@ -52,19 +55,22 @@ export function SessionModePicker({
   disabledModes?: readonly SessionMode[];
   onChange?: (mode: SessionMode) => void;
 }) {
+  const selectedMode = value ?? defaultMode;
   return (
     <fieldset>
       <legend className="block text-sm font-medium text-slate-700">{legend}</legend>
       <div className="mt-2 grid grid-cols-2 gap-3" role="radiogroup" aria-label={legend}>
         {SESSION_MODE_OPTIONS.map((option) => {
           const disabled = disabledModes?.includes(option.value) ?? false;
+          const isChecked = selectedMode === option.value;
           return (
             <label
               key={option.value}
               className={cn(
                 "cursor-pointer rounded-md border border-slate-200 p-3.5 transition",
-                "has-[:checked]:border-brand-600 has-[:checked]:bg-brand-50/60 has-[:checked]:ring-2 has-[:checked]:ring-brand-600/15",
-                "hover:border-slate-300",
+                isChecked && !disabled &&
+                  "border-brand-600 bg-brand-50/60 ring-2 ring-brand-600/15",
+                !disabled && "hover:border-slate-300",
                 disabled &&
                   "cursor-not-allowed opacity-50 hover:border-slate-200",
               )}
@@ -73,11 +79,11 @@ export function SessionModePicker({
                 type="radio"
                 name={name}
                 value={option.value}
-                defaultChecked={option.value === defaultMode}
+                checked={isChecked}
                 disabled={disabled}
                 className="sr-only"
-                onChange={(e) => {
-                  if (e.target.checked) onChange?.(option.value);
+                onChange={() => {
+                  if (!disabled) onChange?.(option.value);
                 }}
               />
               <span className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-50">

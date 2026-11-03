@@ -57,9 +57,11 @@ function withDerived(engagements: Awaited<ReturnType<typeof listTutorEngagements
 export async function TutorEarningsCard() {
   const profile = await requireRole("tutor");
 
-  const engagements = await listTutorEngagements(profile);
-  const payouts = await listTutorPayouts(profile);
-  const account = await getPayoutAccount(profile);
+  const [engagements, payouts, account] = await Promise.all([
+    listTutorEngagements(profile),
+    listTutorPayouts(profile),
+    getPayoutAccount(profile),
+  ]);
   const rows = withDerived(engagements);
   const { collected, outstanding, platformFee: fee, tutorShare: share } =
     summarizeEarnings(engagements);

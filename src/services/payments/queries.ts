@@ -1034,9 +1034,12 @@ export async function listOpenRequestsForAdmin(): Promise<OpenPlanRequestView[]>
   }
 
   // Which of those students already have an open agreement for the service?
+  // Only fetch engagements for the students in this request set, not platform-wide.
+  const studentIds = [...new Set(rows.map((r) => r.student_id))];
   const { data: engagementRows } = await supabase
     .from("engagements")
     .select("student_id, tutor_service_id, status")
+    .in("student_id", studentIds)
     .in("status", ["pending_payment", "active", "completed"]);
 
   const covered = new Set(

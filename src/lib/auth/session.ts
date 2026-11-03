@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_COOKIE, SESSION_TTL_MS } from "@/lib/auth/constants";
@@ -44,7 +45,7 @@ export async function setSessionCookie(token: string): Promise<void> {
 }
 
 /** Resolve the session cookie to the signed-in profile, or null. */
-export async function getSessionProfile(): Promise<Profile | null> {
+export const getSessionProfile = cache(async (): Promise<Profile | null> => {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -59,7 +60,7 @@ export async function getSessionProfile(): Promise<Profile | null> {
     .maybeSingle();
 
   return (data?.profiles as Profile | undefined) ?? null;
-}
+});
 
 /** Revoke the current session and clear the cookie (sign-out). */
 export async function revokeSession(): Promise<void> {

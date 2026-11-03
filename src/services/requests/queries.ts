@@ -200,12 +200,14 @@ async function listServicePrices(
 async function withSessionModes(
   views: TutorRequestView[],
 ): Promise<TutorRequestView[]> {
-  const modes = await listRequestSessionModes(views.map((view) => view.id));
-  const prices = await listServicePrices(
-    views
-      .map((view) => view.tutorServiceId)
-      .filter((id): id is string => Boolean(id)),
-  );
+  const [modes, prices] = await Promise.all([
+    listRequestSessionModes(views.map((view) => view.id)),
+    listServicePrices(
+      views
+        .map((view) => view.tutorServiceId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ]);
 
   return views.map((view) => {
     const mode = modes.get(view.id);

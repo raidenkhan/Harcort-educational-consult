@@ -264,12 +264,12 @@ export function RequestTutorButton({
                 })}
               </Select>
             </Field>
-            {/* Keyed on the course: the picker is uncontrolled (native
-                :checked styling), so a new course must remount it with the
-                format that course actually offers. */}
+            {/* Keyed on the course: the picker is controlled via the value prop,
+                so a new course must remount it with the format that course
+                actually offers. */}
             <SessionModePicker
               key={courseId}
-              defaultMode={mode}
+              value={mode}
               disabledModes={disabledModes}
               onChange={setMode}
               legend="Session format for this request"

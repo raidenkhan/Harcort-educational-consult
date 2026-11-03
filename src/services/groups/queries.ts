@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentProfile } from "@/services/auth/queries";
 import type { Profile, StudyGroupMessage, StudyGroupRole } from "@/types";
@@ -81,10 +82,10 @@ function courseName(courses: { name: string }[] | null): string | null {
 }
 
 /** The caller's membership row in a group, or null when they aren't in it. */
-export async function getGroupMembership(
+export const getGroupMembership = cache(async (
   groupId: string,
   profileId: string,
-): Promise<{ role: StudyGroupRole } | null> {
+): Promise<{ role: StudyGroupRole } | null> => {
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("study_group_members")
@@ -94,7 +95,7 @@ export async function getGroupMembership(
     .maybeSingle();
   if (!data) return null;
   return { role: (data as { role: StudyGroupRole }).role };
-}
+});
 
 /**
  * The caller's membership rows, tolerating a database that hasn't run 0036

@@ -2,6 +2,8 @@ import { NextResponse, after, type NextRequest } from "next/server";
 import { drainPaymentOutbox } from "@/lib/email/outbox";
 import { safeNextPath } from "@/lib/auth/redirect";
 import { reconcileChargeByReference } from "@/services/payments/reconcile";
+import { getSessionProfile } from "@/lib/auth/session";
+import { profileIsAdmin } from "@/services/auth/queries";
 
 /**
  * GET /api/payments/return — where Paystack sends the student's browser.
@@ -27,8 +29,19 @@ export async function GET(request: NextRequest) {
     url.searchParams.get("trx_ref") ??
     ""
   ).trim();
-  const next =
-    safeNextPath(url.searchParams.get("next")) ?? "/dashboard?payment=return";
+
+  // Role-aware default redirect: students → /dashboard, tutors → /tutor, admins → /admin
+  const profile = await getSessionProfile();
+  let defaultNext = "/dashboard?payment=return";
+  if (profile) {
+    if (profileIsAdmin(profile)) {
+      defaultNext = "/admin?payment=return";
+    } else if (profile.role === "tutor") {
+      defaultNext = "/tutor?payment=return";
+    }
+  }
+
+  const next = safeNextPath(url.searchParams.get("next")) ?? defaultNext;
 
   let confirmed: "received" | "pending" | "refused" = "pending";
   if (reference) {
