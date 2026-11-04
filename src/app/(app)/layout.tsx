@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { FloatingNav } from "@/components/navigation/FloatingNav";
+import { CartNavButton } from "@/components/cart/CartNavButton";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
@@ -114,6 +115,7 @@ async function AppHeader() {
           <Badge tone={roleTone[profile.role]}>{profile.role}</Badge>
         </span>
       )}
+      <CartNavButton />
       <form action={signOutAction}>
         <button
           type="submit"

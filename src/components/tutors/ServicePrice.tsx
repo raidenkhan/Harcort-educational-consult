@@ -1,3 +1,5 @@
+import { User, Users } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { formatGhs, cedisToPesewas } from "@/lib/money";
 import {
   hasSplitPricing,
@@ -104,6 +106,65 @@ export function ServicePrice({
       {parts.join(" · ")}
       <span className="font-normal text-slate-400"> /semester</span>
     </span>
+  );
+}
+
+/**
+ * The labelled price chips a student actually scans for — one chip per format
+ * the tutor offers:
+ *
+ *   [ One-on-one  GH₵900 /sem ]   [ Group  GH₵300 /sem ]
+ *
+ * `ServicePrice`'s one-line "GH₵900 · GH₵300" made the student guess which
+ * number belonged to which format (and made a group booking look like a
+ * one-on-one one). The chips name the format on every price, so a group fee is
+ * never mistaken for a solo fee. A pre-0031 single price stays one chip.
+ */
+export function FormatPriceChips({
+  service,
+  className,
+}: {
+  service: PricedService;
+  className?: string;
+}) {
+  const modes = offeredModes(service);
+
+  if (modes.length === 0) {
+    return (
+      <span className={cn("text-xs font-medium text-slate-500", className)}>
+        Price on request
+      </span>
+    );
+  }
+
+  return (
+    <ul className={cn("flex flex-wrap gap-1.5", className)}>
+      {modes.map((mode) => {
+        const amount = servicePrice(service, mode);
+        if (amount === null) return null;
+        const group = mode === "group";
+        return (
+          <li
+            key={mode}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] leading-none",
+              group
+                ? "border-brand-200 bg-brand-50 text-brand-800"
+                : "border-slate-200 bg-slate-50 text-slate-700",
+            )}
+          >
+            {group ? (
+              <Users className="h-3 w-3 shrink-0" aria-hidden="true" />
+            ) : (
+              <User className="h-3 w-3 shrink-0" aria-hidden="true" />
+            )}
+            <span className="font-medium">{group ? "Group" : "One-on-one"}</span>
+            <span className="font-bold">{priceTag(amount)}</span>
+            <span className="font-normal text-slate-500">/sem</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

@@ -399,7 +399,7 @@ export function tutorRequestEmail(opts: {
 
   const intro =
     opts.kind === "received"
-      ? `<strong>${escapeHtml(student)}</strong> asked you to tutor them in <strong>${escapeHtml(course)}</strong>. Open your dashboard to accept or decline.`
+      ? `<strong>${escapeHtml(student)}</strong> asked you to tutor them in <strong>${escapeHtml(course)}</strong>. They'll complete payment to confirm the booking.`
       : opts.kind === "accepted"
         ? `<strong>${escapeHtml(tutor)}</strong> accepted your request for <strong>${escapeHtml(course)}</strong>. They'll get in touch to schedule your sessions.`
         : `<strong>${escapeHtml(tutor)}</strong> isn't taking <strong>${escapeHtml(course)}</strong>. You can request another tutor from the directory.`;

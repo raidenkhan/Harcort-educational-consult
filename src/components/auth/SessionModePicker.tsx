@@ -2,6 +2,7 @@
 
 import { User, Users } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { priceTag } from "@/components/tutors/ServicePrice";
 import type { SessionMode } from "@/services/auth/sessionFormat";
 
 /**
@@ -41,6 +42,7 @@ export function SessionModePicker({
   legend = "How do you want your sessions?",
   hint,
   disabledModes,
+  prices,
   onChange,
 }: {
   name?: string;
@@ -53,6 +55,11 @@ export function SessionModePicker({
    *  disabled radio still submits nothing, so the caller must also pick a
    *  valid `defaultMode` — see RequestTutorButton. */
   disabledModes?: readonly SessionMode[];
+  /** The fee for each format (whole cedis, per semester). Showing the price ON
+   *  the choice is what stops a student picking "Group" and then being
+   *  surprised by (or charged) the solo price — the number they see and the
+   *  number the paywall charges are the same field. */
+  prices?: Partial<Record<SessionMode, number | null>>;
   onChange?: (mode: SessionMode) => void;
 }) {
   const selectedMode = value ?? defaultMode;
@@ -63,11 +70,12 @@ export function SessionModePicker({
         {SESSION_MODE_OPTIONS.map((option) => {
           const disabled = disabledModes?.includes(option.value) ?? false;
           const isChecked = selectedMode === option.value;
+          const price = prices?.[option.value] ?? null;
           return (
             <label
               key={option.value}
               className={cn(
-                "cursor-pointer rounded-md border border-slate-200 p-3.5 transition",
+                "cursor-pointer rounded-md border border-slate-200 p-3.5 transition focus-within:ring-2 focus-within:ring-brand-600/40 focus-within:ring-offset-2",
                 isChecked && !disabled &&
                   "border-brand-600 bg-brand-50/60 ring-2 ring-brand-600/15",
                 !disabled && "hover:border-slate-300",
@@ -87,7 +95,7 @@ export function SessionModePicker({
                 }}
               />
               <span className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-50">
-                <option.icon className="h-5 w-5 text-brand-700" />
+                <option.icon className="h-5 w-5 text-brand-700" aria-hidden="true" />
               </span>
               <span className="mt-2 block text-sm font-semibold text-slate-900">
                 {option.title}
@@ -97,6 +105,19 @@ export function SessionModePicker({
                   ? "Not offered for this course."
                   : option.description}
               </span>
+              {!disabled && price !== null && (
+                <span
+                  className={cn(
+                    "mt-2 block text-sm font-bold",
+                    isChecked ? "text-brand-800" : "text-slate-700",
+                  )}
+                >
+                  {priceTag(price)}
+                  <span className="ml-1 text-[11px] font-normal text-slate-500">
+                    /semester
+                  </span>
+                </span>
+              )}
             </label>
           );
         })}

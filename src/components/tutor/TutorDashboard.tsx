@@ -15,7 +15,6 @@ import { formatGhs } from "@/lib/money";
 import { accraDate, sessionDateTile, sessionWhen } from "@/lib/time";
 import { Card } from "@/components/ui/Card";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
-import { RespondRequestButtons } from "@/components/payments/RespondRequestButtons";
 import { TutorPaymentsTable } from "@/components/payments/TutorPaymentsCard";
 
 /**
@@ -302,9 +301,7 @@ export function TutorDashboard({ data }: { data: TutorDashboardData }) {
                       &ldquo;{request.message}&rdquo;
                     </p>
                   )}
-                  <div className="mt-3">
-                    <RespondRequestButtons requestId={request.id} />
-                  </div>
+                  <div className="mt-3 text-sm text-slate-500">Waiting for payment</div>
                 </li>
               ))}
             </ul>

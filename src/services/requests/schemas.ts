@@ -30,16 +30,7 @@ export const sendRequestSchema = z.object({
   sessionMode: z.enum(SESSION_MODES).optional(),
 });
 
-/** Tutor responds to a request. */
-export const respondRequestSchema = z.object({
-  requestId: uuid("Missing request"),
-  accept: z
-    .union([z.literal("accept"), z.literal("decline")])
-    .transform((v) => v === "accept"),
-});
-
 export type SendRequestInput = z.infer<typeof sendRequestSchema>;
-export type RespondRequestInput = z.infer<typeof respondRequestSchema>;
 
 /** A student asks the admin team for a payment plan from the paywall. */
 export const paymentPlanRequestSchema = z.object({

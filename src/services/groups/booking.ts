@@ -43,6 +43,15 @@ type Supabase = ReturnType<typeof createAdminClient>;
 
 export type SeatOutcome = "seated" | "already" | "skipped" | "failed";
 
+/** What happened when we tried to seat a student — plus the group's name, so
+ *  the paywall can say "you're in ME 363 Group" instead of a vague "done". */
+export interface SeatResult {
+  outcome: SeatOutcome;
+  groupName: string | null;
+}
+
+const NOT_SEATED: SeatResult = { outcome: "failed", groupName: null };
+
 /** The tutor's PROFILE id — `study_groups.created_by` — for a tutor profile. */
 async function readTutorProfileId(
   supabase: Supabase,
@@ -193,21 +202,21 @@ export async function ensureGroupBookingSeat(opts: {
   /** `tutor_profiles.id` — the id bookings and sessions carry. */
   tutorProfileId: string;
   courseId: string | null;
-}): Promise<SeatOutcome> {
+}): Promise<SeatResult> {
   try {
-    if (!opts.courseId) return "skipped";
+    if (!opts.courseId) return { outcome: "skipped", groupName: null };
 
     const supabase = createAdminClient();
     const creatorId = await readTutorProfileId(supabase, opts.tutorProfileId);
-    if (!creatorId) return "skipped";
+    if (!creatorId) return { outcome: "skipped", groupName: null };
 
     const course = await readCourse(supabase, opts.courseId);
-    if (!course) return "skipped";
+    if (!course) return { outcome: "skipped", groupName: null };
 
     const group =
       (await findGroupForCourse(supabase, creatorId, course)) ??
       (await createGroupForCourse(supabase, creatorId, course));
-    if (!group) return "failed";
+    if (!group) return NOT_SEATED;
 
     const { data: existing } = await supabase
       .from("study_group_members")
@@ -215,15 +224,17 @@ export async function ensureGroupBookingSeat(opts: {
       .eq("group_id", group.id)
       .eq("profile_id", opts.studentId)
       .maybeSingle();
-    if (existing) return "already";
+    if (existing) return { outcome: "already", groupName: group.name };
 
     const { error: memberError } = await supabase
       .from("study_group_members")
       .insert({ group_id: group.id, profile_id: opts.studentId, role: "member" });
     if (memberError) {
-      if (memberError.code === "23505") return "already";
+      if (memberError.code === "23505") {
+        return { outcome: "already", groupName: group.name };
+      }
       console.error(`[groups] could not seat student: ${memberError.message}`);
-      return "failed";
+      return NOT_SEATED;
     }
 
     // Membership first, message second — 0036's `last_read_at` default then
@@ -270,19 +281,24 @@ export async function ensureGroupBookingSeat(opts: {
       scheduleOutboxDrain();
     }
 
-    return "seated";
+    return { outcome: "seated", groupName: group.name };
   } catch (err) {
     console.error("[groups] ensureGroupBookingSeat failed", err);
-    return "failed";
+    return NOT_SEATED;
   }
 }
 
 /**
- * Seat after a tutor ACCEPTS a request. Only a `group` request seats — the
- * format is per request (0024), so the same student's one-on-one booking
- * with another tutor is untouched. Never throws.
+ * Seat after a tutor ACCEPTS a request, or immediately after the student
+ * sends a GROUP request (so the seat is real before any money moves). Only a
+ * `group` request seats — the format is per request (0024), so the same
+ * student's one-on-one booking with another tutor is untouched. Never throws.
+ *
+ * Returns null when the request isn't a group booking (nothing to report).
  */
-export async function seatGroupBookingForRequest(requestId: string): Promise<void> {
+export async function seatGroupBookingForRequest(
+  requestId: string,
+): Promise<SeatResult | null> {
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -290,21 +306,22 @@ export async function seatGroupBookingForRequest(requestId: string): Promise<voi
       .select("session_mode, tutor_profile_id, course_id, student_id")
       .eq("id", requestId)
       .maybeSingle();
-    if (error || !data) return;
+    if (error || !data) return null;
     const row = data as {
       session_mode: string | null;
       tutor_profile_id: string;
       course_id: string | null;
       student_id: string;
     };
-    if (row.session_mode !== "group") return;
-    await ensureGroupBookingSeat({
+    if (row.session_mode !== "group") return null;
+    return await ensureGroupBookingSeat({
       studentId: row.student_id,
       tutorProfileId: row.tutor_profile_id,
       courseId: row.course_id,
     });
   } catch (err) {
-    console.error("[groups] seat after accept failed", err);
+    console.error("[groups] seat after request failed", err);
+    return NOT_SEATED;
   }
 }
 

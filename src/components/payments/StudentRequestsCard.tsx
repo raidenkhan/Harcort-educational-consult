@@ -42,8 +42,8 @@ const STATUS_BADGE: Record<
   string,
   { label: string; tone: "amber" | "green" | "red" | "neutral" }
 > = {
-  pending: { label: "Waiting for tutor", tone: "amber" },
-  accepted: { label: "Accepted", tone: "green" },
+  pending: { label: "Awaiting payment", tone: "amber" },
+  accepted: { label: "Confirmed", tone: "green" },
   declined: { label: "Declined", tone: "red" },
   withdrawn: { label: "Withdrawn", tone: "neutral" },
 };
@@ -221,9 +221,7 @@ export async function StudentRequestsCard({
                 {request.payable ? (
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-sm text-emerald-800">
-                      Accepted! Pay the semester fee (
-                      {formatGhs(request.payable.amount)}) to activate your
-                      sessions.
+                      Confirmed! Pay the semester fee ({formatGhs(request.payable.amount)}) to activate your sessions.
                     </p>
                     <PayInstallmentButton
                       engagementId={request.payable.engagementId}
@@ -236,14 +234,12 @@ export async function StudentRequestsCard({
                         e.tutorName === request.tutorName && e.status !== "cancelled",
                     ) ? (
                   <p className="text-sm text-emerald-800">
-                    Accepted. This agreement is already paid or in progress — see
-                    My payments.
+                    Confirmed. This agreement is already paid or in progress — see My payments.
                   </p>
                 ) : request.tutorServiceId ? (
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-sm text-emerald-800">
-                      Accepted! Set up your payment to activate your
-                      sessions.
+                      Confirmed! Set up your payment to activate your sessions.
                     </p>
                     <CommitToCourseButton
                       tutorServiceId={request.tutorServiceId}
@@ -253,9 +249,7 @@ export async function StudentRequestsCard({
                   </div>
                 ) : (
                   <p className="text-sm text-emerald-800">
-                    Accepted. Your tutor hasn&apos;t published a price for this
-                    course yet — we&apos;ll email you when your payment button
-                    unlocks.
+                    Confirmed. Your tutor hasn&apos;t published a price for this course yet — we&apos;ll email you when your payment button unlocks.
                   </p>
                 )}
               </div>

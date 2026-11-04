@@ -5,7 +5,6 @@ import { sessionModeLabel } from "@/services/auth/sessionFormat";
 import { dueDateLabel } from "@/lib/time";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { RespondRequestButtons } from "./RespondRequestButtons";
 
 /**
  * Tutor requests inbox — "Tutoring requests" on the tutor page.
@@ -44,9 +43,9 @@ export async function TutorRequestsInbox() {
             {pending.length > 0 ? ` (${pending.length})` : ""}
           </h2>
           <p className="mt-1 max-w-xl text-sm text-slate-600">
-            Students who asked for your help. A payment confirms the booking
-            automatically and moves it to Confirmed — you don&apos;t need to
-            approve a paid request. Accept or decline the ones still waiting.
+            Students who asked for your help. Payment confirms the booking
+            automatically — you don&apos;t need to approve a paid request.
+            Unpaid requests are waiting for the student to complete payment.
           </p>
         </div>
       </div>
@@ -104,7 +103,7 @@ export async function TutorRequestsInbox() {
                     Sent {dueDateLabel(new Date(request.createdAt)).replace("Due ", "")}
                   </p>
                 </div>
-                <RespondRequestButtons requestId={request.id} />
+                <div className="text-sm text-slate-500">Waiting for payment</div>
               </Card>
             </li>
           ))}

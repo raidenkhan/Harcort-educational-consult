@@ -99,8 +99,7 @@ export function CourseLibraryConsole({
   if (courses.length === 0) {
     return (
       <p className="mt-8 rounded-lg border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm text-slate-500">
-        No courses in the taxonomy yet — run migration 0002 to seed the KNUST
-        catalog.
+        No courses in the taxonomy yet — seed the KNUST catalog first.
       </p>
     );
   }

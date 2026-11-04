@@ -1538,3 +1538,192 @@ export async function adminSetPayoutAccountVerified(
   revalidatePath("/tutor", "layout");
   return { message: "Payout account verified — the tutor can now request payouts." };
 }
+
+// ---------------------------------------------------------------------------
+// Cart checkout (0040)
+// ---------------------------------------------------------------------------
+
+/**
+ * Student checks out a whole cart in ONE Paystack charge.
+ *
+ * The cart is a client-side wish list (`localStorage`); no DB row exists
+ * until this function runs. Each line becomes an engagement (find-or-create),
+ * and all engagements are bundled into one `payment_batches` row with a
+ * single Paystack reference. The student pays once; the money lands on each
+ * agreement individually through `payment_apply_verified_batch`.
+ */
+export async function startCartCheckout(
+  _prev: PaymentFormState,
+  formData: FormData,
+): Promise<PaymentFormState> {
+  const profile = await requireProfile();
+
+  if (!isPaystackConfigured()) {
+    return { error: "Payments are not configured yet — please try again later." };
+  }
+
+  // The cart lines come from the form as JSON. They were validated by
+  // normalizeCartLines on the client, but we still need to verify them
+  // server-side because localStorage can be tampered with.
+  const rawLines = formData.get("cartLines");
+  if (!rawLines || typeof rawLines !== "string") {
+    return { error: "Your cart is empty." };
+  }
+
+  let lines: Array<{
+    tutorServiceId: string;
+    tutorProfileId: string;
+    courseId: string;
+    mode: string;
+  }>;
+
+  try {
+    lines = JSON.parse(rawLines);
+  } catch {
+    return { error: "Could not read your cart." };
+  }
+
+  if (!Array.isArray(lines) || lines.length === 0) {
+    return { error: "Your cart is empty." };
+  }
+
+  const supabase = createAdminClient();
+
+  // Step 1: find-or-create an engagement for every cart line.
+  // prepare_cart_engagement returns the engagement id + its outstanding balance
+  // in pesewas. It also sets session_mode on the engagement so group seating
+  // works even without a tutor_requests row.
+  const engagementIds: string[] = [];
+  const amounts: number[] = [];
+
+  for (const line of lines) {
+    const { data, error } = await supabase.rpc("prepare_cart_engagement", {
+      actor_id: profile.id,
+      p_student_id: profile.id,
+      p_tutor_service_id: line.tutorServiceId,
+      p_session_mode: line.mode,
+    });
+
+    if (error) {
+      // format_not_offered means the tutor doesn't teach this course in the
+      // format the student picked — that's a UI bug, not a payment issue.
+      return { error: friendlyError(rpcError(error)) };
+    }
+
+    const result = data as unknown as {
+      engagement_id: string;
+      amount_pesewas: string | number;
+    };
+
+    engagementIds.push(result.engagement_id);
+    amounts.push(Number(result.amount_pesewas));
+  }
+
+  // Step 2: create the batch. This writes payment_batches + payment_batch_items
+  // and one payments row per item (status initialized). The RPC re-checks the
+  // amounts against each engagement's outstanding balance under a lock, so the
+  // client cannot invent a price.
+  const netTotal = amounts.reduce((sum, amt) => sum + amt, 0);
+  const signature = `${profile.id}:${engagementIds.join(",")}:${netTotal}`;
+
+  const { data: batchData, error: batchError } = await supabase.rpc(
+    "create_payment_batch",
+    {
+      actor_id: profile.id,
+      p_student_id: profile.id,
+      p_amount: String(netTotal),
+      p_fee_amount: "0", // Will be set below after fee calculation
+      p_signature: signature,
+      p_engagement_ids: engagementIds,
+      p_amounts: amounts.map((a) => String(a)),
+    },
+  );
+
+  if (batchError) {
+    return { error: friendlyError(rpcError(batchError)) };
+  }
+
+  const batch = batchData as unknown as {
+    batch_id: string;
+    reference: string;
+  };
+
+  // Step 3: Calculate the fee and update the batch with it
+  const feePesewas = checkoutTotal(BigInt(netTotal)).feePesewas;
+  const totalPesewas = BigInt(netTotal) + feePesewas;
+
+  // Update the batch with the actual fee
+  await supabase
+    .from("payment_batches")
+    .update({ fee_amount: feePesewas.toString() })
+    .eq("id", batch.batch_id);
+
+  // Step 4: Initialize Paystack transaction with the batch reference
+  // Fetch the student's email from credentials
+  const { data: cred } = await supabase
+    .from("credentials")
+    .select("email")
+    .eq("profile_id", profile.id)
+    .maybeSingle();
+  const email = (cred as { email: string } | null)?.email;
+  if (!email) {
+    return { error: "Could not find your account — please sign in again." };
+  }
+
+  const reference = batch.reference;
+
+  try {
+    const txn = await initializeTransaction({
+      email,
+      amountPesewas: Number(totalPesewas),
+      reference,
+      callbackUrl: `${APP_URL}/api/payments/return?next=${encodeURIComponent("/cart?paid=1")}`,
+      metadata: {
+        batch_id: batch.batch_id,
+        net_amount: netTotal,
+        service_fee: Number(feePesewas),
+      },
+    });
+
+    if (!txn.authorization_url) {
+      throw new Error(
+        "Paystack didn't return a checkout link — please try again in a moment.",
+      );
+    }
+
+    // Remember the page on the batch row itself for the double-tap guard
+    const { error: rememberError } = await supabase
+      .from("payment_batches")
+      .update({
+        raw_payload: {
+          checkout_url: txn.authorization_url,
+          access_code: txn.access_code ?? null,
+        },
+      })
+      .eq("id", batch.batch_id);
+    if (rememberError) {
+      console.error(
+        `[payments] could not store the checkout URL for ${reference}: ${rememberError.message}`,
+      );
+    }
+
+    return { message: "Redirecting to Paystack…", checkoutUrl: txn.authorization_url };
+  } catch (err) {
+    // Only an answer from Paystack can prove no transaction was created. A
+    // timeout, a dropped connection or an HTML gateway page leaves the
+    // outcome UNKNOWN: the transaction may exist, so the row must stay
+    // 'initialized' for `/api/payments/return` and the sweep to verify.
+    if (err instanceof PaystackApiError) {
+      await supabase
+        .from("payment_batches")
+        .update({ status: "failed" })
+        .eq("id", batch.batch_id);
+      return { error: err.message };
+    }
+    console.error(`[payments] cart checkout ${reference}: outcome unknown`, err);
+    return {
+      error:
+        "We couldn't reach Paystack to start this payment. Nothing has been charged — please try again in a moment.",
+    };
+  }
+}

@@ -12,6 +12,7 @@ import { seatGroupBookingForRequest } from "@/services/groups/booking";
 import {
   DEFAULT_SESSION_MODE,
   normalizeSessionMode,
+  sessionModeLabel,
   type SessionMode,
 } from "@/services/auth/sessionFormat";
 import { servicePrice, type PricedService } from "@/services/tutors/pricing";
@@ -19,7 +20,6 @@ import { checkoutTotal } from "@/services/payments/fees";
 import {
   paymentPlanRequestSchema,
   sendRequestSchema,
-  respondRequestSchema,
 } from "./schemas";
 
 /**
@@ -35,6 +35,13 @@ export interface RequestPaywall {
   tutorServiceId: string;
   courseName: string;
   tutorName: string;
+  /** The format this request is actually stored with (0024/0031) — the
+   *  paywall names it so the student can see they are paying the group fee
+   *  for a group booking, not the solo fee. */
+  sessionMode: SessionMode;
+  /** The study group the student was seated in, when this is a group booking.
+   *  Null when seating was not applicable or could not be completed. */
+  groupName: string | null;
   /** The tutor's full quote for the course, in pesewas. */
   totalPesewas: number;
   /** The full semester fee, due up front (0029) — what the paywall charges. */
@@ -149,7 +156,30 @@ export async function sendTutorRequest(
       p_session_mode: sessionMode,
     });
     if (modeError) {
-      console.error(`[requests] session_mode not saved: ${modeError.message}`);
+      if (!isMissingColumn(modeError)) {
+        // The row may carry a different format than the one the student just
+        // picked — and the paywall prices whatever the row holds. Refuse to
+        // charge the wrong price.
+        console.error(`[requests] session_mode not saved: ${modeError.message}`);
+        return {
+          error: `We couldn't save "${sessionModeLabel(sessionMode)}" for this request. Nothing has been charged — please try again.`,
+        };
+      }
+      console.error(
+        "[requests] session_mode unreadable — apply migration 0024; request kept its default format.",
+      );
+    }
+  }
+
+  // Read the format back from the row that actually exists. This is the same
+  // value the paywall prices, so a mismatch can never become a silent charge
+  // for the other format.
+  if (requestId) {
+    const saved = await requestSessionMode(supabase, requestId);
+    if (saved.known && saved.mode !== sessionMode) {
+      return {
+        error: `This request is saved as ${sessionModeLabel(saved.mode)}, not ${sessionModeLabel(sessionMode)}. Nothing has been charged — reopen the dialog and try again.`,
+      };
     }
   }
 
@@ -159,6 +189,17 @@ export async function sendTutorRequest(
   // course; the amount shown must match that row, because it becomes a real
   // money agreement.
   const paywall = await resolvePaywall(supabase, requestId);
+
+  // GROUP BOOKING: seat the student NOW, not only after the tutor accepts or
+  // the payment lands. The seat is the thing the student was promised when
+  // they picked "Group", and waiting for money meant a student who paid later
+  // sat outside the group the whole time. Idempotent — the accept and payment
+  // paths call the same function.
+  if (paywall?.sessionMode === "group" && requestId) {
+    const seat = await seatGroupBookingForRequest(requestId);
+    paywall.groupName = seat?.groupName ?? null;
+    revalidatePath("/groups");
+  }
 
   // Text the tutor: a new request is the one thing a tutor must not miss,
   // and most of them won't open their email between classes. Best-effort.
@@ -176,7 +217,9 @@ export async function sendTutorRequest(
   revalidatePath("/tutor", "layout");
   return {
     message: paywall
-      ? "Request sent. Pay the semester fee below to activate your sessions."
+      ? paywall.groupName
+        ? `Request sent — and you're in ${paywall.groupName}. Pay the semester fee below to activate your sessions.`
+        : "Request sent. Pay the semester fee below to activate your sessions."
       : // No price for this request's format (the tutor removed it, or never
         // set one). Saying "payment unlocks when the tutor accepts" would be a
         // lie: there is nothing to charge, so send the student to Chat.
@@ -245,14 +288,14 @@ async function resolveRequestContact(
 /**
  * The session format the student chose for this request (0024).
  *
- * Best-effort: `session_mode` only exists once 0024 is applied, and the
- * paywall must still be able to price a request without it — the default
- * format is one-on-one, which is also what pre-0024 rows meant.
+ * `known` is false when the column itself is unavailable (0024 not applied) —
+ * the default format is then the only meaning a row can have, and the caller
+ * must not treat the fallback as a mismatch.
  */
 async function requestSessionMode(
   supabase: ReturnType<typeof createAdminClient>,
   requestId: string,
-): Promise<SessionMode> {
+): Promise<{ mode: SessionMode; known: boolean }> {
   const { data, error } = await supabase
     .from("tutor_requests")
     .select("session_mode")
@@ -263,10 +306,15 @@ async function requestSessionMode(
     console.warn(
       `[requests] session_mode unreadable — assuming one-on-one: ${error.message}`,
     );
-    return DEFAULT_SESSION_MODE;
+    return { mode: DEFAULT_SESSION_MODE, known: false };
   }
 
-  return normalizeSessionMode((data as { session_mode?: unknown } | null)?.session_mode);
+  return {
+    mode: normalizeSessionMode(
+      (data as { session_mode?: unknown } | null)?.session_mode,
+    ),
+    known: true,
+  };
 }
 
 /**
@@ -295,7 +343,7 @@ async function resolvePaywall(
     | null;
   if (!request?.course_id) return null;
 
-  const mode = await requestSessionMode(supabase, requestId);
+  const { mode } = await requestSessionMode(supabase, requestId);
 
   const read = (withSplit: boolean) =>
     supabase
@@ -347,6 +395,9 @@ async function resolvePaywall(
     tutorServiceId: row.id,
     courseName: course?.name ?? "your course",
     tutorName: tutor?.full_name ?? "your tutor",
+    sessionMode: mode,
+    // Filled in by sendTutorRequest after immediate group seating.
+    groupName: null,
     totalPesewas,
     // 0029: 100% upfront — the whole semester fee is due at the paywall.
     duePesewas: totalPesewas,
@@ -385,7 +436,7 @@ export async function requestPaymentPlan(
     .select(
       `id, student_id, course_id, status,
        courses(name),
-       tutor_profiles(id, profiles(full_name), tutor_services(price, course_id))`,
+       tutor_profiles(id, profiles(full_name))`,
     )
     .eq("id", parsed.data.requestId)
     .maybeSingle();
@@ -395,16 +446,15 @@ export async function requestPaymentPlan(
     student_id: string;
     course_id: string | null;
     status: string;
-    courses?: { name: string } | { name: string }[] | null;        tutor_profiles?:
+    courses?: { name: string } | { name: string }[] | null;
+    tutor_profiles?:
       | {
           id: string;
           profiles?: { full_name: string } | { full_name: string }[] | null;
-          tutor_services?: Array<{ price: unknown; course_id: string }> | null;
         }
       | Array<{
           id: string;
           profiles?: { full_name: string } | { full_name: string }[] | null;
-          tutor_services?: Array<{ price: unknown; course_id: string }> | null;
         }>
       | null;
   };
@@ -512,61 +562,6 @@ export async function requestPaymentPlan(
   return {
     message: "Sent to the Harcourt admin team — continue in Chat to agree a plan.",
     conversationId,
-  };
-}
-
-/** Tutor accepts or declines a request. */
-export async function respondTutorRequest(
-  _prev: RequestFormState,
-  formData: FormData,
-): Promise<RequestFormState> {
-  const profile = await requireProfile();
-
-  const parsed = respondRequestSchema.safeParse({
-    requestId: formData.get("requestId"),
-    accept: formData.get("accept"),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid request" };
-  }
-
-  const supabase = createAdminClient();
-  const { error } = await supabase.rpc("respond_tutor_request", {
-    actor_id: profile.id,
-    p_request_id: parsed.data.requestId,
-    p_accept: parsed.data.accept,
-  });
-  if (error) return { error: friendlyError(rpcError(error)) };
-
-  // A group booking also lands the student in the tutor's group for the course
-  // (find-or-create). Best-effort, never throws; gates on session_mode='group'.
-  if (parsed.data.accept) {
-    await seatGroupBookingForRequest(parsed.data.requestId);
-  }
-
-  // Text the student the verdict — accepted means they can now pay the first
-  // 50%, declined means they should stop waiting for it.
-  const contact = await resolveRequestContact(
-    supabase,
-    parsed.data.requestId,
-  );
-  if (contact) {
-    notifySmsToProfiles(
-      [contact.studentId],
-      parsed.data.accept
-        ? `Harcourt: ${contact.tutorName} accepted your request for ${contact.courseName}. Open the app to pay and schedule.`
-        : `Harcourt: ${contact.tutorName} declined your request for ${contact.courseName}.`,
-      "request_response",
-    );
-  }
-
-  scheduleOutboxDrain();
-  revalidatePath("/tutor", "layout");
-  revalidatePath("/dashboard");
-  return {
-    message: parsed.data.accept
-      ? "Accepted. The student can now pay the semester fee to activate sessions."
-      : "Request declined.",
   };
 }
 
