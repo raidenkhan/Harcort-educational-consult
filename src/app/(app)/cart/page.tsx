@@ -26,7 +26,7 @@ import { paystackFeeConfig } from "@/services/payments/fees";
  */
 export default function CartPage() {
   const searchParams = useSearchParams();
-  const { lines, remove, clear, ready } = useCart();
+  const { lines, remove, clear } = useCart();
   const [state, formAction, pending] = useActionState<PaymentFormState, FormData>(
     startCartCheckout,
     {},
