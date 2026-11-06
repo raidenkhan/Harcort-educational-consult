@@ -1,4 +1,6 @@
 import { listCourses } from "@/services/courses/queries";
+import { offeringsByCourse } from "@/services/courses/offerings";
+import { safeListApprovedTutors } from "@/services/tutors/queries";
 import { getCurrentProfile } from "@/services/auth/queries";
 import { findCourseMaterials } from "@/services/library/courseMaterials";
 import { CourseDirectory } from "@/components/courses/CourseDirectory";
@@ -34,11 +36,15 @@ export const metadata = {
 };
 
 export default async function CoursesPage() {
-  const [allCourses, profile] = await Promise.all([
+  const [allCourses, profile, tutors] = await Promise.all([
     listCourses(),
     getCurrentProfile(),
+    // Cached (5 min, `tutors` tag) — the same read /tutors uses; it powers
+    // each course row's "Add to cart".
+    safeListApprovedTutors(),
   ]);
   const courses = engineeringCourses(allCourses);
+  const offerings = offeringsByCourse(tutors, courses);
 
   return (
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
@@ -89,6 +95,7 @@ export default async function CoursesPage() {
                   // Resolved on the server: the directory only needs to know
                   // whether a Drive folder exists, not the whole library tree.
                   hasDriveMaterials: Boolean(findCourseMaterials(course.code)),
+                  offerings: offerings[course.id] ?? [],
                 }))}
               />
             )}

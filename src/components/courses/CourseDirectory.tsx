@@ -20,6 +20,8 @@ import {
 } from "@/components/home/courseTaxonomy";
 import { FIELD_ICONS } from "@/components/home/CourseCatalog";
 import { CourseTitle } from "./CourseTitle";
+import { AddCourseToCartButton } from "@/components/cart/AddCourseToCartButton";
+import type { CartOffering } from "@/components/cart/AddToCartButton";
 
 /**
  * The /courses directory — program → level → semester → course.
@@ -58,6 +60,9 @@ export type DirectoryCourse = {
   /** A study-materials folder exists for this code. Resolved on the
    *  server so the client never bundles the whole Drive tree. */
   hasDriveMaterials?: boolean;
+  /** Tutors who teach this course (matched by code on the server) — what the
+   *  row's "Add to cart" can add. Empty = no tutor yet. */
+  offerings?: CartOffering[];
 };
 
 export function CourseDirectory({ courses }: { courses: DirectoryCourse[] }) {
@@ -463,10 +468,17 @@ function CourseRow({
           className="mt-1"
           linkClassName="transition-colors duration-200 group-hover:text-brand-700"
         />
-        <span className="mt-2 inline-flex items-center gap-1.5 text-[13px] font-semibold text-brand-600">
-          Materials &amp; tutors
-          <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 motion-reduce:transition-none" />
-        </span>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-brand-600">
+            Materials &amp; tutors
+            <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 motion-reduce:transition-none" />
+          </span>
+          {/* Above the stretched link (z-10), so it never opens the page. */}
+          <AddCourseToCartButton
+            courseName={course.name}
+            offerings={course.offerings ?? []}
+          />
+        </div>
       </div>
     </div>
   );
