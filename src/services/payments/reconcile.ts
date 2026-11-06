@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isMissingColumn } from "@/lib/postgres";
+import { isMissingColumn, isMissingTable } from "@/lib/postgres";
 import { notifySmsToProfiles } from "@/lib/sms";
 import { formatGhs } from "@/lib/money";
 import {
@@ -75,7 +75,7 @@ const OPTIONAL_COLUMNS = ["fee_amount", "payment_request_id"];
  * 'initialized' for the next run to retry.
  */
 const DEFINITIVE_REFUSAL =
-  /(installment_not_found|installment_not_payable|currency_mismatch|amount_mismatch)\b/;
+  /(installment_not_found|installment_not_payable|currency_mismatch|amount_mismatch|batch_not_payable|batch_empty|reference_mismatch)\b/;
 
 export function isDefinitiveRefusal(message: string): boolean {
   return DEFINITIVE_REFUSAL.test(message);
@@ -136,7 +136,10 @@ export async function reconcileChargeByReference(
   if (!ref) return { status: "not_found" };
 
   const row = await readPaymentRow(ref);
-  if (!row) return { status: "not_found" };
+  // A cart/booking charge (0040): Paystack knows the BATCH reference; the
+  // per-course `payments` rows carry `<reference>-B01…` and are applied by
+  // the batch RPC, never one at a time.
+  if (!row) return reconcileBatchByReference(ref);
   if (row.status === "paid") {
     return { status: "already_paid", engagementId: row.engagement_id };
   }
@@ -311,6 +314,178 @@ export async function reconcileChargeByReference(
   };
 }
 
+interface BatchRow {
+  id: string;
+  status: string;
+  amount: string | number;
+  fee_amount: string | number | null;
+  raw_payload: { note?: string } | null;
+}
+
+/**
+ * Close a batch and its item rows. Used for a checkout Paystack never saw or
+ * that was abandoned/failed, and for a charge the ledger definitively refused
+ * (with `note`). Only touches rows still `initialized`.
+ */
+async function closeBatch(
+  batchId: string,
+  paystackStatus: string,
+  note?: string,
+): Promise<void> {
+  const supabase = createAdminClient();
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("payment_batches")
+    .update({
+      status: "failed",
+      updated_at: now,
+      ...(note ? { raw_payload: { note } } : {}),
+    })
+    .eq("id", batchId)
+    .eq("status", "initialized");
+  const { error: itemError } = await supabase
+    .from("payments")
+    .update({ status: "failed", paystack_status: paystackStatus })
+    .eq("batch_id", batchId)
+    .eq("status", "initialized");
+  if (error || itemError) {
+    console.error(
+      `[payments] could not close batch ${batchId}: ${(error ?? itemError)?.message}`,
+    );
+  }
+}
+
+/** The agreements a batch pays for, in item order. */
+async function batchEngagementIds(batchId: string): Promise<string[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("payment_batch_items")
+    .select("engagement_id, idx")
+    .eq("batch_id", batchId)
+    .order("idx", { ascending: true });
+  return (data ?? []).map((row) => (row as { engagement_id: string }).engagement_id);
+}
+
+/**
+ * The batch twin of the single-charge path above (0040 — cart checkout and
+ * the tutor card's Book dialog). Same contract: ask Paystack, require the
+ * gross charge to equal what checkout stored (`amount + fee_amount`), then let
+ * `payment_apply_verified_batch` apply each item under the same row locks the
+ * single path uses. Idempotent: a paid batch short-circuits here and in SQL.
+ */
+async function reconcileBatchByReference(ref: string): Promise<ReconcileOutcome> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("payment_batches")
+    .select("id, status, amount, fee_amount, raw_payload")
+    .eq("reference", ref)
+    .maybeSingle();
+  if (error) {
+    if (isMissingTable(error)) return { status: "not_found" };
+    throw new Error(`batch read failed: ${error.message}`);
+  }
+  const batch = data as BatchRow | null;
+  if (!batch) return { status: "not_found" };
+
+  const engagementIds = await batchEngagementIds(batch.id);
+  const firstEngagement = engagementIds[0] ?? "";
+
+  if (batch.status === "paid") {
+    return { status: "already_paid", engagementId: firstEngagement };
+  }
+  if (batch.status === "cancelled") {
+    return { status: "refused", reason: "batch_cancelled" };
+  }
+  if (batch.status === "failed" && batch.raw_payload?.note) {
+    // Paystack charged, the ledger refused — a refund to chase, not a retry.
+    return { status: "refused", reason: "previously_refused" };
+  }
+
+  let txn: PaystackTransaction;
+  try {
+    txn = await verifyTransaction(ref);
+  } catch (err) {
+    if (!isReferenceNotFound(err)) throw err;
+    await closeBatch(batch.id, "not_found");
+    return { status: "refused", reason: "reference_not_found" };
+  }
+  if (txn.status !== "success") {
+    if (txn.status === "abandoned" || txn.status === "failed") {
+      await closeBatch(batch.id, txn.status);
+    }
+    return { status: "pending", paystackStatus: txn.status };
+  }
+
+  const courseAmount = pesewasFrom(batch.amount);
+  const feeAmount = pesewasFrom(batch.fee_amount);
+  const verifiedAmount = BigInt(txn.amount);
+  if (verifiedAmount !== courseAmount + feeAmount) {
+    return {
+      status: "refused",
+      reason: `amount_mismatch: expected ${courseAmount + feeAmount} (courses ${courseAmount} + fee ${feeAmount}), verified ${verifiedAmount}`,
+    };
+  }
+
+  // A batch the sweep closed as abandoned can still be completed afterwards
+  // (the student reopened the checkout page). Paystack now says it is paid,
+  // so reopen it — and its items — for the apply.
+  if (batch.status === "failed") {
+    await supabase
+      .from("payment_batches")
+      .update({ status: "initialized", updated_at: new Date().toISOString() })
+      .eq("id", batch.id)
+      .eq("status", "failed");
+    await supabase
+      .from("payments")
+      .update({ status: "initialized" })
+      .eq("batch_id", batch.id)
+      .eq("status", "failed");
+  }
+
+  const { error: applyError } = await supabase.rpc("payment_apply_verified_batch", {
+    p_batch_id: batch.id,
+    p_paystack_reference: ref,
+    p_amount: courseAmount.toString(),
+    p_currency: txn.currency,
+    p_paystack_status: txn.status,
+    p_raw: txn as unknown as object,
+  });
+  if (applyError) {
+    // Webhook, return path and sweep can race on one batch; the loser sees a
+    // lock-ordered refusal although the winner applied it.
+    const { data: after } = await supabase
+      .from("payment_batches")
+      .select("status")
+      .eq("id", batch.id)
+      .maybeSingle();
+    if ((after as { status?: string } | null)?.status === "paid") {
+      return { status: "already_paid", engagementId: firstEngagement };
+    }
+    if (isDefinitiveRefusal(applyError.message)) {
+      await closeBatch(
+        batch.id,
+        txn.status,
+        `Paystack charged ${verifiedAmount} pesewas; the ledger refused it: ${applyError.message}`,
+      );
+    }
+    return { status: "refused", reason: applyError.message };
+  }
+
+  // One text for the whole charge, deduped on the reference Paystack knows.
+  await textPaymentReceived(firstEngagement, courseAmount, ref);
+  // Group bookings become group seats — per agreement, idempotent.
+  for (const engagementId of engagementIds) {
+    await seatGroupBookingForEngagement(engagementId);
+  }
+
+  return {
+    status: "applied",
+    paymentId: batch.id,
+    engagementId: firstEngagement,
+    courseAmount,
+  };
+}
+
 /**
  * Text the student their payment landed. Best-effort: the money is already
  * applied, so a notification failure is logged and never rolled back.
@@ -351,22 +526,49 @@ export async function reconcileStaleCharges(
 ): Promise<{ checked: number; applied: number }> {
   const supabase = createAdminClient();
   const cutoff = new Date(Date.now() - olderThanMinutes * 60_000).toISOString();
-  const { data, error } = await supabase
-    .from("payments")
-    .select("paystack_reference")
-    .eq("status", "initialized")
-    .lt("created_at", cutoff)
-    .order("created_at", { ascending: true })
-    .limit(limit);
+
+  // Batch ITEM rows (`<ref>-B01`, 0040) are skipped: Paystack has never heard
+  // of those references, so verifying them would close live items as
+  // `not_found`. Their batch is swept below under the reference Paystack knows.
+  const staleSingles = (excludeBatchItems: boolean) => {
+    let query = supabase
+      .from("payments")
+      .select("paystack_reference")
+      .eq("status", "initialized")
+      .lt("created_at", cutoff);
+    if (excludeBatchItems) query = query.is("batch_id", null);
+    return query.order("created_at", { ascending: true }).limit(limit);
+  };
+  let { data, error } = await staleSingles(true);
+  if (error && isMissingColumn(error)) ({ data, error } = await staleSingles(false));
   if (error) {
     console.error(`[payments] stale charge query failed: ${error.message}`);
     return { checked: 0, applied: 0 };
   }
 
+  const references = (data ?? []).map(
+    (raw) => (raw as { paystack_reference: string }).paystack_reference,
+  );
+
+  const { data: batches, error: batchError } = await supabase
+    .from("payment_batches")
+    .select("reference")
+    .eq("status", "initialized")
+    .lt("created_at", cutoff)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (batchError) {
+    // Pre-0040 database: no batches to sweep.
+    if (!isMissingTable(batchError)) {
+      console.error(`[payments] stale batch query failed: ${batchError.message}`);
+    }
+  } else {
+    references.push(...(batches ?? []).map((b) => (b as { reference: string }).reference));
+  }
+
   let applied = 0;
   let checked = 0;
-  for (const raw of data ?? []) {
-    const reference = (raw as { paystack_reference: string }).paystack_reference;
+  for (const reference of references) {
     if (!reference) continue;
     checked += 1;
     try {

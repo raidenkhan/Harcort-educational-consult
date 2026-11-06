@@ -53,7 +53,7 @@ export const listApprovedTutors = unstable_cache(
     // refetches (and surfaces the problem instead of publishing a lie).
     const { data, error } = await supabase
       .from("tutor_profiles")
-      .select("*, profiles!inner(*), tutor_services(*, courses(*))")
+      .select("*, profiles!inner(*, credentials(email)), tutor_services(*, courses(*))")
       .eq("verification_status", "approved")
       .neq("profiles.role", "student")
       .order("created_at", { ascending: false });
@@ -90,7 +90,7 @@ export async function getTutorByPublicCode(
       const supabase = createAdminClient();
       const { data, error } = await supabase
         .from("tutor_profiles")
-        .select("*, profiles!inner(*), tutor_services(*, courses(*))")
+        .select("*, profiles!inner(*, credentials(email)), tutor_services(*, courses(*))")
         .eq("verification_status", "approved")
         .neq("profiles.role", "student")
         .eq("profiles.public_code", normalized)

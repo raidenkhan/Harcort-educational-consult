@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import type { Profile } from "@/types";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
+import { CartNavButton } from "@/components/cart/CartNavButton";
 import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
 import { FloatingNav } from "./FloatingNav";
 
@@ -13,6 +14,8 @@ import { FloatingNav } from "./FloatingNav";
  * links and actions are identical everywhere; only the active underline moves.
  *
  * Signed in → Dashboard (role-aware). Signed out → Sign in + Get started.
+ * The cart sits at the far right on every public page, signed in or not — the
+ * cart works signed out and only checkout asks for an account.
  */
 export const PUBLIC_NAV_LINKS = [
   { href: "/courses", label: "Courses" },
@@ -64,6 +67,7 @@ export function PublicNav({
           </AuthTrigger>
         </>
       )}
+      <CartNavButton />
     </FloatingNav>
   );
 }

@@ -2,13 +2,11 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, GraduationCap, ShieldCheck, SearchX } from "lucide-react";
+import { BookOpen, Mail, Search, ShieldCheck, SearchX } from "lucide-react";
 import type { TutorListing } from "@/services/tutors/queries";
 import { formatPrices } from "@/services/tutors/pricing";
-import { tutorSharePath } from "@/services/tutors/share";
-import { ServicePrice } from "@/components/tutors/ServicePrice";
-import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
-import { RequestTutorButton } from "@/components/payments/RequestTutorButton";
+import { BookTutorButton } from "@/components/tutors/BookTutorButton";
+import type { CartOffering } from "@/components/cart/AddToCartButton";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
@@ -166,30 +164,31 @@ function TutorCard({
   tutor: TutorListing;
   signedIn: boolean;
 }) {
-  const { tutorProfile: tp, profile, services, courses } = tutor;
+  const { tutorProfile: tp, profile, services, courses, contactEmail } = tutor;
+  const tutorName = profile.full_name || "Harcourt tutor";
   const courseById = new Map(courses.map((c) => [c.id, c]));
-  // 0031 — each offering carries one price per session format. Blank formats
-  // are dropped here; the request dialog disables them.
-  const offerings = services
-    .map((s) => {
+
+  // Everything the Book dialog can sell: one row per course offering, with
+  // its per-format, per-semester prices (0031). The server re-prices at
+  // checkout, so these are for display and selection only.
+  const offerings: CartOffering[] = services
+    .map((s): CartOffering | null => {
       const course = courseById.get(s.course_id);
       if (!course) return null;
+      const prices = formatPrices(s);
       return {
-        serviceId: s.id,
+        tutorServiceId: s.id,
+        tutorProfileId: tp.id,
+        tutorName,
+        tutorCode: profile.public_code ?? null,
         courseId: s.course_id,
-        name: course.name,
-        course,
-        service: s,
-        prices: formatPrices(s),
+        courseName: course.name,
+        courseCode: course.code ?? null,
+        priceOneOnOne: prices.oneOnOne,
+        priceGroup: prices.group,
       };
     })
-    .filter((o): o is NonNullable<typeof o> => o !== null);
-  const offeringsForRequest = offerings.map((o) => ({
-    courseId: o.courseId,
-    name: o.name,
-    priceOneOnOne: o.prices.oneOnOne,
-    priceGroup: o.prices.group,
-  }));
+    .filter((o): o is CartOffering => o !== null);
 
   /**
    * The card's headline price. A tutor prices each course per format (0031),
@@ -198,60 +197,63 @@ function TutorCard({
    * pricing (the tutor dashboard no longer asks for one).
    */
   const offeringPrices = offerings
-    .flatMap((o) => [o.prices.oneOnOne, o.prices.group])
+    .flatMap((o) => [o.priceOneOnOne, o.priceGroup])
     .filter((price): price is number => price != null);
   const lowestOffering =
     offeringPrices.length > 0 ? Math.min(...offeringPrices) : null;
   const headlineRate = lowestOffering ?? tp.rate_per_semester;
 
+  const profileHref = profile.public_code
+    ? `/tutors/${encodeURIComponent(profile.public_code)}`
+    : null;
+  // "Send email" opens Gmail's compose page in a new tab, addressed to the
+  // tutor. A bare `mailto:` does nothing visible on a machine with no mail
+  // app configured — which is most student laptops and every school lab PC.
+  const emailHref = contactEmail
+    ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+        contactEmail,
+      )}&su=${encodeURIComponent(`Tutoring enquiry via Harcourt — ${tutorName}`)}`
+    : null;
+
   return (
     <Card hover className="flex flex-col">
+      {/* ── Who ─────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
-        {profile.public_code ? (
+        {profileHref ? (
           <Link
-            href={`/tutors/${encodeURIComponent(profile.public_code)}`}
-            aria-label={`View ${profile.full_name || "tutor"}'s profile`}
+            href={profileHref}
+            aria-label={`View ${tutorName}'s profile`}
             className="shrink-0 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
           >
-            <TutorAvatar
-              name={profile.full_name || "Tutor"}
-              src={profile.avatar_url}
-              size={44}
-            />
+            <TutorAvatar name={tutorName} src={profile.avatar_url} size={52} />
           </Link>
         ) : (
-          <TutorAvatar
-            name={profile.full_name || "Tutor"}
-            src={profile.avatar_url}
-            size={44}
-          />
+          <TutorAvatar name={tutorName} src={profile.avatar_url} size={52} />
         )}
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5">
-            {/* 0031 — the card leads to the tutor's shareable profile page
-                when the profile carries a public code. */}
-            {profile.public_code ? (
+            {profileHref ? (
               <Link
-                href={`/tutors/${encodeURIComponent(profile.public_code)}`}
-                className="truncate font-semibold text-slate-900 transition hover:text-brand-700"
+                href={profileHref}
+                className="truncate font-display text-base font-semibold text-slate-900 transition hover:text-brand-700"
               >
-                {profile.full_name || "Harcourt tutor"}
+                {tutorName}
               </Link>
             ) : (
-              <span className="truncate font-semibold text-slate-900">
-                {profile.full_name || "Harcourt tutor"}
+              <span className="truncate font-display text-base font-semibold text-slate-900">
+                {tutorName}
               </span>
             )}
             {/* Client component — use the raw flag (the isAdmin helper lives
                 in a server-only module). Post-0008 rows always carry it. */}
             {profile.is_admin && <VerifiedBadge />}
           </p>
-          <div className="mt-0.5 flex flex-wrap items-center gap-2">
+          <div className="mt-1 flex flex-wrap items-center gap-2">
             <Badge tone="green">
               <ShieldCheck className="h-3 w-3" />
               Verified
             </Badge>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs font-medium text-slate-600">
               {headlineRate != null
                 ? `${lowestOffering != null ? "From " : ""}GH₵${headlineRate.toLocaleString()}/semester`
                 : "Rates on request"}
@@ -260,70 +262,54 @@ function TutorCard({
         </div>
       </div>
 
-      {tp.bio && (
-        <p className="mt-4 line-clamp-3 text-sm leading-relaxed text-slate-600">
-          {tp.bio}
+      {/* ── Bio ─────────────────────────────────────────────────────── */}
+      <p
+        className={cn(
+          "mt-4 line-clamp-4 text-sm leading-relaxed",
+          tp.bio ? "text-slate-700" : "italic text-slate-400",
+        )}
+      >
+        {tp.bio || "This tutor hasn't written a bio yet."}
+      </p>
+
+      {offerings.length > 0 && (
+        <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500">
+          <BookOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">
+            {offerings.length} {offerings.length === 1 ? "course" : "courses"} ·{" "}
+            {offerings
+              .slice(0, 3)
+              .map((o) => o.courseCode ?? o.courseName)
+              .join(", ")}
+            {offerings.length > 3 ? "…" : ""}
+          </span>
         </p>
       )}
 
-      {tp.qualifications && (
-        <div className="mt-4 flex items-start gap-2 rounded-md bg-slate-50 px-3 py-2.5">
-          <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-          <p className="line-clamp-2 text-xs leading-relaxed text-slate-600">
-            {tp.qualifications}
-          </p>
-        </div>
-      )}
-
-      {offerings.length > 0 && (
-        <div className="mt-4 space-y-2">
-          {offerings.slice(0, 3).map((o) => (
-            <div
-              key={o.serviceId}
-              className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-xs"
-            >
-              {/* Name and price stack: on a 360px card a single line truncated
-                  the price tag ("… · GH₵90…"), which is the number the student
-                  is scanning for. */}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-slate-700">
-                  {o.name}
-                </p>
-                <p className="mt-0.5 text-[11px] font-semibold text-brand-700">
-                  <ServicePrice service={o.service} showModeLabels={false} />
-                </p>
-              </div>
-              <RequestTutorButton
-                tutorProfileId={tp.id}
-                // Each row's Request button is about THAT course, and a
-                // signed-out visitor comes back to it after auth.
-                defaultCourseId={o.courseId}
-                profilePath={
-                  profile.public_code
-                    ? tutorSharePath(profile.public_code, {
-                        id: o.courseId,
-                        code: o.course.code ?? null,
-                      })
-                    : undefined
-                }
-                offerings={offeringsForRequest}
-                signedIn={signedIn}
-                className="inline-flex h-9 shrink-0 items-center rounded-md bg-brand-600 px-3 text-xs font-semibold text-white shadow-xs transition hover:bg-brand-700 active:scale-[0.96]"
-              />
-            </div>
-          ))}
-          {offerings.length > 3 && (
-            <p className="text-xs text-slate-500">+{offerings.length - 3} more courses offered</p>
-          )}
-        </div>
-      )}
-
-      <div className="mt-auto pt-6">
-        <ContactTutorButton
-          tutorProfileId={tp.id}
+      {/* ── Actions ─────────────────────────────────────────────────── */}
+      <div className="mt-auto grid grid-cols-2 gap-2 pt-6">
+        <BookTutorButton
+          tutorName={tutorName}
+          offerings={offerings}
           signedIn={signedIn}
-          className="h-9 w-full rounded-md bg-slate-900 px-3 text-xs font-semibold text-white shadow-xs hover:bg-slate-800"
+          className="h-11 w-full"
         />
+        {emailHref ? (
+          <a
+            href={emailHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white text-sm font-semibold text-slate-800 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-50 active:scale-[0.97]"
+          >
+            <Mail className="h-4 w-4" aria-hidden="true" />
+            Send email
+          </a>
+        ) : (
+          <span className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-dashed border-slate-200 text-sm font-medium text-slate-400">
+            <Mail className="h-4 w-4" aria-hidden="true" />
+            No email
+          </span>
+        )}
       </div>
     </Card>
   );

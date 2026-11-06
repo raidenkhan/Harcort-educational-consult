@@ -11,10 +11,10 @@ import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { useCart } from "@/components/cart/CartProvider";
 import { startCartCheckout } from "@/services/payments/mutations";
 import type { PaymentFormState } from "@/services/payments/mutations";
-import { cartLinePrice, cartSubtotalPesewas } from "@/services/cart/cart";
+import { cartLinePesewas, cartLinePrice, cartSubtotalPesewas } from "@/services/cart/cart";
 import { sessionModeLabel } from "@/services/auth/sessionFormat";
 import { formatGhs } from "@/lib/money";
-import { paystackFeeConfig } from "@/services/payments/fees";
+import { checkoutTotal } from "@/services/payments/fees";
 
 /**
  * The cart page — turns a localStorage wish list into ONE Paystack charge.
@@ -32,37 +32,48 @@ export default function CartPage() {
     {},
   );
 
-  // Fee config from the server (0034). This ensures the displayed total matches
-  // what the server will gross up.
-  const feeConfig = paystackFeeConfig();
-
   // After a successful payment, Paystack redirects back here with ?paid=1.
   // Clear the cart and show a success message.
-  const justPaid = searchParams.get("paid") === "1";
+  // The return route appends payment_status; only "received" means Paystack
+  // confirmed the charge and the ledger applied it.
+  const justPaid =
+    searchParams.get("paid") === "1" &&
+    searchParams.get("payment_status") !== "refused" &&
+    searchParams.get("payment_status") !== "pending";
   useEffect(() => {
     if (justPaid) {
       clear();
     }
   }, [justPaid, clear]);
 
-  // Compute totals
+  // The SAME gross-up the server charges with (0034), so the number on the
+  // Pay button is the number Paystack shows.
   const subtotalPesewas = cartSubtotalPesewas(lines);
-  const subtotalCedis = Number(subtotalPesewas) / 100;
+  const { feePesewas, totalPesewas } = checkoutTotal(subtotalPesewas);
 
-  // Apply the same fee logic as checkoutTotal
-  let feePesewas = BigInt(0);
-  if (feeConfig.percent > 0) {
-    const percentFee = Math.ceil((subtotalCedis * feeConfig.percent) / 100);
-    feePesewas += BigInt(Math.round(percentFee * 100));
+  // Success state after payment
+  if (justPaid) {
+    return (
+      <Container className="py-16">
+        <div className="mx-auto max-w-2xl text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+            <Check className="h-8 w-8 text-emerald-600" />
+          </div>
+          <h1 className="mt-4 font-display text-2xl font-bold tracking-[-0.01em] text-slate-900">
+            Payment successful!
+          </h1>
+          <p className="mt-2 text-slate-600">
+            Your bookings are confirmed. Check your dashboard to see your timetable and meet your study group.
+          </p>
+          <div className="mt-6">
+            <Link href="/dashboard">
+              <Button>Go to dashboard</Button>
+            </Link>
+          </div>
+        </div>
+      </Container>
+    );
   }
-  if (feeConfig.fixedPesewas > 0) {
-    feePesewas += BigInt(feeConfig.fixedPesewas);
-  }
-  if (feeConfig.capPesewas !== null && feePesewas > BigInt(feeConfig.capPesewas)) {
-    feePesewas = BigInt(feeConfig.capPesewas);
-  }
-
-  const totalPesewas = subtotalPesewas + feePesewas;
 
   // Empty cart state
   if (lines.length === 0) {
@@ -82,30 +93,6 @@ export default function CartPage() {
             </Link>
             <Link href="/courses">
               <Button variant="secondary">Browse courses</Button>
-            </Link>
-          </div>
-        </div>
-      </Container>
-    );
-  }
-
-  // Success state after payment
-  if (justPaid) {
-    return (
-      <Container className="py-16">
-        <div className="mx-auto max-w-2xl text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-            <Check className="h-8 w-8 text-emerald-600" />
-          </div>
-          <h1 className="mt-4 font-display text-2xl font-bold tracking-[-0.01em] text-slate-900">
-            Payment successful!
-          </h1>
-          <p className="mt-2 text-slate-600">
-            Your bookings are confirmed. Check your dashboard to see your timetable and meet your study group.
-          </p>
-          <div className="mt-6">
-            <Link href="/dashboard">
-              <Button>Go to dashboard</Button>
             </Link>
           </div>
         </div>
@@ -148,6 +135,7 @@ export default function CartPage() {
                   tutorProfileId: line.tutorProfileId,
                   courseId: line.courseId,
                   mode: line.mode,
+                  semesters: line.semesters,
                 })),
               )}
             />
@@ -155,7 +143,7 @@ export default function CartPage() {
             <div className="space-y-3">
               {lines.map((line) => {
                 const price = cartLinePrice(line);
-                const pricePesewas = price !== null ? BigInt(Math.round(price * 100)) : null;
+                const pricePesewas = price !== null ? cartLinePesewas(line) : null;
 
                 return (
                   <div
@@ -187,7 +175,11 @@ export default function CartPage() {
                         ) : (
                           <p className="text-sm text-slate-500">Price on request</p>
                         )}
-                        <p className="text-xs text-slate-500">per semester</p>
+                        <p className="text-xs text-slate-500">
+                          {line.semesters > 1 && price !== null
+                            ? `GH₵${price.toLocaleString()} × ${line.semesters} semesters`
+                            : "per semester"}
+                        </p>
                       </div>
                       <button
                         type="button"

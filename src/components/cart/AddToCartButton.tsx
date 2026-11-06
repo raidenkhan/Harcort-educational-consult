@@ -38,6 +38,7 @@ function toLine(offering: CartOffering, mode: SessionMode): CartLine {
     mode,
     priceOneOnOne: offering.priceOneOnOne,
     priceGroup: offering.priceGroup,
+    semesters: 1,
   };
 }
 

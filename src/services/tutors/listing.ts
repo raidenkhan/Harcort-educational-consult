@@ -20,6 +20,9 @@ export interface TutorListing {
   profile: Profile;
   services: TutorService[];
   courses: Course[];
+  /** The tutor's sign-in email, for the card's "Send email" (mailto) button.
+   *  Null when the query didn't embed `credentials(email)`. */
+  contactEmail: string | null;
 }
 
 /** PostgREST returns to-one embeds as an object — or a single-element array
@@ -30,12 +33,17 @@ function unwrapEmbed<T>(embed: T | T[] | null | undefined): T | null {
   return embed;
 }
 
+/** `profiles!inner(*, credentials(email))` — the email rides on the embed. */
+type ProfileWithCredentials = Profile & {
+  credentials?: { email: string | null } | { email: string | null }[] | null;
+};
+
 export interface TutorProfileRow extends Omit<TutorProfile, "rate_per_semester"> {
   /** The rate under the CURRENT column name (0028). */
   rate_per_semester?: number | null;
   /** …and under the pre-0028 name, while the rename is still pending. */
   rate_per_hour?: number | null;
-  profiles: Profile | Profile[] | null;
+  profiles: ProfileWithCredentials | ProfileWithCredentials[] | null;
   tutor_services:
     | (TutorService & { courses: Course | Course[] | null })[]
     | null;
@@ -45,8 +53,11 @@ export function toTutorListings(rows: TutorProfileRow[]): TutorListing[] {
   const listings: TutorListing[] = [];
 
   for (const row of rows) {
-    const profile = unwrapEmbed(row.profiles);
-    if (!profile) continue; // embed filtered out (or profile gone) — skip
+    const embedded = unwrapEmbed(row.profiles);
+    if (!embedded) continue; // embed filtered out (or profile gone) — skip
+    // Split the credentials embed off so nothing but the email leaves here.
+    const { credentials, ...profile } = embedded;
+    const contactEmail = unwrapEmbed(credentials ?? null)?.email?.trim() || null;
 
     const services = (row.tutor_services ?? [])
       .map((s) => {
@@ -87,6 +98,7 @@ export function toTutorListings(rows: TutorProfileRow[]): TutorListing[] {
       courses: (row.tutor_services ?? [])
         .map((s) => unwrapEmbed(s.courses))
         .filter((c): c is Course => c !== null),
+      contactEmail,
     });
   }
 

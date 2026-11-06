@@ -22,6 +22,17 @@ export const CART_STORAGE_KEY = "harcourt.cart.v1";
 /** A cart bigger than this is almost certainly an accident (or abuse). */
 export const CART_MAX_ITEMS = 12;
 
+/** Semesters one booking can cover (0041 — `engagements.semesters` 1..4). */
+export const MIN_SEMESTERS = 1;
+export const MAX_SEMESTERS = 4;
+
+/** Clamp anything (form value, localStorage) to a whole 1..4. */
+export function clampSemesters(value: unknown): number {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return MIN_SEMESTERS;
+  return Math.min(MAX_SEMESTERS, Math.max(MIN_SEMESTERS, n));
+}
+
 export interface CartLine {
   /** `tutor_services.id` — the identity of one tutor + one course. */
   tutorServiceId: string;
@@ -38,6 +49,9 @@ export interface CartLine {
   /** Per student, per semester, in whole cedis. Null = not offered. */
   priceOneOnOne: number | null;
   priceGroup: number | null;
+  /** How many semesters this line buys (1..4). Prices stay per semester;
+   *  the line total is price × semesters. Missing on pre-0041 carts → 1. */
+  semesters: number;
 }
 
 /** The fee for a line in a given format (defaults to the line's own). */
@@ -58,11 +72,12 @@ export function cartLineModes(
   return modes;
 }
 
-/** A line's contribution to the cart subtotal, in pesewas. */
+/** A line's contribution to the cart subtotal, in pesewas
+ *  (per-semester price × semesters — the same rule as 0041's RPC). */
 export function cartLinePesewas(line: CartLine): bigint {
   const price = cartLinePrice(line);
   if (price === null || price <= 0) return BigInt(0);
-  return BigInt(Math.round(price * 100));
+  return BigInt(Math.round(price * 100)) * BigInt(clampSemesters(line.semesters));
 }
 
 /** The whole cart's NET total, in pesewas (before Paystack's fee). */
@@ -117,6 +132,7 @@ export function normalizeCartLines(raw: unknown): CartLine[] {
       mode: normalizeSessionMode(row.mode),
       priceOneOnOne: oneOnOne,
       priceGroup: group,
+      semesters: clampSemesters(row.semesters ?? 1),
     };
 
     // A line whose chosen format is not offered would be unpriceable at

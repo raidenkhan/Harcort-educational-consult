@@ -37,6 +37,8 @@ import { PerspectiveGrid } from "@/components/ui/PerspectiveGrid";
 import { PublicNav } from "@/components/navigation/PublicNav";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
+import { AddToCartButton } from "@/components/cart/AddToCartButton";
+import { ServicePrice } from "@/components/tutors/ServicePrice";
 import { TutorAvatar } from "@/components/ui/TutorAvatar";
 import { formatPrices } from "@/services/tutors/pricing";
 import { CourseVideoGrid } from "@/components/courses/CourseVideoGrid";
@@ -315,6 +317,11 @@ export default async function CoursePage({
                     const profileHref = tutorProfileOwner.public_code
                       ? `/tutors/${encodeURIComponent(tutorProfileOwner.public_code)}`
                       : null;
+                    // THIS course's offering — what "Add to cart" buys. The
+                    // tutor was listed because they have a service with this
+                    // course id (listTutorsForCourse), so it is normally here.
+                    const thisService = services.find((s) => s.course_id === course.id);
+                    const thisPrices = thisService ? formatPrices(thisService) : null;
                     return (
                     <li key={tutorProfile.id} className="h-full">
                       {/* Same card as /tutors so a tutor reads identically on
@@ -381,7 +388,32 @@ export default async function CoursePage({
                         </div>
                       )}
 
-                      <div className="mt-auto pt-6">
+                      <div className="mt-auto space-y-3 pt-6">
+                        {thisService && thisPrices && (
+                          <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                                {course.code ?? "This course"}
+                              </p>
+                              <p className="text-sm font-semibold text-brand-700">
+                                <ServicePrice service={thisService} showModeLabels={false} />
+                              </p>
+                            </div>
+                            <AddToCartButton
+                              offering={{
+                                tutorServiceId: thisService.id,
+                                tutorProfileId: tutorProfile.id,
+                                tutorName: tutorProfileOwner.full_name || "Harcourt tutor",
+                                tutorCode: tutorProfileOwner.public_code ?? null,
+                                courseId: course.id,
+                                courseName: course.name,
+                                courseCode: course.code ?? null,
+                                priceOneOnOne: thisPrices.oneOnOne,
+                                priceGroup: thisPrices.group,
+                              }}
+                            />
+                          </div>
+                        )}
                         <ContactTutorButton
                           tutorProfileId={tutorProfile.id}
                           signedIn={Boolean(profile)}
