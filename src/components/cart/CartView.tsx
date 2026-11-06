@@ -14,17 +14,20 @@ import type { PaymentFormState } from "@/services/payments/mutations";
 import { cartLinePesewas, cartLinePrice, cartSubtotalPesewas } from "@/services/cart/cart";
 import { sessionModeLabel } from "@/services/auth/sessionFormat";
 import { formatGhs } from "@/lib/money";
+import { AuthTrigger } from "@/components/auth/AuthTrigger";
 import { checkoutTotal } from "@/services/payments/fees";
 
 /**
- * The cart page — turns a localStorage wish list into ONE Paystack charge.
+ * The cart — turns a localStorage wish list into ONE Paystack charge.
+ * Rendered by the PUBLIC `/cart` page (full public navbar), so a signed-out
+ * visitor sees their shortlist too; paying is what asks for an account.
  *
  * Every line is re-priced server-side in `prepare_cart_engagement`, so the
  * student cannot invent a price by editing localStorage. The fee config is
  * passed from the server to keep the displayed total in sync with what will
  * actually be charged.
  */
-export default function CartPage() {
+export function CartView({ signedIn }: { signedIn: boolean }) {
   const searchParams = useSearchParams();
   const { lines, remove, clear } = useCart();
   const [state, formAction, pending] = useActionState<PaymentFormState, FormData>(
@@ -45,6 +48,12 @@ export default function CartPage() {
       clear();
     }
   }, [justPaid, clear]);
+
+  // The action answers with Paystack's hosted checkout page — go there.
+  // (Without this the Pay button started a charge and then did nothing.)
+  useEffect(() => {
+    if (state?.checkoutUrl) window.location.assign(state.checkoutUrl);
+  }, [state]);
 
   // The SAME gross-up the server charges with (0034), so the number on the
   // Pay button is the number Paystack shows.
@@ -225,14 +234,27 @@ export default function CartPage() {
                   Keep browsing
                 </Button>
               </Link>
-              <Button
-                type="submit"
-                disabled={pending || lines.length === 0}
-                className="flex-1"
-              >
-                <CreditCard className="h-4 w-4" />
-                {pending ? "Starting checkout…" : `Pay ${formatGhs(totalPesewas)}`}
-              </Button>
+              {signedIn ? (
+                <Button
+                  type="submit"
+                  disabled={pending || lines.length === 0 || Boolean(state?.checkoutUrl)}
+                  className="flex-1"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  {pending || state?.checkoutUrl
+                    ? "Opening payment…"
+                    : `Pay ${formatGhs(totalPesewas)}`}
+                </Button>
+              ) : (
+                <AuthTrigger
+                  tab="sign-in"
+                  next="/cart"
+                  className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-brand-600 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-brand-700"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Sign in to pay {formatGhs(totalPesewas)}
+                </AuthTrigger>
+              )}
             </div>
           </form>
 
