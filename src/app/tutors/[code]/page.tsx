@@ -1,6 +1,5 @@
 import { GraduationCap, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
-import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTutorByPublicCode } from "@/services/tutors/queries";
@@ -9,7 +8,6 @@ import { courseParamMatches, tutorSharePath } from "@/services/tutors/share";
 import { SITE_NAME, siteUrl } from "@/lib/site";
 import { ServicePrice } from "@/components/tutors/ServicePrice";
 import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
-import { signOutAction } from "@/services/auth/actions";
 import { RequestTutorButton } from "@/components/payments/RequestTutorButton";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
@@ -17,13 +15,11 @@ import { TutorAvatar } from "@/components/ui/TutorAvatar";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Container } from "@/components/ui/Container";
-import { AuthTrigger } from "@/components/auth/AuthTrigger";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { PerspectiveGrid } from "@/components/ui/PerspectiveGrid";
 import { AnimatedGradient } from "@/components/ui/AnimatedGradient";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
-import { FloatingNav } from "@/components/navigation/FloatingNav";
-import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
+import { PublicNav } from "@/components/navigation/PublicNav";
 
 /**
  * A tutor's shareable public profile (0031) — the link a tutor hands out:
@@ -246,36 +242,7 @@ export default async function TutorProfilePage({
 
   return (
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
-      <FloatingNav
-        search={
-          <Suspense>
-            <GlobalSearchLoader />
-          </Suspense>
-        }
-        links={[
-          { href: "/", label: "Home" },
-          { href: "/tutors", label: "Find a tutor" },
-          { href: "/courses", label: "Courses" },
-        ]}
-      >
-        {profile ? (
-          <form action={signOutAction}>
-            <button
-              type="submit"
-              className="h-10 rounded-full border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-50"
-            >
-              Sign out
-            </button>
-          </form>
-        ) : (
-          <AuthTrigger
-            tab="sign-in"
-            className="inline-flex h-9 rounded-full px-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-100 sm:h-10 sm:px-3.5 sm:text-sm"
-          >
-            Sign in
-          </AuthTrigger>
-        )}
-      </FloatingNav>
+      <PublicNav profile={profile} />
 
       {/* ── Hero ─────────────────────────────────────────────────── */}
       <main className="relative flex-1">

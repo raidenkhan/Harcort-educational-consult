@@ -162,7 +162,11 @@ export function GlobalSearch({
         role="search"
         aria-hidden={!open}
         className={cn(
-          "absolute inset-0 z-10 flex items-center gap-2 rounded-full border border-slate-200 bg-white pl-4 pr-1.5 shadow-sm",
+          // The input's outline is suppressed (`outline-none!` — the global
+          // :focus-visible rule is unlayered, so only !important beats it; its
+          // offset outline was clipped to two vertical lines here). Focus is
+          // shown on the pill's border instead.
+          "absolute inset-0 z-10 flex items-center gap-2 rounded-full border border-slate-200 bg-white pl-4 pr-1.5 shadow-sm focus-within:border-brand-400",
           "sm:inset-auto sm:right-0 sm:top-0 sm:h-10 sm:w-[18rem] md:w-[20rem]",
           "transition-[clip-path,visibility] duration-300 ease-out motion-reduce:transition-none",
           open
@@ -184,7 +188,7 @@ export function GlobalSearch({
           aria-label="Search courses and tutors"
           aria-controls="global-search-results"
           aria-autocomplete="list"
-          className="h-full min-w-0 flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+          className="h-full min-w-0 flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 outline-none! [&::-webkit-search-cancel-button]:hidden"
         />
         <button
           type="button"

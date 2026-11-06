@@ -4,7 +4,7 @@ import { BrandMark } from "@/components/ui/BrandMark";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { Card } from "@/components/ui/Card";
 import { Container } from "@/components/ui/Container";
-import { FloatingNav } from "@/components/navigation/FloatingNav";
+import { PublicNav } from "@/components/navigation/PublicNav";
 import { PayLinkButton } from "@/components/payments/PayLinkButton";
 import { accraDate } from "@/lib/time";
 import { formatGhs } from "@/lib/money";
@@ -59,14 +59,7 @@ export default async function PayLinkPage({
   const shell = (children: React.ReactNode) => (
     <div className="relative flex flex-1 flex-col">
       <BentoBackdrop tone="purple" className="-z-10" />
-      <FloatingNav links={[{ href: "/", label: "Home" }]}>
-        <Link
-          href="/dashboard"
-          className="inline-flex h-10 items-center rounded-full px-3.5 text-sm font-semibold text-slate-700 transition duration-150 hover:bg-slate-100"
-        >
-          My dashboard
-        </Link>
-      </FloatingNav>
+      <PublicNav profile={profile} />
       <main className="relative flex flex-1 items-center pb-14 pt-28">
         <Container size="narrow">
           <Card className="mx-auto w-full max-w-lg">

@@ -3,7 +3,8 @@ import { SearchX } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { Card } from "@/components/ui/Card";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
-import { FloatingNav } from "@/components/navigation/FloatingNav";
+import { getCurrentProfile } from "@/services/auth/queries";
+import { PublicNav } from "@/components/navigation/PublicNav";
 
 /**
  * A tutor link that matches nobody — a mistyped code, a tutor who was never
@@ -15,11 +16,12 @@ import { FloatingNav } from "@/components/navigation/FloatingNav";
  * text on a public page, and the tutor who receives the link does not need to
  * see it to understand the message.
  */
-export default function TutorNotFound() {
+export default async function TutorNotFound() {
+  const profile = await getCurrentProfile();
   return (
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
       <BentoBackdrop tone="purple" className="-z-10" />
-      <FloatingNav links={[{ href: "/tutors", label: "Find a tutor" }]} />
+      <PublicNav profile={profile} />
       <main className="relative flex flex-1 items-center pt-28">
         <Container size="narrow">
           <Card className="mx-auto w-full max-w-lg text-center">

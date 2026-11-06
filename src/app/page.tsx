@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Suspense } from "react";
 import {
   GraduationCap,
   BookOpenCheck,
@@ -29,8 +28,7 @@ import {
   siteUrl,
 } from "@/lib/site";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
-import { FloatingNav } from "@/components/navigation/FloatingNav";
-import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
+import { PublicNav } from "@/components/navigation/PublicNav";
 import { Reveal } from "@/components/home/Reveal";
 import { Parallax } from "@/components/home/Parallax";
 import { BounceDeck } from "@/components/home/BounceDeck";
@@ -204,42 +202,7 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(JSON_LD) }}
       />
 
-      <FloatingNav
-        search={
-          <Suspense>
-            <GlobalSearchLoader />
-          </Suspense>
-        }
-        links={[
-          { href: "/tutors", label: "Find a Tutor" },
-          { href: "/courses", label: "Courses" },
-          { href: "#learn", label: "Harcourt University" },
-        ]}
-      >
-        {currentProfile ? (
-          <Link
-            href={currentProfile.role === "tutor" ? "/tutor" : "/dashboard"}
-            className="inline-flex h-10 items-center rounded-full bg-slate-900 px-4 text-sm font-semibold text-white shadow-xs transition duration-150 hover:bg-slate-800 active:scale-[0.96]"
-          >
-            Dashboard
-          </Link>
-        ) : (
-          <>
-            <AuthTrigger
-              tab="sign-in"
-              className="inline-flex h-9 rounded-full px-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-100 sm:h-10 sm:px-3.5 sm:text-sm"
-            >
-              Sign in
-            </AuthTrigger>
-            <Link
-              href="/tutors"
-              className="h-9 rounded-full bg-slate-900 px-3 text-[13px] font-semibold leading-9 text-white shadow-xs hover:bg-slate-800 sm:h-10 sm:px-4 sm:text-sm sm:leading-10"
-            >
-              Find a Tutor
-            </Link>
-          </>
-        )}
-      </FloatingNav>
+      <PublicNav profile={currentProfile} />
 
       {/* ── Hero (gradient backdrop) ───────────────────────────────── */}
       <section className="relative flex min-h-screen flex-col justify-center supports-[height:100svh]:min-h-[100svh]">

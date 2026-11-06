@@ -1,0 +1,69 @@
+import { Suspense } from "react";
+import Link from "next/link";
+import type { Profile } from "@/types";
+import { AuthTrigger } from "@/components/auth/AuthTrigger";
+import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
+import { FloatingNav } from "./FloatingNav";
+
+/**
+ * The ONE nav for every public page (landing, /courses, /tutors, profiles,
+ * forgot-password, pay links, not-found). It used to be hand-written per page,
+ * so the links, their order and the right-hand buttons changed as you moved
+ * between pages — the bar visibly re-laid itself out on every click. Now the
+ * links and actions are identical everywhere; only the active underline moves.
+ *
+ * Signed in → Dashboard (role-aware). Signed out → Sign in + Get started.
+ */
+export const PUBLIC_NAV_LINKS = [
+  { href: "/courses", label: "Courses" },
+  { href: "/tutors", label: "Find a tutor" },
+  { href: "/#learn", label: "Video Lessons" },
+];
+
+export function PublicNav({
+  profile,
+  search = true,
+}: {
+  profile: Pick<Profile, "role"> | null;
+  /** False where no search index should load (e.g. a not-found page). */
+  search?: boolean;
+}) {
+  return (
+    <FloatingNav
+      links={PUBLIC_NAV_LINKS}
+      search={
+        search ? (
+          <Suspense fallback={<div className="h-9 w-9 sm:h-10 sm:w-10" />}>
+            <GlobalSearchLoader />
+          </Suspense>
+        ) : undefined
+      }
+    >
+      {profile ? (
+        <Link
+          href={profile.role === "tutor" ? "/tutor" : "/dashboard"}
+          className="inline-flex h-9 items-center rounded-full bg-slate-900 px-3 text-[13px] font-semibold text-white shadow-xs transition duration-150 hover:bg-slate-800 active:scale-[0.96] sm:h-10 sm:px-4 sm:text-sm"
+        >
+          Dashboard
+        </Link>
+      ) : (
+        <>
+          <AuthTrigger
+            tab="sign-in"
+            className="inline-flex h-9 rounded-full px-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-100 sm:h-10 sm:px-3.5 sm:text-sm"
+          >
+            Sign in
+          </AuthTrigger>
+          <AuthTrigger
+            tab="sign-up"
+            className="h-9 rounded-full bg-slate-900 px-3 text-[13px] font-semibold text-white shadow-xs hover:bg-slate-800 sm:h-10 sm:px-4 sm:text-sm"
+          >
+            {/* Short label on phones so both actions fit in one row. */}
+            <span className="sm:hidden">Sign up</span>
+            <span className="hidden sm:inline">Get started</span>
+          </AuthTrigger>
+        </>
+      )}
+    </FloatingNav>
+  );
+}

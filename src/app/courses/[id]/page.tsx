@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 import {
   ArrowLeft,
   BookOpen,
@@ -22,7 +21,6 @@ import {
   listTutorsForCourse,
 } from "@/services/courses/queries";
 import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
-import { signOutAction } from "@/services/auth/actions";
 import { findCourseMaterials } from "@/services/library/courseMaterials";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { serializeJsonLd } from "@/lib/jsonLd";
@@ -36,9 +34,7 @@ import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { AnimatedGradient } from "@/components/ui/AnimatedGradient";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { PerspectiveGrid } from "@/components/ui/PerspectiveGrid";
-import { AuthTrigger } from "@/components/auth/AuthTrigger";
-import { FloatingNav } from "@/components/navigation/FloatingNav";
-import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
+import { PublicNav } from "@/components/navigation/PublicNav";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { ContactTutorButton } from "@/components/tutors/ContactTutorButton";
 import { TutorAvatar } from "@/components/ui/TutorAvatar";
@@ -153,45 +149,7 @@ export default async function CoursePage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
-      <FloatingNav
-        search={
-          <Suspense>
-            <GlobalSearchLoader />
-          </Suspense>
-        }
-        links={[
-          { href: "/", label: "Home" },
-          { href: "/courses", label: "Courses" },
-          { href: "/tutors", label: "Find a tutor" },
-        ]}
-      >
-        {profile ? (
-          <form action={signOutAction}>
-            <button
-              type="submit"
-              className="h-10 rounded-full border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-50"
-            >
-              Sign out
-            </button>
-          </form>
-        ) : (
-          <>
-            <AuthTrigger
-              tab="sign-in"
-              className="inline-flex h-9 rounded-full px-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-100 sm:h-10 sm:px-3.5 sm:text-sm"
-            >
-              Sign in
-            </AuthTrigger>
-            <AuthTrigger
-              tab="sign-up"
-              className="h-9 rounded-full bg-slate-900 px-3 text-[13px] font-semibold text-white shadow-xs hover:bg-slate-800 sm:h-10 sm:px-4 sm:text-sm"
-            >
-              <span className="sm:hidden">Sign up</span>
-              <span className="hidden sm:inline">Get started</span>
-            </AuthTrigger>
-          </>
-        )}
-      </FloatingNav>
+      <PublicNav profile={profile} />
 
       <main className="relative flex-1">
         {/* ── Course header ─────────────────────────────────────────── */}

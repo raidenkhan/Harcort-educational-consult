@@ -1,10 +1,9 @@
-import Link from "next/link";
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
 import { Container } from "@/components/ui/Container";
 import { Card } from "@/components/ui/Card";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
-import { FloatingNav } from "@/components/navigation/FloatingNav";
+import { PublicNav } from "@/components/navigation/PublicNav";
 
 export const metadata = {
   title: "Forgot password",
@@ -17,14 +16,7 @@ export default function ForgotPasswordPage() {
     <div className="relative flex flex-1 flex-col">
       <BentoBackdrop tone="purple" className="-z-10" />
 
-      <FloatingNav links={[{ href: "/", label: "Home" }]}>
-        <Link
-          href="/sign-in"
-          className="inline-flex h-10 items-center rounded-full px-3.5 text-sm font-semibold text-slate-700 transition duration-150 hover:bg-slate-100"
-        >
-          Back to sign in
-        </Link>
-      </FloatingNav>
+      <PublicNav profile={null} />
 
       <main className="relative flex flex-1 items-center pb-14 pt-28">
         <Container size="narrow">
