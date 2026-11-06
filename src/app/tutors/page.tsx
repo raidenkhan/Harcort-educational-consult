@@ -69,6 +69,11 @@ export default async function TutorsPage({
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(tutorJsonLd) }}
       />
       <FloatingNav
+        search={
+          <Suspense>
+            <GlobalSearchLoader />
+          </Suspense>
+        }
         links={[
           { href: "/", label: "Home" },
           { href: "/tutors", label: "Find a tutor" },
@@ -103,10 +108,6 @@ export default async function TutorsPage({
           </>
         )}
       </FloatingNav>
-
-      <Suspense>
-        <GlobalSearchLoader />
-      </Suspense>
 
       {/* ── Directory ────────────────────────────────────────────── */}
       <main className="relative flex-1">

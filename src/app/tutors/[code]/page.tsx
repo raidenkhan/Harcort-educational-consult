@@ -247,6 +247,11 @@ export default async function TutorProfilePage({
   return (
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
       <FloatingNav
+        search={
+          <Suspense>
+            <GlobalSearchLoader />
+          </Suspense>
+        }
         links={[
           { href: "/", label: "Home" },
           { href: "/tutors", label: "Find a tutor" },
@@ -271,10 +276,6 @@ export default async function TutorProfilePage({
           </AuthTrigger>
         )}
       </FloatingNav>
-
-      <Suspense>
-        <GlobalSearchLoader />
-      </Suspense>
 
       {/* ── Hero ─────────────────────────────────────────────────── */}
       <main className="relative flex-1">

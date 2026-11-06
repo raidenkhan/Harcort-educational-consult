@@ -154,6 +154,11 @@ export default async function CoursePage({
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
       <FloatingNav
+        search={
+          <Suspense>
+            <GlobalSearchLoader />
+          </Suspense>
+        }
         links={[
           { href: "/", label: "Home" },
           { href: "/courses", label: "Courses" },
@@ -187,10 +192,6 @@ export default async function CoursePage({
           </>
         )}
       </FloatingNav>
-
-      <Suspense>
-        <GlobalSearchLoader />
-      </Suspense>
 
       <main className="relative flex-1">
         {/* ── Course header ─────────────────────────────────────────── */}

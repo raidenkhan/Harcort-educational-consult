@@ -47,6 +47,11 @@ export default async function CoursesPage() {
   return (
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
       <FloatingNav
+        search={
+          <Suspense>
+            <GlobalSearchLoader />
+          </Suspense>
+        }
         links={[
           { href: "/", label: "Home" },
           { href: "/courses", label: "Courses" },
@@ -80,10 +85,6 @@ export default async function CoursesPage() {
           </>
         )}
       </FloatingNav>
-
-      <Suspense>
-        <GlobalSearchLoader />
-      </Suspense>
 
       <main className="relative flex-1">
         <section className="relative overflow-hidden">
