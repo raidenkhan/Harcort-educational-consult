@@ -1,10 +1,9 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import type { Profile } from "@/types";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
 import { CartNavButton } from "@/components/cart/CartNavButton";
 import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
 import { FloatingNav } from "./FloatingNav";
+import { UserMenu, type UserMenuProfile } from "./UserMenu";
 
 /**
  * The ONE nav for every public page (landing, /courses, /tutors, profiles,
@@ -13,9 +12,9 @@ import { FloatingNav } from "./FloatingNav";
  * between pages — the bar visibly re-laid itself out on every click. Now the
  * links and actions are identical everywhere; only the active underline moves.
  *
- * Signed in → Dashboard (role-aware). Signed out → Sign in + Get started.
- * The cart sits at the far right on every public page, signed in or not — the
- * cart works signed out and only checkout asks for an account.
+ * Signed in → cart + the avatar menu (Dashboard lives inside it, never in the
+ * bar). Signed out → Sign in + Get started + cart. The cart shows on every
+ * public page, signed in or not — only checkout asks for an account.
  */
 export const PUBLIC_NAV_LINKS = [
   { href: "/courses", label: "Courses" },
@@ -27,7 +26,7 @@ export function PublicNav({
   profile,
   search = true,
 }: {
-  profile: Pick<Profile, "role"> | null;
+  profile: UserMenuProfile | null;
   /** False where no search index should load (e.g. a not-found page). */
   search?: boolean;
 }) {
@@ -43,12 +42,10 @@ export function PublicNav({
       }
     >
       {profile ? (
-        <Link
-          href={profile.role === "tutor" ? "/tutor" : "/dashboard"}
-          className="inline-flex h-9 items-center rounded-full bg-slate-900 px-3 text-[13px] font-semibold text-white shadow-xs transition duration-150 hover:bg-slate-800 active:scale-[0.96] sm:h-10 sm:px-4 sm:text-sm"
-        >
-          Dashboard
-        </Link>
+        <>
+          <CartNavButton />
+          <UserMenu profile={profile} />
+        </>
       ) : (
         <>
           <AuthTrigger
@@ -65,9 +62,9 @@ export function PublicNav({
             <span className="sm:hidden">Sign up</span>
             <span className="hidden sm:inline">Get started</span>
           </AuthTrigger>
+          <CartNavButton />
         </>
       )}
-      <CartNavButton />
     </FloatingNav>
   );
 }

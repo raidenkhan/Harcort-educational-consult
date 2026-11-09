@@ -1,12 +1,10 @@
 import { Suspense, cache } from "react";
 import { getCurrentProfile, profileIsAdmin } from "@/services/auth/queries";
 import { countUnreadGroupMessages } from "@/services/groups/queries";
-import { signOutAction } from "@/services/auth/actions";
-import { Badge } from "@/components/ui/Badge";
-import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { FloatingNav } from "@/components/navigation/FloatingNav";
 import { CartNavButton } from "@/components/cart/CartNavButton";
+import { UserMenu } from "@/components/navigation/UserMenu";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /**
@@ -20,12 +18,6 @@ const getProfile = cache(() => getCurrentProfile());
  * memberships scan runs once per request, not twice.
  */
 const getUnreadCount = cache(countUnreadGroupMessages);
-
-const roleTone = {
-  student: "neutral",
-  tutor: "petrol",
-  admin: "amber",
-} as const;
 
 /* ------------------------------------------------------------------ */
 /*  Shell skeletons — instant visual feedback while data streams in    */
@@ -80,12 +72,6 @@ function TabBarSkeleton() {
 async function AppHeader() {
   const profile = await getProfile();
 
-  // ONE dashboard per role. A tutor's is `/tutor` — the workspace with their
-  // students, lessons and money — so the header must not also offer a second
-  // "Dashboard" (`/dashboard`) beside a "Tutor hub" link. `/dashboard` sends
-  // tutors here (see app/(app)/dashboard/layout.tsx).
-  const dashboardHref = profile?.role === "tutor" ? "/tutor" : "/dashboard";
-
   // 0036: a group message the student hasn't opened shows as a pill on the
   // Groups link, so "your tutor added you" is visible from any page.
   const groupUnread =
@@ -94,7 +80,6 @@ async function AppHeader() {
       : 0;
 
   const links = [
-    { href: dashboardHref, label: "Dashboard" },
     ...(profile?.role === "student" || profile?.role === "tutor"
       ? [
           { href: "/chat", label: "Messages" },
@@ -107,23 +92,12 @@ async function AppHeader() {
   ];
 
   return (
+    // Dashboard is NOT a nav link: it lives in the avatar menu (role-aware —
+    // `/tutor` for tutors, `/dashboard` for everyone else), same as the
+    // public nav, so the right-hand side is identical signed in or out.
     <FloatingNav links={links}>
-      {profile && (
-        <span className="hidden items-center gap-2 text-sm text-slate-600 lg:flex">
-          {profile.full_name}
-          {profileIsAdmin(profile) && <VerifiedBadge />}
-          <Badge tone={roleTone[profile.role]}>{profile.role}</Badge>
-        </span>
-      )}
       <CartNavButton />
-      <form action={signOutAction}>
-        <button
-          type="submit"
-          className="h-9 rounded-full border border-slate-300 bg-white px-3 text-[13px] font-medium text-slate-700 shadow-xs transition duration-150 hover:border-slate-400 hover:bg-slate-50 sm:h-10 sm:px-3.5 sm:text-sm"
-        >
-          Sign out
-        </button>
-      </form>
+      {profile && <UserMenu profile={profile} />}
     </FloatingNav>
   );
 }
