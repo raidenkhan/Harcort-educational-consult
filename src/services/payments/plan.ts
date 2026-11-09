@@ -222,3 +222,91 @@ export function agreementGroupLabel(group: {
       : "settled";
   return `${name}${code} · ${count} · ${balance}`;
 }
+
+// ---------------------------------------------------------------------------
+// Who has paid — the admin's Payments → Paid list.
+// ---------------------------------------------------------------------------
+
+export interface PayerCourse {
+  engagementId: string;
+  courseTitle: string;
+  tutorName: string;
+  paidPesewas: bigint;
+  agreedTotal: bigint;
+}
+
+export interface Payer {
+  studentId: string;
+  studentName: string;
+  studentCode: string | null;
+  paidPesewas: bigint;
+  agreedTotal: bigint;
+  remainingPesewas: bigint;
+  /** "paid" once every live agreement is covered, otherwise "part". */
+  state: "paid" | "part";
+  courses: PayerCourse[];
+}
+
+/**
+ * Every student who has paid anything, one row per STUDENT (a student with
+ * two courses is one payer, settled only when both are — the same rule as
+ * `summarizePlans`). Cancelled agreements are ignored, as are agreements with
+ * nothing paid yet. Biggest payers first, then by name.
+ */
+export function listPayers(
+  rows: {
+    id: string;
+    studentId: string;
+    studentName: string;
+    studentCode: string | null;
+    tutorName: string;
+    courseTitle: string;
+    status: string;
+    paidPesewas: bigint;
+    agreedTotal: bigint;
+    remainingPesewas: bigint;
+  }[],
+): Payer[] {
+  const byStudent = new Map<string, Payer>();
+
+  for (const row of rows) {
+    if (row.status === "cancelled" || row.paidPesewas <= BigInt(0)) continue;
+
+    let payer = byStudent.get(row.studentId);
+    if (!payer) {
+      payer = {
+        studentId: row.studentId,
+        studentName: row.studentName,
+        studentCode: row.studentCode,
+        paidPesewas: BigInt(0),
+        agreedTotal: BigInt(0),
+        remainingPesewas: BigInt(0),
+        state: "paid",
+        courses: [],
+      };
+      byStudent.set(row.studentId, payer);
+    }
+    payer.paidPesewas += row.paidPesewas;
+    payer.agreedTotal += row.agreedTotal;
+    payer.remainingPesewas += row.remainingPesewas;
+    payer.courses.push({
+      engagementId: row.id,
+      courseTitle: row.courseTitle,
+      tutorName: row.tutorName,
+      paidPesewas: row.paidPesewas,
+      agreedTotal: row.agreedTotal,
+    });
+  }
+
+  const payers = [...byStudent.values()];
+  for (const payer of payers) {
+    payer.state = payer.remainingPesewas > BigInt(0) ? "part" : "paid";
+  }
+  return payers.sort((a, b) =>
+    a.paidPesewas === b.paidPesewas
+      ? a.studentName.localeCompare(b.studentName)
+      : a.paidPesewas > b.paidPesewas
+        ? -1
+        : 1,
+  );
+}

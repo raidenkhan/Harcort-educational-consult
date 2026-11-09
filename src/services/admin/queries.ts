@@ -77,3 +77,69 @@ export async function listPlatformStats(): Promise<{
   const students = new Set(rows.map((r) => r.student_id).filter(Boolean));
   return { studentsTutored: students.size, sessionsScheduled: rows.length };
 }
+
+export interface PlatformPerson {
+  id: string;
+  name: string;
+  role: "student" | "tutor";
+  publicCode: string | null;
+  email: string | null;
+  joinedAt: string;
+  isAdmin: boolean;
+  /** Tutors only: the application status (null when no tutor profile yet). */
+  tutorStatus: "pending" | "approved" | "rejected" | null;
+}
+
+type PersonRow = {
+  id: string;
+  full_name: string | null;
+  role: "student" | "tutor";
+  public_code: string | null;
+  created_at: string;
+  is_admin: boolean | null;
+  credentials?: { email: string | null } | { email: string | null }[] | null;
+  tutor_profiles?:
+    | { verification_status: PlatformPerson["tutorStatus"] }
+    | { verification_status: PlatformPerson["tutorStatus"] }[]
+    | null;
+};
+
+const one = <T,>(value: T | T[] | null | undefined): T | null =>
+  Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+
+/**
+ * Everyone on the platform who is a student or a tutor (staff accounts with
+ * role `admin` are left out), for the People tab's directory. Admin-only
+ * page, so the sign-in email is included.
+ */
+export async function listPlatformPeople(): Promise<PlatformPerson[]> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(
+      "id, full_name, role, public_code, created_at, is_admin, credentials(email), tutor_profiles(verification_status)",
+    )
+    .in("role", ["student", "tutor"])
+    .order("full_name")
+    .limit(2000);
+
+  if (error) {
+    console.error(`[admin] listPlatformPeople: ${error.message}`);
+    return [];
+  }
+
+  return ((data ?? []) as PersonRow[]).map((row) => ({
+    id: row.id,
+    name: row.full_name || (row.role === "tutor" ? "Tutor" : "Student"),
+    role: row.role,
+    publicCode: row.public_code,
+    email: one(row.credentials)?.email ?? null,
+    joinedAt: row.created_at,
+    isAdmin: Boolean(row.is_admin),
+    tutorStatus:
+      row.role === "tutor"
+        ? (one(row.tutor_profiles)?.verification_status ?? null)
+        : null,
+  }));
+}

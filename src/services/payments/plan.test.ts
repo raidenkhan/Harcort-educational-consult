@@ -4,6 +4,7 @@ import {
   agreementGroupLabel,
   daysUntilPromise,
   groupAgreementsByStudent,
+  listPayers,
   planProgress,
   planState,
   promiseState,
@@ -233,5 +234,64 @@ describe("agreementGroupLabel", () => {
         remainingPesewas: BigInt(0),
       }),
     ).toBe("Student · 1 agreement · settled");
+  });
+});
+
+describe("listPayers", () => {
+  const row = (over: Partial<Parameters<typeof listPayers>[0][number]>) => ({
+    id: "e1",
+    studentId: "s1",
+    studentName: "Ama",
+    studentCode: "HC-S-1",
+    tutorName: "Kofi",
+    courseTitle: "ME 255",
+    status: "active",
+    paidPesewas: BigInt(6_000),
+    agreedTotal: BigInt(6_000),
+    remainingPesewas: BigInt(0),
+    ...over,
+  });
+
+  it("groups a student's courses into one payer", () => {
+    const payers = listPayers([
+      row({ id: "e1" }),
+      row({ id: "e2", courseTitle: "ME 261", paidPesewas: BigInt(3_000), agreedTotal: BigInt(6_000), remainingPesewas: BigInt(3_000) }),
+    ]);
+    expect(payers).toHaveLength(1);
+    expect(payers[0].courses).toHaveLength(2);
+    expect(payers[0].paidPesewas).toBe(BigInt(9_000));
+    expect(payers[0].remainingPesewas).toBe(BigInt(3_000));
+    expect(payers[0].state).toBe("part");
+  });
+
+  it("marks a fully covered student as paid", () => {
+    expect(listPayers([row({})])[0].state).toBe("paid");
+  });
+
+  it("leaves out unpaid and cancelled agreements", () => {
+    const payers = listPayers([
+      row({ studentId: "s2", paidPesewas: BigInt(0), remainingPesewas: BigInt(6_000) }),
+      row({ studentId: "s3", status: "cancelled" }),
+    ]);
+    expect(payers).toEqual([]);
+  });
+
+  it("does not let an unpaid course mark a payer as part-paid", () => {
+    // The unpaid agreement is skipped entirely, so it adds nothing owed.
+    const payers = listPayers([
+      row({}),
+      row({ id: "e2", paidPesewas: BigInt(0), remainingPesewas: BigInt(6_000) }),
+    ]);
+    expect(payers[0].state).toBe("paid");
+    expect(payers[0].courses).toHaveLength(1);
+  });
+
+  it("lists the biggest payers first, then by name", () => {
+    const payers = listPayers([
+      row({ studentId: "a", studentName: "Zed", paidPesewas: BigInt(1_000) }),
+      row({ studentId: "b", studentName: "Bea", paidPesewas: BigInt(5_000) }),
+      row({ studentId: "c", studentName: "Ama", paidPesewas: BigInt(5_000) }),
+    ]);
+    expect(payers.map((p) => p.studentName)).toEqual(["Ama", "Bea", "Zed"]);
   });
 });

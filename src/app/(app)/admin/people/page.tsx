@@ -2,6 +2,7 @@ import { requireRole } from "@/services/auth/queries";
 import {
   listApprovedTutorsForAdmin,
   listPendingTutors,
+  listPlatformPeople,
 } from "@/services/admin/queries";
 import { approveTutor, rejectTutor } from "@/services/admin/mutations";
 import { Card } from "@/components/ui/Card";
@@ -10,23 +11,38 @@ import { Input } from "@/components/ui/Fields";
 import { AdminEmpty, AdminSection } from "@/components/admin/AdminSection";
 import { AdminResetCode } from "@/components/admin/AdminResetCode";
 import { ReportsQueue } from "@/components/admin/ReportsQueue";
+import { PeopleDirectory } from "@/components/admin/PeopleDirectory";
 import { accraDate } from "@/lib/time";
 
 /**
- * People tab — everything about accounts: tutor applications to approve or
+ * People tab — everything about accounts: the directory of every student and
+ * tutor (Show dropdown + search), tutor applications to approve or
  * reject (moved off Overview, which is numbers only now), admin-issued
  * password reset codes and the reports queue (both from the old Support tab).
  */
 export default async function AdminPeoplePage() {
   await requireRole("admin");
 
-  const [pending, approvedCount] = await Promise.all([
+  const [pending, approvedCount, people] = await Promise.all([
     listPendingTutors(),
     listApprovedTutorsForAdmin(),
+    listPlatformPeople(),
   ]);
 
   return (
     <div>
+      <AdminSection
+        title="Students & tutors"
+        description="Everyone on the platform. Pick who to show, or search by name, code or email."
+      >
+        <PeopleDirectory
+          people={people.map((person) => ({
+            ...person,
+            joinedLabel: accraDate(new Date(person.joinedAt)),
+          }))}
+        />
+      </AdminSection>
+
       <AdminSection
         title="Tutor applications"
         description="New tutors stay off the public directory until you approve them. A rejection needs a reason — the tutor sees it."

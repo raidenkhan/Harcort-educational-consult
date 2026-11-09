@@ -16,6 +16,7 @@ import { accraDate } from "@/lib/time";
 import {
   agreementGroupLabel,
   groupAgreementsByStudent,
+  listPayers,
 } from "@/services/payments/plan";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -43,6 +44,7 @@ import { RecordPartPaymentForm } from "./RecordPartPaymentForm";
  * only what it shows:
  *
  *   /admin/payments             → AdminPayoutsTab      (queue + payout accounts)
+ *   /admin/payments/paid        → AdminPaidTab         (every student who has paid)
  *   /admin/payments/plans       → AdminPlanRequestsTab (requests waiting for a plan)
  *   /admin/payments/agreements  → AdminAgreementsTab   (per-student agreements)
  *   /admin/payments/links       → AdminPaymentLinksTab (part-payment links)
@@ -151,6 +153,90 @@ export async function AdminPayoutsTab() {
         )}
       </div>
 
+    </div>
+  );
+}
+
+export async function AdminPaidTab() {
+  await requireRole("admin");
+  const payers = listPayers(await listAllEngagements());
+  const paidInFull = payers.filter((p) => p.state === "paid").length;
+  const total = payers.reduce((sum, p) => sum + p.paidPesewas, BigInt(0));
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="font-display text-xl font-bold tracking-tight text-slate-900">
+            Students who have paid
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">
+            Everyone with money on an agreement, Paystack or recorded by an
+            admin. One row per student; their courses are listed under them.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone="brand">{payers.length} paid</Badge>
+          <Badge tone="green">{paidInFull} in full</Badge>
+          <Badge tone="neutral">{formatGhs(total)} collected</Badge>
+        </div>
+      </div>
+
+      {payers.length === 0 ? (
+        <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white/70 p-10 text-center text-sm text-slate-500">
+          No payments yet. Students appear here as soon as any money lands on
+          one of their agreements.
+        </div>
+      ) : (
+        <ul className="mt-4 space-y-3">
+          {payers.map((payer) => (
+            <li key={payer.studentId}>
+              <Card>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {payer.studentName || "Student"}
+                      {payer.studentCode && (
+                        <span className="ml-2 font-mono text-xs font-normal text-slate-400">
+                          {payer.studentCode}
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {formatGhs(payer.paidPesewas)} paid of{" "}
+                      {formatGhs(payer.agreedTotal)}
+                      {payer.remainingPesewas > BigInt(0) &&
+                        ` · ${formatGhs(payer.remainingPesewas)} left`}
+                    </p>
+                  </div>
+                  <Badge tone={payer.state === "paid" ? "green" : "amber"}>
+                    {payer.state === "paid" ? "Paid in full" : "Paying in parts"}
+                  </Badge>
+                </div>
+                <ul className="mt-3 divide-y divide-slate-100 border-t border-slate-100">
+                  {payer.courses.map((course) => (
+                    <li
+                      key={course.engagementId}
+                      className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+                    >
+                      <span className="min-w-0 text-slate-700">
+                        {course.courseTitle || "Course"}
+                        <span className="text-slate-400"> · with {course.tutorName || "Tutor"}</span>
+                      </span>
+                      <span className="font-medium tabular-nums text-slate-900">
+                        {formatGhs(course.paidPesewas)}
+                        <span className="font-normal text-slate-400">
+                          {" "}/ {formatGhs(course.agreedTotal)}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
