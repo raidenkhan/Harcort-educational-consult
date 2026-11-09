@@ -1,6 +1,5 @@
 import {
   CalendarCheck,
-  Eye,
   GraduationCap,
   Percent,
   TrendingUp,
@@ -34,7 +33,8 @@ export default async function AdminAnalyticsPage() {
   const { traffic, funnel, sessions, people, tutors } = snapshot;
 
   // Money headline tiles live on the console Overview; Insights leads with
-  // people and reach, then the growth charts.
+  // who is on the platform (visitors are in Site traffic below, not repeated
+  // here), then the growth charts.
   const headline = [
     {
       label: "Registered users",
@@ -57,13 +57,6 @@ export default async function AdminAnalyticsPage() {
       icon: UserCheck,
       tint: "bg-emerald-50 text-emerald-700",
     },
-    {
-      label: "Visitors · last 30 days",
-      value: String(traffic.visitors30d),
-      note: `${traffic.views30d} page views`,
-      icon: Eye,
-      tint: "bg-slate-100 text-slate-700",
-    },
   ];
 
   const maxViews = Math.max(1, ...traffic.byDay.map((d) => d.views));
@@ -72,7 +65,7 @@ export default async function AdminAnalyticsPage() {
     <>
       {/* ── Headline numbers ─────────────────────────────────────── */}
       <section aria-label="Headline numbers">
-        <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           {headline.map((stat) => (
             <Card key={stat.label} className="flex items-start gap-4">
               <span
@@ -181,6 +174,7 @@ export default async function AdminAnalyticsPage() {
           </div>
           <Badge tone="neutral">First-party</Badge>
         </div>
+
 
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           <Card>
@@ -301,48 +295,16 @@ export default async function AdminAnalyticsPage() {
       </section>
 
       {/* ── People & tutors ──────────────────────────────────────── */}
-      <section className="mt-14 pb-4" aria-label="People and tutor performance">
+      {/* Student/tutor counts are the headline tiles at the top; this section
+          is only the per-tutor delivery table. */}
+      <section className="mt-14 pb-4" aria-label="Tutor performance">
         <h2 className="font-display text-xl font-bold tracking-tight text-slate-900">
-          People
+          Tutor performance
         </h2>
         <p className="mt-1 max-w-xl text-sm text-slate-600">
-          Who is on the platform, and which tutors are actually running the
-          sessions they get paid for.
+          Which tutors are actually running the sessions they get paid for.
         </p>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          <Card className="flex items-center gap-3">
-            <GraduationCap className="h-5 w-5 text-brand-700" />
-            <div>
-              <p className="font-display text-xl font-bold tabular-nums text-slate-900">
-                {people.students}
-              </p>
-              <p className="text-xs text-slate-500">
-                students · {people.newStudents30d} new in 30d
-              </p>
-            </div>
-          </Card>
-          <Card className="flex items-center gap-3">
-            <Users className="h-5 w-5 text-petrol-700" />
-            <div>
-              <p className="font-display text-xl font-bold tabular-nums text-slate-900">
-                {people.tutors}
-              </p>
-              <p className="text-xs text-slate-500">
-                tutors · {people.newTutors30d} new in 30d
-              </p>
-            </div>
-          </Card>
-          <Card className="flex items-center gap-3">
-            <Users className="h-5 w-5 text-amber-700" />
-            <div>
-              <p className="font-display text-xl font-bold tabular-nums text-slate-900">
-                {people.admins}
-              </p>
-              <p className="text-xs text-slate-500">admin accounts</p>
-            </div>
-          </Card>
-        </div>
 
         <Card className="mt-6">
           <h3 className="text-sm font-semibold text-slate-900">

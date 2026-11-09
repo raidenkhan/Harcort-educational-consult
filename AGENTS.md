@@ -792,7 +792,8 @@ mobile app.
   active) — and the admin layout owns spacing (`mt-8` content wrapper, every
   section `mt-10 first:mt-0`), so no tab picks its own margins again.
 - **Paid list, people directory, growth charts, console sidebar.** Payments
-  gained a **Paid** sub-tab (`listPayers` in `payments/plan.ts`, unit-tested:
+  gained a **Paid** sub-tab, first in the row and at the section root
+  (`/admin/payments`; Payouts moved to `/admin/payments/payouts`) (`listPayers` in `payments/plan.ts`, unit-tested:
   one row per student, cancelled/unpaid agreements skipped). People leads with
   a **Students & tutors** directory (`listPlatformPeople` +
   `PeopleDirectory`: a Show dropdown — all / students / tutors — plus search

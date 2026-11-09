@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 /**
  * Second-level tabs inside an admin section (Payments, Insights). Real routes,
  * like the main tabs. Exactly ONE item is active: the longest href that
- * prefixes the pathname — so `/admin/payments` (Payouts) doesn't also light
+ * prefixes the pathname — so `/admin/payments` (Paid) doesn't also light
  * up while you are on `/admin/payments/log`.
  */
 export function AdminSubTabs({

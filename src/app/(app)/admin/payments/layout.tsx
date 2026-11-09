@@ -6,8 +6,8 @@ import { AdminSubTabs } from "@/components/admin/AdminSubTabs";
  * console Overview.
  */
 const PAYMENT_TABS = [
-  { href: "/admin/payments", label: "Payouts" },
-  { href: "/admin/payments/paid", label: "Paid" },
+  { href: "/admin/payments", label: "Paid" },
+  { href: "/admin/payments/payouts", label: "Payouts" },
   { href: "/admin/payments/plans", label: "Plan requests" },
   { href: "/admin/payments/agreements", label: "Agreements" },
   { href: "/admin/payments/links", label: "Payment links" },

@@ -43,8 +43,8 @@ import { RecordPartPaymentForm } from "./RecordPartPaymentForm";
  * on the console Overview; each sub-tab below is its own route and fetches
  * only what it shows:
  *
- *   /admin/payments             → AdminPayoutsTab      (queue + payout accounts)
- *   /admin/payments/paid        → AdminPaidTab         (every student who has paid)
+ *   /admin/payments             → AdminPaidTab         (every student who has paid)
+ *   /admin/payments/payouts     → AdminPayoutsTab      (queue + payout accounts)
  *   /admin/payments/plans       → AdminPlanRequestsTab (requests waiting for a plan)
  *   /admin/payments/agreements  → AdminAgreementsTab   (per-student agreements)
  *   /admin/payments/links       → AdminPaymentLinksTab (part-payment links)

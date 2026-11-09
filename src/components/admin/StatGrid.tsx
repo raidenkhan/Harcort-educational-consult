@@ -31,20 +31,28 @@ export function StatGrid({
           {title}
         </h2>
       )}
-      <div className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* Sized for the narrow content column beside the console sidebar: a
+          tile is ~200px wide at 4-up, and "GH₵2,100.12" in the old 24px
+          figure overflowed it. Compact padding, a 36px icon chip (hidden on
+          phones, where the tile is narrowest) and an 18px figure fit it. */}
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {stats.map((stat) => {
           const tile = (
             <Card
+              padded={false}
               hover={Boolean(stat.href)}
-              className="flex h-full items-center gap-4"
+              className="flex h-full items-center gap-3 p-4"
             >
               <span
-                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md ${stat.tint}`}
+                className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-md sm:flex ${stat.tint}`}
               >
-                <stat.icon className="h-5 w-5" aria-hidden="true" />
+                <stat.icon className="h-4 w-4" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <p className="font-display text-2xl font-bold tabular-nums text-slate-900">
+                <p
+                  className="truncate font-display text-lg font-bold leading-tight text-slate-900"
+                  title={String(stat.value)}
+                >
                   {stat.value}
                 </p>
                 <p className="truncate text-xs font-medium text-slate-500">

@@ -55,19 +55,19 @@ export default async function AdminOverviewPage() {
           { label: "Collected", value: formatGhs(money.collected), icon: Wallet, tint: "bg-petrol-50 text-petrol-700", href: "/admin/payments/log" },
           { label: "Platform revenue", value: formatGhs(money.revenue), icon: Banknote, tint: "bg-brand-50 text-brand-700" },
           { label: "Outstanding", value: formatGhs(money.outstanding), icon: AlertTriangle, tint: "bg-amber-50 text-amber-700", href: "/admin/payments/agreements" },
-          { label: "Payouts to review", value: money.needsReview, icon: Banknote, tint: "bg-red-50 text-red-700", href: "/admin/payments" },
+          { label: "Payouts to review", value: money.needsReview, icon: Banknote, tint: "bg-red-50 text-red-700", href: "/admin/payments/payouts" },
         ]}
       />
 
       {/* Counted per STUDENT (summarizePlans), not per agreement: a student
-          with two courses is one student, settled only when both are. */}
+          with two courses is one student, settled only when both are. No
+          separate "Students" tile — it was just these three added up. */}
       <StatGrid
         title="Student payments"
         stats={[
-          { label: "Students", value: money.summary.students, icon: Users, tint: "bg-slate-100 text-slate-700", href: "/admin/payments/agreements" },
-          { label: "Paid in full", value: money.summary.paidInFull, icon: UserCheck, tint: "bg-emerald-50 text-emerald-700" },
+          { label: "Paid in full", value: money.summary.paidInFull, icon: UserCheck, tint: "bg-emerald-50 text-emerald-700", href: "/admin/payments" },
           { label: "Paying in parts", value: money.summary.partPaid, icon: CalendarClock, tint: "bg-amber-50 text-amber-700" },
-          { label: "Not yet paid", value: money.summary.unpaid, icon: UserX, tint: "bg-red-50 text-red-700" },
+          { label: "Not yet paid", value: money.summary.unpaid, icon: UserX, tint: "bg-red-50 text-red-700", href: "/admin/payments/agreements" },
         ]}
       />
     </div>

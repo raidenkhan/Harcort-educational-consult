@@ -1,6 +1,10 @@
-import { AdminPayoutsTab } from "@/components/payments/AdminPaymentsConsole";
+import { AdminPaidTab } from "@/components/payments/AdminPaymentsConsole";
 
-/** Payments → Payouts: the payout queue and tutor payout accounts. */
-export default function AdminPayoutsPage() {
-  return <AdminPayoutsTab />;
+/**
+ * Payments → Paid, the section's first tab: every student who has paid, with
+ * their courses. It sits at the section root so the sidebar's Payments link
+ * lands on it.
+ */
+export default function AdminPaidPage() {
+  return <AdminPaidTab />;
 }
