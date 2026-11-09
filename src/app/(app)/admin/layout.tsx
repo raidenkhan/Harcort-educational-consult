@@ -6,8 +6,12 @@ import { AdminTabs } from "@/components/admin/AdminTabs";
 
 /**
  * Admin console shell — shared header + section tabs. Each tab is its own
- * route (`/admin`, `/admin/attendance`, `/admin/payments`, `/admin/support`)
- * and fetches only what it shows, replacing the old single long dashboard.
+ * route and fetches only what it shows (see AdminTabs for the map). This is
+ * an admin's ONE dashboard: `/dashboard` sends role-`admin` accounts here.
+ *
+ * Spacing is owned here: the content wrapper sits a fixed distance below the
+ * tabs, and every section inside uses `mt-10 first:mt-0`, so no tab can drift
+ * by picking its own top margin.
  */
 export default async function AdminLayout({
   children,
@@ -24,7 +28,7 @@ export default async function AdminLayout({
 
         <AdminTabs />
 
-        {children}
+        <div className="mt-8">{children}</div>
       </Container>
     </div>
   );

@@ -45,9 +45,11 @@ const TABS: Record<UserRole, Tab[]> = {
     { href: "/chat", label: "Messages", icon: MessageCircle },
     { href: "/groups", label: "Groups", icon: Users },
   ],
+  // An admin's one dashboard is the console; Messages because admins chat
+  // with students and tutors from /chat.
   admin: [
-    { href: "/dashboard", label: "Home", icon: LayoutDashboard },
-    { href: "/admin", label: "Admin", icon: ShieldCheck },
+    { href: "/admin", label: "Console", icon: LayoutDashboard },
+    { href: "/chat", label: "Messages", icon: MessageCircle },
   ],
 };
 

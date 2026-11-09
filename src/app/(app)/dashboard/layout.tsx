@@ -21,10 +21,13 @@ export default async function DashboardLayout({
 }) {
   const profile = await requireProfile();
 
-  // ONE dashboard per role. A tutor's is `/tutor`; this is the student
-  // surface (admins share it for Home + Settings), so a tutor landing here
-  // is sent to the real one instead of being shown a second dashboard.
+  // ONE dashboard per role. A tutor's is `/tutor` and an admin's is the
+  // console at `/admin` (its Settings tab holds their account settings); this
+  // is the student surface, so anyone else landing here is sent to theirs.
+  // A student or tutor with the is_admin FLAG keeps their own dashboard and
+  // reaches the console from the avatar menu.
   if (profile.role === "tutor") redirect("/tutor");
+  if (profile.role === "admin") redirect("/admin");
 
   return (
     <div className="relative overflow-hidden">

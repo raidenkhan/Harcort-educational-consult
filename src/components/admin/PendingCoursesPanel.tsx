@@ -21,13 +21,10 @@ import { Card } from "@/components/ui/Card";
  */
 export function PendingCoursesPanel({ courses }: { courses: PendingCourse[] }) {
   return (
-    <section aria-label="Courses awaiting review" className="mt-10">
+    <section aria-label="Courses awaiting review" className="mt-10 first:mt-0">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-widest text-slate-500">
-            Course catalog
-          </p>
-          <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-slate-900">
+          <h2 className="font-display text-xl font-bold tracking-tight text-slate-900">
             Courses added by tutors
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">

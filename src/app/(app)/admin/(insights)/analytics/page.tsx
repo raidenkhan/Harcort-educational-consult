@@ -87,7 +87,7 @@ export default async function AdminAnalyticsPage() {
   return (
     <>
       {/* ── Headline numbers ─────────────────────────────────────── */}
-      <section className="mt-8" aria-label="Headline numbers">
+      <section aria-label="Headline numbers">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {headline.map((stat) => (
             <Card key={stat.label} className="flex items-start gap-4">

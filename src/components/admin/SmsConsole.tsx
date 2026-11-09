@@ -117,10 +117,10 @@ export async function SmsConsole() {
   ];
 
   return (
-    <div className="mt-8">
+    <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+          <h2 className="font-display text-xl font-bold tracking-tight text-slate-900">
             Text messages
           </h2>
           <p className="mt-1 max-w-xl text-sm text-slate-600">

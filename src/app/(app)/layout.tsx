@@ -86,13 +86,10 @@ async function AppHeader() {
           { href: "/groups", label: "Groups", badge: groupUnread },
         ]
       : []),
-    ...(profile && profileIsAdmin(profile)
-      ? [{ href: "/admin", label: "Admin" }]
-      : []),
   ];
 
   return (
-    // Dashboard is NOT a nav link: it lives in the avatar menu (role-aware —
+    // Dashboard and Admin are NOT nav links: they live in the avatar menu (role-aware —
     // `/tutor` for tutors, `/dashboard` for everyone else), same as the
     // public nav, so the right-hand side is identical signed in or out.
     <FloatingNav links={links}>

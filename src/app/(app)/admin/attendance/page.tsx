@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { sessionWhen } from "@/lib/time";
 
-/** Attendance tab — the dual-tick tracker: did every scheduled session happen? */
+/** Sessions tab — the dual-tick attendance tracker: did every scheduled session happen? */
 export default async function AdminAttendancePage() {
   await requireRole("admin");
 
@@ -18,7 +18,7 @@ export default async function AdminAttendancePage() {
   ).length;
 
   return (
-    <section className="mt-10">
+    <section>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-bold tracking-tight text-slate-900">

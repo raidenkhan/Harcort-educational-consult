@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import { LayoutDashboard, LogOut, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, LogOut, Settings, ShieldCheck } from "lucide-react";
 import type { Profile } from "@/types";
 import { profileIsAdmin } from "@/lib/auth/admin";
 import { signOutAction } from "@/services/auth/actions";
@@ -17,7 +17,7 @@ export type UserMenuProfile = Pick<
 
 /**
  * The signed-in user's avatar (photo or initials). Clicking it opens a small
- * menu with Dashboard, Admin (admins only) and Sign out — so "Dashboard" is
+ * menu with Dashboard, Admin console (admins only), Settings and Sign out — so "Dashboard" is
  * never a link in the nav bar itself. Shared by the public nav and the app
  * shell so the right-hand side looks the same everywhere.
  */
@@ -26,7 +26,18 @@ export function UserMenu({ profile }: { profile: UserMenuProfile }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const isAdmin = profileIsAdmin(profile);
-  const dashboardHref = profile.role === "tutor" ? "/tutor" : "/dashboard";
+  // One dashboard per role: tutors → /tutor, admins → the console, everyone
+  // else → /dashboard. Each keeps its settings under it.
+  const dashboardHref =
+    profile.role === "tutor"
+      ? "/tutor"
+      : profile.role === "admin"
+        ? "/admin"
+        : "/dashboard";
+  const settingsHref = `${dashboardHref}/settings`;
+  // A role-`admin` account's Dashboard IS the console; only a student/tutor
+  // holding the is_admin flag needs a separate "Admin console" entry.
+  const showConsoleLink = isAdmin && profile.role !== "admin";
   const name = profile.full_name || "Your account";
 
   useEffect(() => {
@@ -88,7 +99,7 @@ export function UserMenu({ profile }: { profile: UserMenuProfile }) {
               <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
               Dashboard
             </Link>
-            {isAdmin && (
+            {showConsoleLink && (
               <Link
                 href="/admin"
                 role="menuitem"
@@ -99,6 +110,15 @@ export function UserMenu({ profile }: { profile: UserMenuProfile }) {
                 Admin console
               </Link>
             )}
+            <Link
+              href={settingsHref}
+              role="menuitem"
+              className={itemClass}
+              onClick={() => setOpen(false)}
+            >
+              <Settings className="h-4 w-4" aria-hidden="true" />
+              Settings
+            </Link>
             <form action={signOutAction}>
               <button type="submit" role="menuitem" className={itemClass}>
                 <LogOut className="h-4 w-4" aria-hidden="true" />

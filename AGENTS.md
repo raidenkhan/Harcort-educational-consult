@@ -771,6 +771,26 @@ mobile app.
 - **Tutor approval removed — payment IS the booking.** Since 0035 auto-accepts on payment, tutors no longer need accept/decline buttons. Removed `RespondRequestButtons.tsx`, `respondTutorRequest` action, and `respondRequestSchema`. Updated copy everywhere: "Awaiting payment" instead of "Waiting for tutor", "Confirmed" instead of "Accepted". Email templates no longer say "accept or decline" — they tell the tutor the student will complete payment. Pending requests now just show "Waiting for payment" since the student must pay first.
 
 - **Book tutor dialog + multi-semester booking (0041), and cart checkout made to actually work.** The `/tutors` card is now: avatar/name, **bio**, a one-line course summary, and two clear buttons — **Book tutor** and **Send email** (a `mailto:` to the tutor's sign-in email, exposed as `TutorListing.contactEmail` via `profiles!inner(*, credentials(email))`; the owner chose this knowing it makes tutor emails public). `BookTutorButton` opens a dialog: ONE format switch (one-on-one / group; courses not offered in it grey out), course checkboxes, a **semesters** stepper (1–4) and a live price counter computed with the same `checkoutTotal` the server charges. Make payment → signed in: `startCartCheckout` (returns to `/dashboard/payments`); signed out: the selection goes into the cart and the auth modal opens with `next=/cart`. Prices stay **per semester**; 0041's `prepare_cart_engagement(…, p_semesters)` makes `agreed_total = price × semesters` server-side and records `engagements.semesters`. While wiring this, the 0040 cart turned out to be **unable to work**: `startCartCheckout` called `create_payment_batch` with parameters the SQL never had and read a JSON object from an RPC that returns a uuid, and **nothing applied a paid batch** — Paystack knows only the batch reference, `reconcileChargeByReference` looked it up in `payments` (where items are `<ref>-B01…`), found nothing, and the sweep would have verified the `-B01` references and closed them as `not_found`. Checkout was rewritten against the live signatures (amounts read back from the engagements, fee computed before the batch, 10-minute double-tap reuse by signature), `reconcileBatchByReference` now verifies the gross against `batch.amount + fee_amount` and calls `payment_apply_verified_batch`, and the sweep skips batch items and sweeps `payment_batches` instead. The cart page also used a hand-rolled fee formula that disagreed with the real charge (now `checkoutTotal`) and showed "cart is empty" instead of the success screen after paying.
+- **Avatar menu + an organised admin console.** The app and public navs no
+  longer carry a Dashboard (or Admin) link: signed-in users get the cart icon
+  plus an avatar (`components/navigation/UserMenu.tsx`) whose menu holds
+  Dashboard → Admin console (only for a student/tutor with the `is_admin`
+  flag) → Settings → Sign out. A role-`admin` account's **one dashboard is
+  `/admin`** — `/dashboard` redirects it there, like tutors to `/tutor`. The
+  console was regrouped from 7 ad-hoc tabs into **Overview · People ·
+  Courses · Sessions · Payments · Insights · Settings**: Overview is numbers
+  only (people, money and student-payment tiles, each linking to where it is
+  acted on); People holds tutor applications, password resets and reports
+  (`/admin/support` redirects there); Sessions is the attendance tracker
+  (route still `/admin/attendance`); Payments' single 680-line page became
+  sub-tabs (Payouts, Plan requests, Agreements, Payment links, Payment log —
+  one async component each in `AdminPaymentsConsole.tsx`, shared derivation in
+  `payments/adminPayments.ts`); Insights is a route group over
+  `/admin/analytics` + `/admin/sms`; Settings reuses `AccountSettings` (shared
+  with `/dashboard/settings`). Consistency comes from three components —
+  `StatGrid`, `AdminSection`/`AdminEmpty`, `AdminSubTabs` (longest-match
+  active) — and the admin layout owns spacing (`mt-8` content wrapper, every
+  section `mt-10 first:mt-0`), so no tab picks its own margins again.
 ---
 
 ## 3. Architecture
@@ -1122,7 +1142,7 @@ The dev machine is slow — give compiles 30–60s.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 

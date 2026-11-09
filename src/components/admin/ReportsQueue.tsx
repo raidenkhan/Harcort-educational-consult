@@ -6,7 +6,7 @@ import { ResolveReportActions } from "./ResolveReportActions";
 import { accraDate } from "@/lib/time";
 
 /**
- * The reports queue on /admin/support — open reports first, then recent
+ * The reports queue on /admin/people — open reports first, then recent
  * history. Each card shows who reported what, with the reported content
  * quoted inline so the admin rarely needs to leave the page to judge it.
  */
@@ -18,7 +18,7 @@ export async function ReportsQueue() {
   const handled = reports.filter((r) => r.status !== "open");
 
   return (
-    <section className="mt-14">
+    <section className="mt-10 first:mt-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-xl font-bold tracking-tight text-slate-900">
           Reports queue

@@ -746,7 +746,7 @@ export function reportFiledEmail(opts: {
   const text = `${opts.reporterName} filed a report about a ${opts.targetType}.\n\n"${opts.reasonPreview}"\n\nReview it in the admin console.`;
   const html = wrap(
     "New report filed",
-    `${p(`<strong>${escapeHtml(opts.reporterName)}</strong> filed a report about a <strong>${escapeHtml(opts.targetType)}</strong>.`)}${p(`<em>"${escapeHtml(opts.reasonPreview)}"</em>`)}${actionButton(`${process.env.APP_URL ?? ""}/admin/support`, "Review reports")}`,
+    `${p(`<strong>${escapeHtml(opts.reporterName)}</strong> filed a report about a <strong>${escapeHtml(opts.targetType)}</strong>.`)}${p(`<em>"${escapeHtml(opts.reasonPreview)}"</em>`)}${actionButton(`${process.env.APP_URL ?? ""}/admin/people`, "Review reports")}`,
   );
   return { subject, text, html };
 }
