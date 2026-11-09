@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/cn";
 
 /**
- * Admin-console tabs — same route-based pattern as the tutor hub: each tab
+ * Admin-console navigation (sidebar on desktop, tab row on mobile) — same route-based pattern as the tutor hub: each tab
  * is a real URL that fetches only what it shows. Active state derives from
  * the pathname, so there's no client state to keep in sync.
  *
@@ -55,7 +55,9 @@ export function AdminTabs() {
   return (
     <nav
       aria-label="Admin console sections"
-      className="mt-8 flex gap-1 overflow-x-auto rounded-xl border border-slate-200/80 bg-white/80 p-1.5 backdrop-blur-sm"
+      // A row that scrolls sideways on phones/tablets; a vertical sidebar
+      // from lg up (the admin layout places it in the left column).
+      className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200/80 bg-white/80 p-1.5 backdrop-blur-sm lg:flex-col lg:overflow-visible"
     >
       {TABS.map(({ href, label, icon: Icon, also }) => {
         const active = isActive(pathname, href, also);
@@ -65,7 +67,7 @@ export function AdminTabs() {
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors duration-150",
+              "flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors duration-150 lg:py-2.5",
               active
                 ? "bg-petrol-900 text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",

@@ -2,6 +2,14 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { chatDayKey } from "@/lib/time";
+import {
+  accraDayIso,
+  countByLabel,
+  cumulativeByDay,
+  dayRange,
+  studentsPerCourse,
+  type RankedBar,
+} from "@/services/analytics/growth";
 
 /**
  * Admin performance analytics — money in/out, the request funnel, sessions,
@@ -89,7 +97,26 @@ export interface TutorPerformanceRow {
   earnings: bigint;
 }
 
+/**
+ * The Insights growth charts. Series are plain numbers (cedis for money) so
+ * they cross the server→client boundary without bigint serialisation.
+ */
+export interface GrowthSnapshot {
+  /** Accra day keys, oldest first — the x axis for every series below. */
+  days: string[];
+  /** Running total collected, in cedis. */
+  collected: number[];
+  /** Running total of registered students / tutors. */
+  students: number[];
+  tutors: number[];
+  /** Distinct students with a live agreement, per course (top 10). */
+  courses: RankedBar[];
+  /** Students by programme (top 10). */
+  programmes: RankedBar[];
+}
+
 export interface AnalyticsSnapshot {
+  growth: GrowthSnapshot;
   traffic: TrafficSnapshot;
   money: MoneySnapshot;
   funnel: FunnelSnapshot;
@@ -159,12 +186,12 @@ export async function getAnalyticsSnapshot(now = Date.now()): Promise<AnalyticsS
         .limit(20000),
       supabase.from("payments").select("amount, status, created_at, verified_at"),
       supabase.from("payouts").select("amount, platform_fee, status, tutor_profile_id"),
-      supabase.from("engagements").select("status"),
+      supabase.from("engagements").select("status, student_id, courses(name, code)"),
       supabase.from("tutor_requests").select("status, created_at, responded_at"),
       supabase
         .from("tutoring_sessions")
         .select("status, scheduled_at, tutor_confirmed_at, student_confirmed_at, tutor_profile_id"),
-      supabase.from("profiles").select("role, is_admin, created_at"),
+      supabase.from("profiles").select("role, is_admin, created_at, program"),
       supabase.from("tutor_profiles").select("id, profiles(full_name)"),
     ]);
 
@@ -367,7 +394,12 @@ export async function getAnalyticsSnapshot(now = Date.now()): Promise<AnalyticsS
   };
 
   // ── People ──────────────────────────────────────────────────────────────
-  const profiles = rows<{ role: string; is_admin: boolean | null; created_at: string }>(
+  const profiles = rows<{
+    role: string;
+    is_admin: boolean | null;
+    created_at: string;
+    program: string | null;
+  }>(
     profilesRes,
     "profiles",
   );
@@ -407,7 +439,53 @@ export async function getAnalyticsSnapshot(now = Date.now()): Promise<AnalyticsS
     .sort((a, b) => b.confirmedSessions - a.confirmedSessions || b.sessions - a.sessions)
     .slice(0, 6);
 
+  // ── Growth (Insights charts) ────────────────────────────────────────────
+  const paidAt = (p: { verified_at: string | null; created_at: string }) =>
+    Date.parse(p.verified_at ?? p.created_at);
+  const firstEvent = Math.min(
+    now,
+    ...payments.map(paidAt),
+    ...profiles.map((p) => Date.parse(p.created_at)),
+  );
+  const growthDays = dayRange(firstEvent, now);
+  const joined = (role: string) =>
+    profiles
+      .filter((p) => p.role === role)
+      .map((p) => ({ day: accraDayIso(Date.parse(p.created_at)), amount: 1 }));
+
+  const growth: GrowthSnapshot = {
+    days: growthDays,
+    collected: cumulativeByDay(
+      payments.map((p) => ({
+        day: accraDayIso(paidAt(p)),
+        amount: Number(toBigint(p.amount)) / 100,
+      })),
+      growthDays,
+    ),
+    students: cumulativeByDay(joined("student"), growthDays),
+    tutors: cumulativeByDay(joined("tutor"), growthDays),
+    courses: studentsPerCourse(
+      rows<{
+        status: string;
+        student_id: string;
+        courses?: { name: string | null; code: string | null } | { name: string | null; code: string | null }[] | null;
+      }>(engagementsRes, "engagements").map((e) => {
+        const course = Array.isArray(e.courses) ? e.courses[0] : e.courses;
+        return {
+          studentId: e.student_id,
+          status: e.status,
+          courseCode: course?.code ?? null,
+          courseName: course?.name ?? null,
+        };
+      }),
+    ),
+    programmes: countByLabel(
+      profiles.filter((p) => p.role === "student").map((p) => p.program),
+    ),
+  };
+
   return {
+    growth,
     traffic,
     money,
     funnel,

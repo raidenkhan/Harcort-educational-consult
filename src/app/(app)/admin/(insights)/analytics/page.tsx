@@ -1,16 +1,15 @@
 import {
-  ArrowDownLeft,
-  ArrowUpRight,
   CalendarCheck,
   Eye,
   GraduationCap,
   Percent,
   TrendingUp,
+  UserCheck,
   Users,
-  Wallet,
 } from "lucide-react";
 import { requireRole } from "@/services/auth/queries";
 import { getAnalyticsSnapshot } from "@/services/analytics/queries";
+import { GrowthCharts } from "@/components/admin/GrowthCharts";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { formatGhs } from "@/lib/money";
@@ -19,10 +18,11 @@ import { accraDate } from "@/lib/time";
 /**
  * Performance tab — the admin's operating picture.
  *
- * Four questions, in order: is anyone visiting, are they becoming students,
- * is anyone paying, and are tutors actually delivering the sessions they're
- * paid for. Money is shown both directions (collected vs paid out) so the
- * platform's own margin is visible, not implied.
+ * Insights → Performance: who is on the platform and how it is growing
+ * (money collected and users registered over time, students per course and
+ * per programme), then whether tutors deliver the sessions they're paid for,
+ * site traffic and tutor performance. The money balance sheet lives on the
+ * console Overview and the Payments tab, not here.
  *
  * Traffic is first-party (0025) — no third-party script, no cookies read in
  * JS. Everything else reads the same tables the rest of the console uses.
@@ -31,43 +31,31 @@ export default async function AdminAnalyticsPage() {
   await requireRole("admin");
 
   const snapshot = await getAnalyticsSnapshot();
-  const { traffic, money, funnel, sessions, people, tutors } = snapshot;
+  const { traffic, funnel, sessions, people, tutors } = snapshot;
 
+  // Money headline tiles live on the console Overview; Insights leads with
+  // people and reach, then the growth charts.
   const headline = [
     {
-      label: "Collected · all time",
-      value: formatGhs(money.collectedAllTime),
-      note: `${money.paymentsCount} payment${money.paymentsCount === 1 ? "" : "s"}`,
-      icon: ArrowDownLeft,
-      tint: "bg-emerald-50 text-emerald-700",
-    },
-    {
-      label: "Collected · last 30 days",
-      value: formatGhs(money.collected30d),
-      note: "verified by Paystack webhook",
-      icon: Wallet,
+      label: "Registered users",
+      value: String(people.students + people.tutors),
+      note: `${people.newStudents30d + people.newTutors30d} joined in the last 30 days`,
+      icon: Users,
       tint: "bg-brand-50 text-brand-700",
     },
     {
-      label: "Paid out to tutors",
-      value: formatGhs(money.paidOut),
-      note: `${formatGhs(money.owedToTutors)} still owed`,
-      icon: ArrowUpRight,
+      label: "Students",
+      value: String(people.students),
+      note: `${people.newStudents30d} new in the last 30 days`,
+      icon: GraduationCap,
       tint: "bg-petrol-50 text-petrol-700",
     },
     {
-      label: "Platform fees",
-      value: formatGhs(money.platformFees),
-      note: "10% of each agreement",
-      icon: Percent,
-      tint: "bg-amber-50 text-amber-700",
-    },
-    {
-      label: "Outstanding from students",
-      value: formatGhs(money.outstandingFromStudents),
-      note: "pending + overdue installments",
-      icon: TrendingUp,
-      tint: "bg-red-50 text-red-700",
+      label: "Tutors",
+      value: String(people.tutors),
+      note: `${people.newTutors30d} new in the last 30 days`,
+      icon: UserCheck,
+      tint: "bg-emerald-50 text-emerald-700",
     },
     {
       label: "Visitors · last 30 days",
@@ -79,16 +67,12 @@ export default async function AdminAnalyticsPage() {
   ];
 
   const maxViews = Math.max(1, ...traffic.byDay.map((d) => d.views));
-  const maxCollected = money.byDay.reduce(
-    (max, day) => (day.collected > max ? day.collected : max),
-    BigInt(0),
-  );
 
   return (
     <>
       {/* ── Headline numbers ─────────────────────────────────────── */}
       <section aria-label="Headline numbers">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
           {headline.map((stat) => (
             <Card key={stat.label} className="flex items-start gap-4">
               <span
@@ -113,74 +97,10 @@ export default async function AdminAnalyticsPage() {
         </p>
       </section>
 
-      {/* ── Money in / out ───────────────────────────────────────── */}
-      <section className="mt-14" aria-label="Money">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-display text-xl font-bold tracking-tight text-slate-900">
-              Money
-            </h2>
-            <p className="mt-1 max-w-xl text-sm text-slate-600">
-              Payments in, tutor payouts out, and what is still owed on each
-              side. Only webhook-verified payments count as collected.
-            </p>
-          </div>
-          <Badge tone="green">Paystack reconciled</Badge>
-        </div>
-
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          <Card>
-            <h3 className="text-sm font-semibold text-slate-900">
-              Collected — last 14 days
-            </h3>
-            <ul className="mt-4 space-y-2">
-              {money.byDay.map((day) => (
-                <li key={day.day} className="flex items-center gap-3">
-                  <span className="w-12 shrink-0 font-mono text-[11px] text-slate-500">
-                    {day.day.slice(5)}
-                  </span>
-                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <span
-                      className="block h-full rounded-full bg-emerald-500/80"
-                      style={{
-                        width: `${moneyBarWidth(day.collected, maxCollected)}%`,
-                      }}
-                    />
-                  </span>
-                  <span className="w-24 shrink-0 text-right text-xs tabular-nums text-slate-600">
-                    {day.collected > BigInt(0) ? formatGhs(day.collected) : "—"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-
-          <Card>
-            <h3 className="text-sm font-semibold text-slate-900">Balance sheet</h3>
-            <dl className="mt-4 divide-y divide-slate-100 text-sm">
-              {[
-                ["Collected from students", formatGhs(money.collectedAllTime)],
-                ["Paid out to tutors", formatGhs(money.paidOut)],
-                ["Queued for payout", formatGhs(money.owedToTutors)],
-                ["Platform fees booked", formatGhs(money.platformFees)],
-                ["Average payment", formatGhs(money.averagePayment)],
-                ["Outstanding from students", formatGhs(money.outstandingFromStudents)],
-              ].map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between gap-3 py-2.5">
-                  <dt className="text-slate-600">{label}</dt>
-                  <dd className="font-semibold tabular-nums text-slate-900">{value}</dd>
-                </div>
-              ))}
-            </dl>
-            <div className="mt-4 rounded-md bg-slate-50 px-3 py-2.5 text-xs leading-relaxed text-slate-600">
-              {funnel.engagements.live} active agreement
-              {funnel.engagements.live === 1 ? "" : "s"} ·{" "}
-              {funnel.engagements.awaitingPayment} awaiting first payment ·{" "}
-              {funnel.engagements.completed} completed
-            </div>
-          </Card>
-        </div>
-      </section>
+      {/* ── Growth charts ────────────────────────────────────────── */}
+      <div className="mt-14">
+        <GrowthCharts growth={snapshot.growth} />
+      </div>
 
       {/* ── Requests → sessions ──────────────────────────────────── */}
       <section className="mt-14" aria-label="Requests and sessions">
@@ -308,7 +228,8 @@ export default async function AdminAnalyticsPage() {
               {traffic.byDay.map((day) => (
                 <li key={day.day} className="flex items-center gap-3">
                   <span className="w-12 shrink-0 font-mono text-[11px] text-slate-500">
-                    {day.day.slice(5)}
+                    {/* chatDayKey is "DD/MM/YYYY": show "DD/MM". */}
+                    {day.day.slice(0, 5)}
                   </span>
                   <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                     <span
@@ -465,10 +386,4 @@ export default async function AdminAnalyticsPage() {
       </section>
     </>
   );
-}
-
-/** 0–100 bar width for a bigint amount against the window's maximum. */
-function moneyBarWidth(value: bigint, max: bigint): number {
-  if (max <= BigInt(0)) return 0;
-  return Math.max(2, Math.round((Number(value) / Number(max)) * 100));
 }

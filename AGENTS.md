@@ -791,6 +791,27 @@ mobile app.
   `StatGrid`, `AdminSection`/`AdminEmpty`, `AdminSubTabs` (longest-match
   active) — and the admin layout owns spacing (`mt-8` content wrapper, every
   section `mt-10 first:mt-0`), so no tab picks its own margins again.
+- **Paid list, people directory, growth charts, console sidebar.** Payments
+  gained a **Paid** sub-tab (`listPayers` in `payments/plan.ts`, unit-tested:
+  one row per student, cancelled/unpaid agreements skipped). People leads with
+  a **Students & tutors** directory (`listPlatformPeople` +
+  `PeopleDirectory`: a Show dropdown — all / students / tutors — plus search
+  over name, code and email; staff accounts with role `admin` excluded).
+  Insights → Performance lost its Money section (money tiles live on
+  Overview) and gained **Growth** charts (`GrowthCharts`): running totals of
+  money collected and of registered students/tutors under one 30d/90d/all
+  range control, plus ranked bars for students per course (distinct students,
+  grouped by normalised course CODE — see the duplicate-rows gotcha) and
+  students by programme. The charts are dependency-free SVG
+  (`components/charts/LineChart`, `RankedBars`) built to the dataviz rules;
+  colours `#9646c6` (brand-500) + `#eb6834` were run through the palette
+  validator — brand-600 is too dark for a mark. Day keys for the series come
+  from `accraDayIso` (`analytics/growth.ts`), NOT `chatDayKey`: the latter is
+  a `DD/MM/YYYY` display string that does not sort as text (the old traffic
+  chart sliced it as if it were ISO and labelled every row "/2026"). The
+  console navigation is a sticky **sidebar** from `lg` up and a scrollable tab
+  row below it; the layout wrapper is `overflow-clip`, not `overflow-hidden`,
+  because hidden makes it a scroll container and breaks `sticky`.
 ---
 
 ## 3. Architecture
