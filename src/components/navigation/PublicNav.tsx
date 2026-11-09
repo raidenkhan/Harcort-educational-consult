@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
 import { CartNavButton } from "@/components/cart/CartNavButton";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
 import { FloatingNav } from "./FloatingNav";
 import { UserMenu, type UserMenuProfile } from "./UserMenu";
@@ -43,6 +44,7 @@ export function PublicNav({
     >
       {profile ? (
         <>
+          <NotificationBell />
           <CartNavButton />
           <UserMenu profile={profile} />
         </>

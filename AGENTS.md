@@ -813,6 +813,31 @@ mobile app.
   console navigation is a sticky **sidebar** from `lg` up and a scrollable tab
   row below it; the layout wrapper is `overflow-clip`, not `overflow-hidden`,
   because hidden makes it a scroll container and breaks `sticky`.
+- **In-app notifications + payment reminders (0042).** A bell beside the cart
+  (`components/notifications/NotificationBell`) in every signed-in nav: unread
+  badge, a panel of the latest 20, click → mark read + follow the link, "Mark
+  all as read". It polls `GET /api/notifications` every 60s and on window
+  focus (no realtime channel, same trade-off as /chat); `POST` marks read,
+  scoped to the session profile and same-origin only. Rows live in
+  `notifications` (0042; `source_key` UNIQUE is the dedupe claim). Writes are
+  best-effort like email (`notifyInApp` runs after the response;
+  `insertNotifications` is the awaited form) and independent of
+  `RESEND_API_KEY`. Sources: the `lib/email/notify.ts` dispatchers (chat
+  message, session scheduled/cancelled, added to a group, tutor approved/
+  rejected) and the payments outbox drain, which writes an in-app twin of each
+  student/tutor row titled like its email and keyed `outbox:<row id>` so a
+  re-drain adds nothing. Copy is pure in `services/notifications/text.ts`
+  (unit-tested); session links go to the new role-aware `/timetable` redirect.
+  Admin side: Payments → **Unpaid** lists students with no money on any
+  agreement (`listUnpaidStudents` in `payments/unpaid.ts`, unit-tested), split
+  into "picked a course, not paid" (unpaid agreement or pending request) and
+  "nothing picked yet", with per-student and Remind-all buttons.
+  `sendPaymentReminders` re-checks eligibility server-side and enforces one
+  reminder per student per 24h, and sends it in-app AND by email
+  (`notifyPaymentReminders` → `paymentReminderEmail`, same title and body as
+  the notification); the reminder is worded for the situation
+  (pay for ME 261 with Kofi → /dashboard/payments, or pick a course →
+  /courses). Before 0042 is applied the bell hides and the button says so.
 ---
 
 ## 3. Architecture
@@ -898,6 +923,7 @@ and all are safe to re-run:
 | `0038_payment_invoice_and_group_seat.sql` | Two things a successful payment does, both inside the apply transaction: (1) the student's `payment.received` outbox row carries the Paystack `reference` + `fee_amount` so the email renders as an itemised **invoice** (course fee, processing fee, total charged, reference) instead of a bare "we got your money" note; (2) a **GROUP** booking seats the student in the tutor's non-archived `study_group` for that course, writes a feed line and notifies the tutor (`payment.group_joined`). Membership is written before the message so 0036's `last_read_at` leaves it unread for the joiner, and `FOUND` guards the block so a replayed payment adds nobody twice |
 | `0039_one_off_payments_and_plans.sql` | One-off payments + real plans. `engagements.paid_amount` (pesewas, backfilled) is the engagement's own counter, written only by the RPCs that write a `payments` row; `payments.installment_id` becomes nullable with `on delete set null` — an agreement can be paid in one charge against itself. `create_payment_engagement` no longer auto-mints an installment; `payment_apply_verified_payment` / `admin_record_part_payment` / `admin_create_payment_request` take an engagement-level lock and **spill** a charge across open installments in `idx` order; `request_payout` / `complete_engagement` require `paid_amount = agreed_total`; `sync_installment_deadlines` skips engagements carrying an `engagement.plan_created` event instead of creating the 0029 single installment; `payment_overdue` gains `parts` (no more "of 2"); new RPC `admin_create_installment_plan` splits a pending, entirely-unpaid agreement into dated parts (re-checks the sum, refuses after any payment) and queues `payment.plan_created` email. Built on 0031's format-aware engagement creation (price_group/price_one_on_one, `format_not_offered`). Every app read uses an `isMissingColumn` fallback so the code works before and after the migration is applied |
 | `0041_cart_semesters.sql` | `engagements.semesters` (1..4, default 1). `prepare_cart_engagement` gains `p_semesters` (old 4-arg version dropped to keep PostgREST unambiguous): `agreed_total = per-semester price × semesters`, computed from `tutor_services`. Until it is applied, checkout falls back to the 4-arg RPC for 1 semester and refuses more |
+| `0042_notifications.sql` | `notifications` — the in-app bell: recipient, kind, title, body, link, `read_at`, `created_by` (the admin who sent a reminder) and a UNIQUE `source_key` dedupe claim (the outbox drain writes `outbox:<row id>`). Indexes for the recipient's newest-first list, the unread badge and "last reminded". Deny-all RLS |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -1043,7 +1069,7 @@ every send).
 
 Setup runbook:
 1. `npm install`
-2. Apply migrations `0001` → `0041` in the Supabase SQL Editor, in order
+2. Apply migrations `0001` → `0042` in the Supabase SQL Editor, in order
    (each is safe to re-run)
 3. `npm run dev` → http://localhost:3000 (no confirmation emails — sign-up
    signs you in immediately)

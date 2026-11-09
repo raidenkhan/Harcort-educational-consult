@@ -170,6 +170,30 @@ export function studyGroupAddedEmail(opts: {
   return { subject, text, html };
 }
 
+/**
+ * The admin's payment reminder — the email twin of the in-app notification,
+ * with the same title and wording (services/notifications/text.ts builds the
+ * copy once for both channels).
+ */
+export function paymentReminderEmail(opts: {
+  title: string;
+  body: string;
+  url: string;
+  /** True when the student already picked a course (button says "Pay now"). */
+  hasSelection: boolean;
+}): EmailMessage {
+  const cta = opts.hasSelection ? "Complete payment" : "Browse courses";
+  const subject = opts.title;
+  const text = `${opts.body}\n\n${cta}: ${opts.url}\n\nQuestions about payment? Reply to the Harcourt admin team in your messages on the site.`;
+  const html = wrap(
+    opts.title,
+    `${p(escapeHtml(opts.body))}${actionButton(opts.url, cta)}${p(
+      "Questions about payment? Message the Harcourt admin team from your account — payments are only ever arranged with the admin team, never directly with a tutor.",
+    )}`,
+  );
+  return { subject, text, html };
+}
+
 // ---------------------------------------------------------------------------
 // Sessions (timetable)
 // ---------------------------------------------------------------------------

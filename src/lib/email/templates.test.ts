@@ -342,3 +342,30 @@ describe("groupJoinedEmail", () => {
     expect(msg.html).not.toContain("<img src=x");
   });
 });
+
+describe("paymentReminderEmail", () => {
+  it("uses the notification title as the subject and escapes the body", async () => {
+    const { paymentReminderEmail } = await import("./templates");
+    const email = paymentReminderEmail({
+      title: "Complete your payment to confirm your booking",
+      body: "Hi <b>Ama</b>, ME 261 with Kofi is waiting for payment.",
+      url: "https://example.com/dashboard/payments",
+      hasSelection: true,
+    });
+    expect(email.subject).toBe("Complete your payment to confirm your booking");
+    expect(email.html).toContain("&lt;b&gt;Ama&lt;/b&gt;");
+    expect(email.html).toContain("Complete payment");
+    expect(email.text).toContain("https://example.com/dashboard/payments");
+  });
+
+  it("offers course browsing when nothing was picked", async () => {
+    const { paymentReminderEmail } = await import("./templates");
+    const email = paymentReminderEmail({
+      title: "Pick a course to get started",
+      body: "Hi Ama",
+      url: "https://example.com/courses",
+      hasSelection: false,
+    });
+    expect(email.html).toContain("Browse courses");
+  });
+});

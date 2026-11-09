@@ -67,7 +67,7 @@ export default async function AdminOverviewPage() {
         stats={[
           { label: "Paid in full", value: money.summary.paidInFull, icon: UserCheck, tint: "bg-emerald-50 text-emerald-700", href: "/admin/payments" },
           { label: "Paying in parts", value: money.summary.partPaid, icon: CalendarClock, tint: "bg-amber-50 text-amber-700" },
-          { label: "Not yet paid", value: money.summary.unpaid, icon: UserX, tint: "bg-red-50 text-red-700", href: "/admin/payments/agreements" },
+          { label: "Not yet paid", value: money.summary.unpaid, icon: UserX, tint: "bg-red-50 text-red-700", href: "/admin/payments/unpaid" },
         ]}
       />
     </div>

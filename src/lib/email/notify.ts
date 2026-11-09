@@ -8,6 +8,7 @@ import {
   newMessageEmail,
   passwordResetEmail,
   paymentLinkEmail,
+  paymentReminderEmail,
   sessionCancelledEmail,
   sessionScheduledEmail,
   studyGroupAddedEmail,
@@ -16,6 +17,14 @@ import {
   tutorReviewEmail,
   type EmailMessage,
 } from "./templates";
+import { notifyInApp } from "@/services/notifications/store";
+import {
+  groupAddedCopy,
+  newMessageCopy,
+  sessionCancelledCopy,
+  sessionScheduledCopy,
+  tutorReviewedCopy,
+} from "@/services/notifications/text";
 
 /**
  * Email notification dispatchers.
@@ -23,6 +32,10 @@ import {
  * Every function here is BEST-EFFORT by design: it must never throw, never
  * block the caller, and never fail the primary action if email breaks. All
  * sends run after the response via Next's `after()`.
+ *
+ * The student/tutor-facing dispatchers also write an in-app notification
+ * (0042, the bell next to the cart). That write is independent of email —
+ * it happens even when RESEND_API_KEY is unset.
  */
 
 /** Best-effort send; returns the error string (or null) instead of throwing.
@@ -89,6 +102,14 @@ export function notifyNewMessage(opts: {
   conversationId: string;
 }): void {
   const chatUrl = `${APP_URL}/chat?c=${opts.conversationId}`;
+  const copy = newMessageCopy(opts);
+  notifyInApp(
+    opts.recipientProfileIds.map((recipientId) => ({
+      ...copy,
+      recipientId,
+      kind: "chat.message",
+    })),
+  );
   afterResponse(async () => {
     const emails = await emailsForProfiles(opts.recipientProfileIds);
     const message = newMessageEmail({
@@ -138,6 +159,15 @@ export function notifyGroupAdded(opts: {
 }): void {
   if (opts.recipientProfileIds.length === 0) return;
   const groupUrl = `${APP_URL}/groups?g=${opts.groupId}`;
+  const copy = groupAddedCopy(opts);
+  notifyInApp(
+    opts.recipientProfileIds.map((recipientId) => ({
+      ...copy,
+      recipientId,
+      kind: "group.added",
+      sourceKey: `group.added:${opts.groupId}:${recipientId}`,
+    })),
+  );
   afterResponse(async () => {
     const emails = await emailsForProfiles(opts.recipientProfileIds);
     const message = studyGroupAddedEmail({
@@ -168,6 +198,13 @@ export function notifySessionScheduled(opts: {
   const dashboardUrl = `${APP_URL}/dashboard`;
   const title = `Tutoring with ${opts.tutorName}${opts.topic ? ` — ${opts.topic}` : ""}`;
   const end = new Date(opts.start.getTime() + opts.durationMinutes * 60_000);
+  notifyInApp([
+    {
+      ...sessionScheduledCopy(opts),
+      recipientId: opts.studentProfileId,
+      kind: "session.scheduled",
+    },
+  ]);
   afterResponse(async () => {
     const emails = await emailsForProfiles([opts.studentProfileId]);
     const message = sessionScheduledEmail({
@@ -194,6 +231,14 @@ export function notifySessionCancelled(opts: {
   topic: string | null;
 }): void {
   const dashboardUrl = `${APP_URL}/dashboard`;
+  const copy = sessionCancelledCopy(opts);
+  notifyInApp(
+    opts.recipientProfileIds.map((recipientId) => ({
+      ...copy,
+      recipientId,
+      kind: "session.cancelled",
+    })),
+  );
   afterResponse(async () => {
     const emails = await emailsForProfiles(opts.recipientProfileIds);
     const message = sessionCancelledEmail({
@@ -254,6 +299,13 @@ export function notifyTutorReviewed(opts: {
   note: string | null;
 }): void {
   const tutorUrl = `${APP_URL}/tutor`;
+  notifyInApp([
+    {
+      ...tutorReviewedCopy(opts),
+      recipientId: opts.recipientProfileId,
+      kind: opts.approved ? "tutor.approved" : "tutor.rejected",
+    },
+  ]);
   afterResponse(async () => {
     const emails = await emailsForProfiles([opts.recipientProfileId]);
     const message = tutorReviewEmail({
@@ -262,6 +314,39 @@ export function notifyTutorReviewed(opts: {
       tutorUrl,
     });
     await Promise.all([...emails.values()].map((to) => deliver(to, message)));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Payment reminders (admin → unpaid students)
+// ---------------------------------------------------------------------------
+
+/**
+ * Email each reminded student the same message they got in-app. Runs after
+ * the response like every other dispatcher; a student without a reachable
+ * address still has the in-app notification.
+ */
+export function notifyPaymentReminders(
+  reminders: { profileId: string; title: string; body: string; link: string; hasSelection: boolean }[],
+): void {
+  if (reminders.length === 0) return;
+  afterResponse(async () => {
+    const emails = await emailsForProfiles(reminders.map((r) => r.profileId));
+    await Promise.all(
+      reminders.map((r) => {
+        const to = emails.get(r.profileId);
+        if (!to) return Promise.resolve(null);
+        return deliver(
+          to,
+          paymentReminderEmail({
+            title: r.title,
+            body: r.body,
+            url: `${APP_URL}${r.link}`,
+            hasSelection: r.hasSelection,
+          }),
+        );
+      }),
+    );
   });
 }
 

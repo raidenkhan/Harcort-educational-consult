@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readRate } from "@/services/tutors/rate";
+import { listAllEngagements } from "@/services/payments/queries";
+import { listUnpaidStudents } from "@/services/payments/unpaid";
 
 /**
  * Admin queries. Pages gate access with requireRole("admin"); reads run on
@@ -142,4 +144,74 @@ export async function listPlatformPeople(): Promise<PlatformPerson[]> {
         ? (one(row.tutor_profiles)?.verification_status ?? null)
         : null,
   }));
+}
+
+/**
+ * Registered students who have paid nothing yet, split by whether they picked
+ * a course (Payments → Unpaid, and the reminder action's eligibility check).
+ * The rule itself is pure: `listUnpaidStudents` in services/payments/unpaid.
+ */
+export async function loadUnpaidStudents() {
+  const supabase = createAdminClient();
+  const [studentsRes, engagements, requestsRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name, public_code, created_at, phone, credentials(email)")
+      .eq("role", "student")
+      .limit(2000),
+    listAllEngagements(),
+    supabase
+      .from("tutor_requests")
+      .select("student_id, courses(name, code), tutor_profiles(profiles(full_name))")
+      .eq("status", "pending")
+      .limit(2000),
+  ]);
+
+  if (studentsRes.error) {
+    console.error(`[admin] unpaid students lookup failed: ${studentsRes.error.message}`);
+  }
+  if (requestsRes.error) {
+    console.error(`[admin] pending requests lookup failed: ${requestsRes.error.message}`);
+  }
+
+  type CourseRef = { name: string | null; code: string | null };
+  type RequestRow = {
+    student_id: string;
+    courses?: CourseRef | CourseRef[] | null;
+    tutor_profiles?:
+      | { profiles?: { full_name: string | null } | { full_name: string | null }[] | null }
+      | { profiles?: { full_name: string | null } | { full_name: string | null }[] | null }[]
+      | null;
+  };
+  type StudentRow = {
+    id: string;
+    full_name: string | null;
+    public_code: string | null;
+    created_at: string;
+    phone: string | null;
+    credentials?: { email: string | null } | { email: string | null }[] | null;
+  };
+
+  return listUnpaidStudents({
+    students: ((studentsRes.data ?? []) as StudentRow[]).map((s) => ({
+      id: s.id,
+      name: s.full_name || "Student",
+      publicCode: s.public_code,
+      email: one(s.credentials)?.email ?? null,
+      phone: s.phone,
+      joinedAt: s.created_at,
+    })),
+    engagements,
+    pendingRequests: ((requestsRes.data ?? []) as RequestRow[]).map((r) => {
+      const course = one(r.courses);
+      const tutor = one(one(r.tutor_profiles)?.profiles);
+      return {
+        studentId: r.student_id,
+        courseTitle: course
+          ? [course.code, course.name].filter(Boolean).join(" ")
+          : "a course",
+        tutorName: tutor?.full_name || "a tutor",
+      };
+    }),
+  });
 }

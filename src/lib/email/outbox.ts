@@ -2,6 +2,8 @@ import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatGhs } from "@/lib/money";
 import { deliver } from "./notify";
+import { insertNotifications } from "@/services/notifications/store";
+import { outboxNotificationCopy } from "@/services/notifications/text";
 import { adminEmails, emailsForProfiles } from "./recipients";
 import {
   groupJoinedEmail,
@@ -385,6 +387,29 @@ export async function drainPaymentOutbox(): Promise<void> {
           ? await groupJoinedContext(row.data.group_id, row.data.student_id)
           : null;
       const email = buildEmail(row, context, request, group);
+
+      // In-app twin (0042): the student/tutor this row is addressed to gets a
+      // bell notification titled like the email. Written BEFORE the email so
+      // a recipient with no reachable address still sees it; keyed on the
+      // outbox row id, so a second drain of the same row adds nothing.
+      if (email && row.recipient_id) {
+        const copy = outboxNotificationCopy({
+          type: row.type,
+          audience: row.audience,
+          subject: email.subject,
+        });
+        if (copy) {
+          await insertNotifications([
+            {
+              ...copy,
+              recipientId: row.recipient_id,
+              kind: row.type,
+              sourceKey: `outbox:${row.id}`,
+            },
+          ]);
+        }
+      }
+
       const recipients = email ? await recipientsFor(row) : [];
 
       if (!email || recipients.length === 0) {

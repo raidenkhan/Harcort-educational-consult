@@ -4,6 +4,7 @@ import { countUnreadGroupMessages } from "@/services/groups/queries";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { FloatingNav } from "@/components/navigation/FloatingNav";
 import { CartNavButton } from "@/components/cart/CartNavButton";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { UserMenu } from "@/components/navigation/UserMenu";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -93,6 +94,7 @@ async function AppHeader() {
     // `/tutor` for tutors, `/dashboard` for everyone else), same as the
     // public nav, so the right-hand side is identical signed in or out.
     <FloatingNav links={links}>
+      {profile && <NotificationBell />}
       <CartNavButton />
       {profile && <UserMenu profile={profile} />}
     </FloatingNav>
