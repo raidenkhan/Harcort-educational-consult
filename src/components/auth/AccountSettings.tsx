@@ -6,6 +6,8 @@ import { RoleSwitcher } from "@/components/auth/RoleSwitcher";
 import { PhoneForm } from "@/components/auth/PhoneForm";
 import { SmsPreferenceForm } from "@/components/auth/SmsPreferenceForm";
 import { ProgramSetting } from "@/components/auth/ProgramSetting";
+import { signOutAction } from "@/services/auth/actions";
+import { LogOut } from "lucide-react";
 import { accraDate } from "@/lib/time";
 import { cn } from "@/lib/cn";
 
@@ -80,6 +82,17 @@ export function AccountSettings({
             </dd>
           </div>
         </dl>
+        {/* Sign out lives with the account facts as well as in the avatar
+            menu — Settings is where people look for it. */}
+        <form action={signOutAction} className="mt-5 border-t border-slate-100 pt-4">
+          <button
+            type="submit"
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-xs transition hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Sign out
+          </button>
+        </form>
       </Card>
     </div>
   );

@@ -236,3 +236,38 @@ p {
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * Pointer cursor on everything clickable. Browsers give links a hand by
+ * default, but Tailwind v4's preflight resets <button> to `cursor: default`,
+ * so buttons styled as links (Sign out, menu items, Choose & pay, tabs,
+ * the bell and cart) showed an arrow. Base layer, so a specific utility like
+ * `cursor-not-allowed` on a single element still wins.
+ */
+@layer base {
+  a[href],
+  button:not(:disabled),
+  [role="button"],
+  [role="link"],
+  [role="menuitem"],
+  [role="tab"],
+  [role="radio"],
+  [role="option"],
+  summary,
+  select:not(:disabled),
+  label[for],
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="submit"]:not(:disabled),
+  input[type="button"]:not(:disabled),
+  input[type="file"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled="true"],
+  input:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+}
