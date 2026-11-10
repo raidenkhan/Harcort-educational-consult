@@ -43,7 +43,7 @@ export function AddCourseToCartButton({
   offerings: CartOffering[];
   className?: string;
 }) {
-  const { add, lines } = useCart();
+  const { add, lines, disabled } = useCart();
   const [open, setOpen] = useState(false);
   const [serviceId, setServiceId] = useState(offerings[0]?.tutorServiceId ?? "");
   const [mode, setMode] = useState<SessionMode>("one_on_one");
@@ -51,6 +51,10 @@ export function AddCourseToCartButton({
 
   const usable = offerings.filter((o) => cartLineModes(o).length > 0);
   const inCart = usable.some((o) => lines.some((l) => l.tutorServiceId === o.tutorServiceId));
+
+  // Admins are staff and never book — the control disappears for them
+  // (CartAccessGate in the nav), and the server refuses admin checkouts.
+  if (disabled) return null;
 
   if (usable.length === 0) {
     return (

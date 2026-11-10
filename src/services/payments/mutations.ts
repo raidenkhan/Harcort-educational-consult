@@ -604,6 +604,8 @@ export async function commitAndStartCheckout(
   formData: FormData,
 ): Promise<PaymentFormState> {
   const profile = await requireProfile();
+  // Admins are staff: they never book or pay for courses.
+  if (profileIsAdmin(profile)) return { error: "Admin accounts can't book courses. Use a student account to book and pay." };
 
   const parsed = createEngagementSchema.safeParse({
     tutorServiceId: formData.get("tutorServiceId"),
@@ -1566,6 +1568,8 @@ export async function startCartCheckout(
   formData: FormData,
 ): Promise<PaymentFormState> {
   const profile = await requireProfile();
+  // Admins are staff: they never book or pay for courses.
+  if (profileIsAdmin(profile)) return { error: "Admin accounts can't book courses. Use a student account to book and pay." };
 
   if (!isPaystackConfigured()) {
     return { error: "Payments are not configured yet — please try again later." };

@@ -70,7 +70,7 @@ export function AddToCartButton({
   /** Icon-only-ish button for tight card rows. */
   compact?: boolean;
 }) {
-  const { add, lines } = useCart();
+  const { add, lines, disabled } = useCart();
   const [open, setOpen] = useState(false);
   const [added, setAdded] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,6 +96,10 @@ export function AddToCartButton({
     add(toLine(offering, only));
     flashAdded();
   }
+
+  // Admins are staff and never book — the control disappears for them
+  // (CartAccessGate in the nav), and the server refuses admin checkouts.
+  if (disabled) return null;
 
   if (modes.length === 0) {
     return (

@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, CreditCard, Send, ShieldCheck, User, Users } from "lucide-react";
 import { AccountChoiceModal } from "@/components/auth/AccountChoiceModal";
+import { useCart } from "@/components/cart/CartProvider";
 import { sendTutorRequest } from "@/services/requests/mutations";
 import type { RequestFormState } from "@/services/requests/mutations";
 import { Button } from "@/components/ui/Button";
@@ -134,6 +135,7 @@ export function RequestTutorButton({
 }) {
   // Signed out: where to return after the "have an account?" choice.
   const [authNext, setAuthNext] = useState<string | null>(null);
+  const { disabled: bookingDisabled } = useCart();
   // A return-from-auth URL carries `?request=1`, so the dialog is open on the
   // FIRST render — no flash of the closed button.
   const [open, setOpen] = useState(autoOpen);
@@ -172,6 +174,10 @@ export function RequestTutorButton({
   // Signed-out visitors go through auth and come back to this exact course.
   // The auth form validates `next` server-side (safeNextPath) — this only
   // builds a same-site path.
+  // Admins are staff and never book — the control disappears for them
+  // (CartAccessGate in the nav), and the server refuses admin checkouts.
+  if (bookingDisabled) return null;
+
   if (!signedIn) {
     return (
       <>

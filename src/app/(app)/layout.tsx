@@ -4,6 +4,7 @@ import { countUnreadGroupMessages } from "@/services/groups/queries";
 import { MobileTabBar } from "@/components/navigation/MobileTabBar";
 import { FloatingNav } from "@/components/navigation/FloatingNav";
 import { CartNavButton } from "@/components/cart/CartNavButton";
+import { CartAccessGate } from "@/components/cart/CartProvider";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { UserMenu } from "@/components/navigation/UserMenu";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -99,7 +100,9 @@ async function AppHeader() {
           allHref={profile.role === "student" ? "/dashboard/notifications" : undefined}
         />
       )}
-      <CartNavButton />
+      {/* Admins are staff: no cart, no booking (the server refuses too). */}
+      <CartAccessGate disabled={Boolean(profile && profileIsAdmin(profile))} />
+      {!(profile && profileIsAdmin(profile)) && <CartNavButton />}
       {profile && <UserMenu profile={profile} />}
     </FloatingNav>
   );

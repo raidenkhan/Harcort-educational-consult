@@ -29,7 +29,7 @@ import { checkoutTotal } from "@/services/payments/fees";
  */
 export function CartView({ signedIn }: { signedIn: boolean }) {
   const searchParams = useSearchParams();
-  const { lines, remove, clear } = useCart();
+  const { lines, remove, clear, disabled } = useCart();
   // Signed out: "Make payment" asks whether they have an account first.
   const [askAccount, setAskAccount] = useState(false);
   const [state, formAction, pending] = useActionState<PaymentFormState, FormData>(
@@ -79,6 +79,30 @@ export function CartView({ signedIn }: { signedIn: boolean }) {
           <div className="mt-6">
             <Link href="/dashboard">
               <Button>Go to dashboard</Button>
+            </Link>
+          </div>
+        </div>
+      </Container>
+    );
+  }
+
+  // Admins are staff and never book: no cart for them (the server refuses
+  // admin checkouts too).
+  if (disabled) {
+    return (
+      <Container className="py-16">
+        <div className="mx-auto max-w-2xl text-center">
+          <ShoppingCart className="mx-auto h-12 w-12 text-slate-400" />
+          <h1 className="mt-4 font-display text-2xl font-bold tracking-[-0.01em] text-slate-900">
+            Admin accounts can&apos;t book courses
+          </h1>
+          <p className="mt-2 text-slate-600">
+            Booking and paying for courses is for student accounts. Manage
+            courses and tutors from the admin console.
+          </p>
+          <div className="mt-6 flex justify-center">
+            <Link href="/admin">
+              <Button>Open the admin console</Button>
             </Link>
           </div>
         </div>

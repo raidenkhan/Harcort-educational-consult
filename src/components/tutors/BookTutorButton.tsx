@@ -80,7 +80,7 @@ export function BookTutorButton({
   const [semesters, setSemesters] = useState(1);
 
   const [askAccount, setAskAccount] = useState(false);
-  const { add } = useCart();
+  const { add, disabled } = useCart();
   const [state, formAction, pending] = useActionState<PaymentFormState, FormData>(
     startCartCheckout,
     {},
@@ -139,6 +139,10 @@ export function BookTutorButton({
     // return to /cart, where this selection is waiting.
     setAskAccount(true);
   };
+
+  // Admins are staff and never book — the control disappears for them
+  // (CartAccessGate in the nav), and the server refuses admin checkouts.
+  if (disabled) return null;
 
   if (modes.length === 0) {
     return (

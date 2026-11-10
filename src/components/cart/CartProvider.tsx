@@ -35,6 +35,12 @@ interface CartContextValue {
   add: (line: CartLine) => void;
   remove: (tutorServiceId: string) => void;
   clear: () => void;
+  /** True for admin accounts: admins are staff and never book, so every cart
+   *  and booking control hides itself and `add` does nothing. Switched on by
+   *  `CartAccessGate` in the navs (which know who is signed in); the server
+   *  refuses admin checkouts regardless. */
+  disabled: boolean;
+  setDisabled: (disabled: boolean) => void;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -90,9 +96,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const add = useCallback((line: CartLine) => {
-    setLines((current) => upsertCartLine(current, line));
-  }, []);
+  const [disabled, setDisabled] = useState(false);
+
+  const add = useCallback(
+    (line: CartLine) => {
+      if (disabled) return;
+      setLines((current) => upsertCartLine(current, line));
+    },
+    [disabled],
+  );
 
   const remove = useCallback((tutorServiceId: string) => {
     setLines((current) => removeCartLine(current, tutorServiceId));
@@ -107,9 +119,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       add,
       remove,
       clear,
+      disabled,
+      setDisabled,
     }),
-    [lines, add, remove, clear],
+    [lines, add, remove, clear, disabled],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+}
+
+/**
+ * Rendered by the navs with the signed-in viewer's admin status: switches the
+ * cart off for admins (and back on if a different, non-admin user signs in
+ * in the same tab). Renders nothing.
+ */
+export function CartAccessGate({ disabled }: { disabled: boolean }) {
+  const { setDisabled } = useCart();
+  useEffect(() => {
+    setDisabled(disabled);
+  }, [disabled, setDisabled]);
+  return null;
 }

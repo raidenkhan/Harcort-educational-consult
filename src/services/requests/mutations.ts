@@ -7,7 +7,7 @@ import { scheduleOutboxDrain } from "@/lib/email/outbox";
 import { notifyNewMessage } from "@/lib/email/notify";
 import { notifySmsToProfiles } from "@/lib/sms";
 import { formatGhs } from "@/lib/money";
-import { requireProfile } from "@/services/auth/queries";
+import { profileIsAdmin, requireProfile } from "@/services/auth/queries";
 import { seatGroupBookingForRequest } from "@/services/groups/booking";
 import {
   DEFAULT_SESSION_MODE,
@@ -100,6 +100,10 @@ export async function sendTutorRequest(
   formData: FormData,
 ): Promise<RequestFormState> {
   const profile = await requireProfile();
+  // Admins are staff: they never book tutors (the button is hidden too).
+  if (profileIsAdmin(profile)) {
+    return { error: "Admin accounts can't book tutors. Use a student account to book." };
+  }
 
   const parsed = sendRequestSchema.safeParse({
     tutorProfileId: formData.get("tutorProfileId"),

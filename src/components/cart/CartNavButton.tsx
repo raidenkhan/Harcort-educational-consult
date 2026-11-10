@@ -10,8 +10,11 @@ import { cn } from "@/lib/cn";
  * student can see their shortlist from any page.
  */
 export function CartNavButton({ className }: { className?: string }) {
-  const { count } = useCart();
+  const { count, disabled } = useCart();
   const label = count === 0 ? "Cart" : `Cart, ${count} course${count === 1 ? "" : "s"}`;
+
+  // Admins never book — no cart for them.
+  if (disabled) return null;
 
   return (
     <Link

@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import { AuthTrigger } from "@/components/auth/AuthTrigger";
 import { CartNavButton } from "@/components/cart/CartNavButton";
+import { CartAccessGate } from "@/components/cart/CartProvider";
+import { profileIsAdmin } from "@/lib/auth/admin";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { GlobalSearchLoader } from "@/components/search/GlobalSearchLoader";
 import { FloatingNav } from "./FloatingNav";
@@ -44,14 +46,17 @@ export function PublicNav({
     >
       {profile ? (
         <>
+          {/* Admins are staff: no cart, no booking (the server refuses too). */}
+          <CartAccessGate disabled={profileIsAdmin(profile)} />
           <NotificationBell
             allHref={profile.role === "student" ? "/dashboard/notifications" : undefined}
           />
-          <CartNavButton />
+          {!profileIsAdmin(profile) && <CartNavButton />}
           <UserMenu profile={profile} />
         </>
       ) : (
         <>
+          <CartAccessGate disabled={false} />
           <AuthTrigger
             tab="sign-in"
             className="inline-flex h-9 rounded-full px-2.5 text-[13px] font-semibold text-slate-700 hover:bg-slate-100 sm:h-10 sm:px-3.5 sm:text-sm"

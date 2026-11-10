@@ -887,6 +887,13 @@ mobile app.
   `admin_audit_log`), schemas in `admin/schemas.ts` (tested), list data from
   `listTutorsForAdmin` / `courseUsageCounts`. Two-step `ConfirmAction` for
   anything permanent.
+  **Admins can't book.** `CartProvider` carries a `disabled` switch that
+  `CartAccessGate` (rendered by both navs, which know the viewer) turns on
+  for admins: the cart icon, Add to cart, Book tutor and Request controls
+  render nothing, `add()` is a no-op and `/cart` shows "Admin accounts can't
+  book courses". The server refuses too — `startCartCheckout`,
+  `commitAndStartCheckout` and `sendTutorRequest` return an error for
+  `profileIsAdmin`.
 ---
 
 ## 3. Architecture
