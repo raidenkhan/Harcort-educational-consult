@@ -86,11 +86,17 @@ export function LevelRail({
     );
     if (!chip) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    chip.scrollIntoView({
-      behavior: reduce ? "auto" : "smooth",
-      inline: "center",
-      block: "nearest",
-    });
+    // Scroll ONLY the chip track, horizontally. `chip.scrollIntoView()` also
+    // scrolls every ancestor — including the window — to bring the chip into
+    // view, so on load (this effect runs on mount) it dragged the whole
+    // landing page down to "Start from your course" instead of leaving the
+    // visitor on the hero.
+    // Measured against the track itself (offsetLeft would be relative to the
+    // nearest positioned ancestor, not the track).
+    const chipRect = chip.getBoundingClientRect();
+    const trackRect = el.getBoundingClientRect();
+    const target = el.scrollLeft + (chipRect.left - trackRect.left) - (el.clientWidth - chipRect.width) / 2;
+    el.scrollTo({ left: Math.max(0, target), behavior: reduce ? "auto" : "smooth" });
   }, [openKey, chipKey]);
 
   const nudge = (dir: -1 | 1) => {
