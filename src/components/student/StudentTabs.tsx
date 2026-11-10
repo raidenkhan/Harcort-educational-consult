@@ -7,7 +7,9 @@ import {
   BookOpen,
   CalendarClock,
   House,
+  MessageCircle,
   Settings,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -26,6 +28,12 @@ import type { UserRole } from "@/types";
  * Route-based like `TutorTabs`: the active state comes from the pathname, so
  * there is no client state to keep in sync. Admins only see Home + Settings —
  * the three student sections would render empty for them.
+ *
+ * Two pieces: `StudentHeader` (the section's title + description, above
+ * everything) and `StudentNav` (the menu — a sticky vertical sidebar from
+ * `lg` up, a scrollable row below). The menu also carries Messages and Groups
+ * (with the unread badge); for students those links left the top navbar, so
+ * the dashboard menu is the one place to find them on desktop.
  */
 type Section = {
   href: string;
@@ -37,6 +45,13 @@ type Section = {
    *  is the admin console, so those tabs are hidden for them. */
   studentOnly?: boolean;
 };
+
+/** Links in the menu that lead out of the dashboard (no header of their own
+ *  here — their pages have their own). */
+const ELSEWHERE = [
+  { href: "/chat", label: "Messages", icon: MessageCircle },
+  { href: "/groups", label: "Groups", icon: Users },
+] as const;
 
 const TABS: Section[] = [
   {
@@ -75,19 +90,8 @@ const TABS: Section[] = [
   },
 ];
 
-export function StudentTabs({
-  role,
-  firstName,
-  status,
-}: {
-  role: UserRole;
-  /** First name for the Home greeting. */
-  firstName: string;
-  /** Extra line under the heading (the student's public code chip). */
-  status?: React.ReactNode;
-}) {
+function useSections(role: UserRole, firstName: string) {
   const pathname = usePathname();
-
   const home: Section = {
     href: "/dashboard",
     label: "Home",
@@ -107,8 +111,22 @@ export function StudentTabs({
     .filter((s) => pathname === s.href || pathname.startsWith(`${s.href}/`))
     .sort((a, b) => b.href.length - a.href.length);
   const section = matched[0] ?? home;
-  const activeHref = section.href;
+  return { sections, section, activeHref: section.href };
+}
 
+/** The current section's heading — sits above the sidebar and content. */
+export function StudentHeader({
+  role,
+  firstName,
+  status,
+}: {
+  role: UserRole;
+  /** First name for the Home greeting. */
+  firstName: string;
+  /** Extra line under the heading (the student's public code chip). */
+  status?: React.ReactNode;
+}) {
+  const { section } = useSections(role, firstName);
   return (
     <div>
       <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-slate-900 sm:text-3xl">
@@ -120,31 +138,79 @@ export function StudentTabs({
         </p>
       )}
       {status}
-
-      <nav
-        aria-label="Dashboard sections"
-        className="mt-8 flex gap-1 overflow-x-auto rounded-xl border border-slate-200/80 bg-white/80 p-1.5 backdrop-blur-sm"
-      >
-        {sections.map(({ href, label, icon: Icon }) => {
-          const active = href === activeHref;
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors duration-150",
-                active
-                  ? "bg-brand-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
     </div>
+  );
+}
+
+const linkClass = (active: boolean) =>
+  cn(
+    "flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors duration-150 lg:py-2.5",
+    active
+      ? "bg-brand-600 text-white shadow-sm"
+      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+  );
+
+/** The dashboard menu: sidebar on desktop, scrollable row on phones. */
+export function StudentNav({
+  role,
+  firstName,
+  groupUnread = 0,
+}: {
+  role: UserRole;
+  firstName: string;
+  /** Unread study-group messages (0036) — the badge that used to sit on the
+   *  navbar's Groups link. */
+  groupUnread?: number;
+}) {
+  const { sections, activeHref } = useSections(role, firstName);
+  const showElsewhere = role === "student";
+
+  return (
+    <nav
+      aria-label="Dashboard sections"
+      className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200/80 bg-white/80 p-1.5 backdrop-blur-sm lg:flex-col lg:overflow-visible"
+    >
+      {sections.map(({ href, label, icon: Icon }) => {
+        const active = href === activeHref;
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={linkClass(active)}
+          >
+            <Icon className="h-4 w-4" aria-hidden="true" />
+            {label}
+          </Link>
+        );
+      })}
+
+      {showElsewhere && (
+        <>
+          {/* A hairline between the dashboard's own sections and the links
+              that lead to Messages / Groups (vertical layout only). */}
+          <span aria-hidden="true" className="mx-2 hidden h-px bg-slate-200 lg:my-1 lg:block" />
+          {ELSEWHERE.map(({ href, label, icon: Icon }) => {
+            const badge = href === "/groups" ? groupUnread : 0;
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-label={badge ? `${label}, ${badge} unread` : undefined}
+                className={linkClass(false)}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                {label}
+                {badge > 0 && (
+                  <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                    {badge > 99 ? "99+" : badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </>
+      )}
+    </nav>
   );
 }

@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { requireProfile } from "@/services/auth/queries";
 import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { Container } from "@/components/ui/Container";
-import { StudentTabs } from "@/components/student/StudentTabs";
+import { StudentHeader, StudentNav } from "@/components/student/StudentTabs";
+import { countUnreadGroupMessages } from "@/services/groups/queries";
 
 /**
  * Student dashboard shell — one dashboard (`/dashboard`) with its sections
@@ -11,7 +12,8 @@ import { StudentTabs } from "@/components/student/StudentTabs";
  * timetable and a pile of settings cards all lived together; each page now
  * fetches only what it shows.
  *
- * The heading and tabs come from `StudentTabs`, which is pathname-aware, so
+ * The heading and menu come from `StudentHeader` / `StudentNav`, which are
+ * pathname-aware, so
  * the page never disagrees with the tab row about which section you're on.
  */
 export default async function DashboardLayout({
@@ -29,13 +31,19 @@ export default async function DashboardLayout({
   if (profile.role === "tutor") redirect("/tutor");
   if (profile.role === "admin") redirect("/admin");
 
+  const firstName = profile.full_name.split(" ")[0];
+  const groupUnread =
+    profile.role === "student" ? await countUnreadGroupMessages(profile) : 0;
+
   return (
-    <div className="relative overflow-hidden">
+    // `overflow-clip`, not `overflow-hidden`: hidden makes this wrapper a
+    // scroll container, which silently breaks the sidebar's `sticky`.
+    <div className="relative overflow-clip">
       <BentoBackdrop tone="petrol" />
       <Container className="py-6 sm:py-12">
-        <StudentTabs
+        <StudentHeader
           role={profile.role}
-          firstName={profile.full_name.split(" ")[0]}
+          firstName={firstName}
           status={
             profile.public_code ? (
               <p
@@ -48,7 +56,19 @@ export default async function DashboardLayout({
           }
         />
 
-        {children}
+        {/* Sidebar from lg up (sticky); a scrollable row above the content
+            below lg. Each page's own top margin is zeroed so content lines
+            up with the top of the sidebar. */}
+        <div className="mt-8 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start lg:gap-8">
+          <aside className="lg:sticky lg:top-24">
+            <StudentNav
+              role={profile.role}
+              firstName={firstName}
+              groupUnread={groupUnread}
+            />
+          </aside>
+          <div className="mt-8 min-w-0 lg:mt-0 [&>*:first-child]:mt-0">{children}</div>
+        </div>
       </Container>
     </div>
   );

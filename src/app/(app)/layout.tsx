@@ -76,12 +76,12 @@ async function AppHeader() {
   // 0036: a group message the student hasn't opened shows as a pill on the
   // Groups link, so "your tutor added you" is visible from any page.
   const groupUnread =
-    profile && (profile.role === "student" || profile.role === "tutor")
-      ? await getUnreadCount(profile)
-      : 0;
+    profile?.role === "tutor" ? await getUnreadCount(profile) : 0;
 
   const links = [
-    ...(profile?.role === "student" || profile?.role === "tutor"
+    // Students reach Messages and Groups from their dashboard menu (sidebar),
+    // so the navbar only carries them for tutors.
+    ...(profile?.role === "tutor"
       ? [
           { href: "/chat", label: "Messages" },
           { href: "/groups", label: "Groups", badge: groupUnread },
