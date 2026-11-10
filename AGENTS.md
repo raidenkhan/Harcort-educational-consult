@@ -945,6 +945,22 @@ mobile app.
   another student's code; "not yours" and "not found" share one message.
   Pure rules in `discounts/codes.ts` (tested). Discounts apply on the
   cart/Book-tutor checkout only (not the legacy single-course paywall).
+- **Bookings live in the cart; every Pay opens a modal; semester filters.**
+  `/cart` (signed-in students) lists bookings made but not paid — "Booked —
+  awaiting payment", each with **Pay** and **Cancel**, plus **Pay all** — and
+  the latest paid ones. Pay (cart and Dashboard → Payments) always opens
+  `PayBookingsModal` (lines, discount box, fee, total) and posts to
+  `payBookings`, which checks ownership and runs the shared
+  `checkoutEngagements` (steps 3–6 of the cart checkout, discounts included).
+  Installments of an admin-made plan open a confirm modal without a discount
+  box. `cancelBooking` only cancels an UNPAID booking and refuses while a
+  checkout from the last 30 minutes could still complete. Home's Pay now goes
+  to the cart. Paystack refusals at checkout go through
+  `paystackCheckoutMessage` (pure, tested) instead of Paystack's raw text.
+  The student Courses page has year links plus a **semester dropdown**
+  (`SemesterFilterSelect`, URL `?semester=`, keeps the year); the admin
+  catalogue has **year and semester dropdowns** (client-side). Courses not
+  tied to a year/semester stay visible under any filter.
 ---
 
 ## 3. Architecture

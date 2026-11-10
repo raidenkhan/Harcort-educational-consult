@@ -172,12 +172,17 @@ export function CourseCatalogueManager({
 }) {
   const [programme, setProgramme] = useState(programmes[0] ?? "");
   const [query, setQuery] = useState("");
+  // Year / semester filters ("" = all). Courses not tied to one stay visible.
+  const [year, setYear] = useState("");
+  const [semester, setSemester] = useState("");
   const [result, setResult] = useState<ManageState | null>(null);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return courses
       .filter((c) => c.subject === programme)
+      .filter((c) => !year || c.year == null || String(c.year) === year)
+      .filter((c) => !semester || c.semester == null || String(c.semester) === semester)
       .filter((c) => !q || `${c.code ?? ""} ${c.name}`.toLowerCase().includes(q))
       .sort(
         (a, b) =>
@@ -185,9 +190,9 @@ export function CourseCatalogueManager({
           (a.semester ?? 9) - (b.semester ?? 9) ||
           (a.code ?? a.name).localeCompare(b.code ?? b.name),
       );
-  }, [courses, programme, query]);
+  }, [courses, programme, query, year, semester]);
   // 10 per page; back to page 1 whenever the programme or search changes.
-  const paged = usePagination(visible, 10, `${programme}|${query}`);
+  const paged = usePagination(visible, 10, `${programme}|${query}|${year}|${semester}`);
 
   return (
     <div className="space-y-4">
@@ -213,6 +218,29 @@ export function CourseCatalogueManager({
             </option>
           ))}
         </Select>
+        <Select
+          value={year}
+          onChange={(e) => setYear(e.target.value)}
+          aria-label="Year"
+          className="h-10 sm:w-36"
+        >
+          <option value="">All years</option>
+          {[1, 2, 3, 4].map((y) => (
+            <option key={y} value={y}>
+              Year {y}
+            </option>
+          ))}
+        </Select>
+        <Select
+          value={semester}
+          onChange={(e) => setSemester(e.target.value)}
+          aria-label="Semester"
+          className="h-10 sm:w-44"
+        >
+          <option value="">Both semesters</option>
+          <option value="1">Semester 1</option>
+          <option value="2">Semester 2</option>
+        </Select>
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           <Input
@@ -230,6 +258,8 @@ export function CourseCatalogueManager({
 
       <p className="text-xs text-slate-500">
         {visible.length} course{visible.length === 1 ? "" : "s"} in {programme}
+        {year ? ` · Year ${year}` : ""}
+        {semester ? ` · Semester ${semester}` : ""}
       </p>
 
       {visible.length === 0 ? (

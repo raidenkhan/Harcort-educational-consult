@@ -13,6 +13,7 @@ import {
   YEARS,
 } from "@/components/home/courseTaxonomy";
 import { CourseTutorRow } from "@/components/courses/CourseTutorRow";
+import { SemesterFilterSelect } from "@/components/courses/SemesterFilterSelect";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 
@@ -84,11 +85,6 @@ export default async function StudentCoursesPage({
     { value: null, label: "All years" },
     ...YEARS.map((y) => ({ value: y, label: `Year ${y}` })),
   ];
-  const semesterOptions = [
-    { value: null, label: "Both semesters" },
-    { value: 1, label: "Semester 1" },
-    { value: 2, label: "Semester 2" },
-  ];
   /** A filter link that keeps the other filter as it is. */
   const filterHref = (year: number | null, semester: number | null) => {
     const params = new URLSearchParams();
@@ -116,7 +112,7 @@ export default async function StudentCoursesPage({
             </Link>
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <nav aria-label="Filter by year" className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
             {yearOptions.map((option) => {
               const active = option.value === yearFilter;
@@ -135,24 +131,7 @@ export default async function StudentCoursesPage({
               );
             })}
           </nav>
-          <nav aria-label="Filter by semester" className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
-            {semesterOptions.map((option) => {
-              const active = option.value === semesterFilter;
-              return (
-                <Link
-                  key={option.label}
-                  href={filterHref(yearFilter, option.value)}
-                  aria-current={active ? "true" : undefined}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                    active ? "bg-petrol-900 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-                  )}
-                >
-                  {option.label}
-                </Link>
-              );
-            })}
-          </nav>
+          <SemesterFilterSelect year={yearFilter} semester={semesterFilter} />
         </div>
       </div>
 
