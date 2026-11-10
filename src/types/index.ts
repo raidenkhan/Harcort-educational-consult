@@ -29,6 +29,10 @@ export interface Profile {
   role: UserRole;
   /** Admin privilege flag (0008) — a tutor can also be an admin. */
   is_admin: boolean;
+  /** Set when an admin blocked the account (0043); null/absent = active.
+   *  A blocked account can't sign in and is treated as signed out. */
+  blocked_at?: string | null;
+  blocked_reason?: string | null;
   /** Null until a brand-new Google account finishes the one-time role pick
    *  (0010). Email sign-ups and linked/backfilled accounts are always set. */
   onboarding_completed_at?: string | null;

@@ -894,6 +894,23 @@ mobile app.
   book courses". The server refuses too — `startCartCheckout`,
   `commitAndStartCheckout` and `sendTutorRequest` return an error for
   `profileIsAdmin`.
+- **Blocking (0043), modal forms, compact applications, paging.** Admins can
+  **block** any student or tutor from People → Students & tutors (never an
+  admin, never themselves): `profiles.blocked_at/blocked_by/blocked_reason`.
+  Blocking revokes every session; `getSessionProfile` treats a blocked
+  profile as signed out (so an open tab loses access on its next request);
+  email sign-in and the Google callback refuse with a readable message
+  (`isProfileBlocked`, Google reason `account_blocked`); `toTutorListings`
+  drops blocked tutors (filtered in JS so a database without 0043 still
+  works). Unblock restores access; nothing is deleted. The directory's Show
+  dropdown gains "Blocked". **Add tutor** and **Add course** are buttons that
+  open the form in a `Modal` (fresh form per open; on success the modal
+  closes and the list's status line reports it). **Tutor applications** is
+  a compact list — Approve (green) and Reject (light red, deep red while
+  pressed) beside the name; either opens a modal with an OPTIONAL message
+  that goes into the tutor's email (`TutorApplications`). The People
+  directory, the Tutors list and the course catalogue page 10 rows at a time
+  (`usePagination` + `Pager`; changing the filter/search resets to page 1).
 ---
 
 ## 3. Architecture
@@ -980,6 +997,7 @@ and all are safe to re-run:
 | `0039_one_off_payments_and_plans.sql` | One-off payments + real plans. `engagements.paid_amount` (pesewas, backfilled) is the engagement's own counter, written only by the RPCs that write a `payments` row; `payments.installment_id` becomes nullable with `on delete set null` — an agreement can be paid in one charge against itself. `create_payment_engagement` no longer auto-mints an installment; `payment_apply_verified_payment` / `admin_record_part_payment` / `admin_create_payment_request` take an engagement-level lock and **spill** a charge across open installments in `idx` order; `request_payout` / `complete_engagement` require `paid_amount = agreed_total`; `sync_installment_deadlines` skips engagements carrying an `engagement.plan_created` event instead of creating the 0029 single installment; `payment_overdue` gains `parts` (no more "of 2"); new RPC `admin_create_installment_plan` splits a pending, entirely-unpaid agreement into dated parts (re-checks the sum, refuses after any payment) and queues `payment.plan_created` email. Built on 0031's format-aware engagement creation (price_group/price_one_on_one, `format_not_offered`). Every app read uses an `isMissingColumn` fallback so the code works before and after the migration is applied |
 | `0041_cart_semesters.sql` | `engagements.semesters` (1..4, default 1). `prepare_cart_engagement` gains `p_semesters` (old 4-arg version dropped to keep PostgREST unambiguous): `agreed_total = per-semester price × semesters`, computed from `tutor_services`. Until it is applied, checkout falls back to the 4-arg RPC for 1 semester and refuses more |
 | `0042_notifications.sql` | `notifications` — the in-app bell: recipient, kind, title, body, link, `read_at`, `created_by` (the admin who sent a reminder) and a UNIQUE `source_key` dedupe claim (the outbox drain writes `outbox:<row id>`). Indexes for the recipient's newest-first list, the unread badge and "last reminded". Deny-all RLS |
+| `0043_block_accounts.sql` | `profiles.blocked_at` / `blocked_by` / `blocked_reason` — an admin-blocked student or tutor can't sign in, is treated as signed out, and (tutors) leaves the directory; nothing is deleted. Partial index on blocked rows |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -1126,7 +1144,7 @@ every send).
 
 Setup runbook:
 1. `npm install`
-2. Apply migrations `0001` → `0042` in the Supabase SQL Editor, in order
+2. Apply migrations `0001` → `0043` in the Supabase SQL Editor, in order
    (each is safe to re-run)
 3. `npm run dev` → http://localhost:3000 (no confirmation emails — sign-up
    signs you in immediately)

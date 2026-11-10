@@ -7,6 +7,9 @@ import { Card } from "@/components/ui/Card";
 import { Input, Select } from "@/components/ui/Fields";
 import { TutorAvatar } from "@/components/ui/TutorAvatar";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
+import { blockAccount, unblockAccount, type ManageState } from "@/services/admin/manage";
+import { ActionStatus, ConfirmAction } from "./ConfirmAction";
+import { Pager, usePagination } from "./Pager";
 
 export type DirectoryPerson = {
   id: string;
@@ -18,9 +21,11 @@ export type DirectoryPerson = {
   joinedLabel: string;
   isAdmin: boolean;
   tutorStatus: "pending" | "approved" | "rejected" | null;
+  /** Blocked by an admin (0043): can't sign in, tutors hidden. */
+  blocked: boolean;
 };
 
-type Show = "all" | "student" | "tutor";
+type Show = "all" | "student" | "tutor" | "blocked";
 
 const TUTOR_STATUS: Record<
   NonNullable<DirectoryPerson["tutorStatus"]>,
@@ -39,12 +44,14 @@ const TUTOR_STATUS: Record<
 export function PeopleDirectory({ people }: { people: DirectoryPerson[] }) {
   const [show, setShow] = useState<Show>("all");
   const [query, setQuery] = useState("");
+  const [result, setResult] = useState<ManageState | null>(null);
 
   const counts = useMemo(
     () => ({
       all: people.length,
       student: people.filter((p) => p.role === "student").length,
       tutor: people.filter((p) => p.role === "tutor").length,
+      blocked: people.filter((p) => p.blocked).length,
     }),
     [people],
   );
@@ -52,13 +59,15 @@ export function PeopleDirectory({ people }: { people: DirectoryPerson[] }) {
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return people.filter((person) => {
-      if (show !== "all" && person.role !== show) return false;
+      if (show === "blocked" ? !person.blocked : show !== "all" && person.role !== show) return false;
       if (!q) return true;
       return [person.name, person.publicCode, person.email].some((field) =>
         field?.toLowerCase().includes(q),
       );
     });
   }, [people, show, query]);
+  // Back to page 1 whenever the filter or search changes.
+  const paged = usePagination(visible, 10, `${show}|${query}`);
 
   return (
     <div>
@@ -74,6 +83,7 @@ export function PeopleDirectory({ people }: { people: DirectoryPerson[] }) {
             <option value="all">All ({counts.all})</option>
             <option value="student">Students ({counts.student})</option>
             <option value="tutor">Tutors ({counts.tutor})</option>
+            <option value="blocked">Blocked ({counts.blocked})</option>
           </Select>
         </label>
         <div className="relative flex-1">
@@ -92,8 +102,14 @@ export function PeopleDirectory({ people }: { people: DirectoryPerson[] }) {
         </div>
       </div>
 
+      {result && (
+        <div className="mt-3">
+          <ActionStatus result={result} />
+        </div>
+      )}
+
       <p className="mt-3 text-xs text-slate-500" aria-live="polite">
-        Showing {visible.length} of {counts[show]}
+        {visible.length} of {counts[show]} {show === "all" ? "people" : show === "blocked" ? "blocked" : `${show}s`}
       </p>
 
       {visible.length === 0 ? (
@@ -104,7 +120,7 @@ export function PeopleDirectory({ people }: { people: DirectoryPerson[] }) {
         </div>
       ) : (
         <Card padded={false} className="mt-3 divide-y divide-slate-100 overflow-hidden">
-          {visible.map((person) => (
+          {paged.slice.map((person) => (
             <div
               key={person.id}
               className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5"
@@ -136,11 +152,43 @@ export function PeopleDirectory({ people }: { people: DirectoryPerson[] }) {
                 {person.role === "tutor" && !person.tutorStatus && (
                   <Badge tone="neutral">No profile yet</Badge>
                 )}
+                {person.blocked && <Badge tone="red">Blocked</Badge>}
+                {/* Admins are staff and can't be blocked (the server refuses too). */}
+                {!person.isAdmin &&
+                  (person.blocked ? (
+                    <ConfirmAction
+                      label="Unblock"
+                      confirmLabel="Unblock"
+                      tone="neutral"
+                      run={() => unblockAccount(person.id)}
+                      onResult={setResult}
+                    />
+                  ) : (
+                    <ConfirmAction
+                      label="Block"
+                      confirmLabel="Block & sign out"
+                      title="They can't sign in until unblocked; tutors leave the directory. Nothing is deleted."
+                      run={() => blockAccount(person.id)}
+                      onResult={setResult}
+                    />
+                  ))}
               </div>
             </div>
           ))}
         </Card>
       )}
+
+      {/* 10 per page so the People tab stays a reasonable length. */}
+      <div className="mt-3">
+        <Pager
+          page={paged.page}
+          pages={paged.pages}
+          from={paged.from}
+          to={paged.to}
+          total={paged.total}
+          onPage={paged.setPage}
+        />
+      </div>
     </div>
   );
 }

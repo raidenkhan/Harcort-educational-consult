@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { safeNextPath } from "@/lib/auth/redirect";
-import { createSession, setSessionCookie } from "@/lib/auth/session";
+import { createSession, isProfileBlocked, setSessionCookie } from "@/lib/auth/session";
 import {
   exchangeGoogleCode,
   getGoogleOAuthClient,
@@ -78,6 +78,11 @@ export async function GET(request: NextRequest) {
   if (error || !profileId) {
     console.error("upsert_google_user failed", error?.message);
     return bounce("account_failed");
+  }
+
+  // Blocked by an admin (0043): no session, and a readable reason.
+  if (await isProfileBlocked(profileId as string)) {
+    return bounce("account_blocked");
   }
 
   const token = await createSession(profileId as string);

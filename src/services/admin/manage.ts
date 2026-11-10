@@ -338,3 +338,89 @@ export async function deleteCourse(courseId: string): Promise<ManageState> {
   revalidateCourses();
   return { message: `${label} was deleted.` };
 }
+
+// ---------------------------------------------------------------------------
+// Blocking (0043)
+// ---------------------------------------------------------------------------
+
+/**
+ * Block a student or tutor: they can't sign in (email or Google), every
+ * session they had is revoked now, and a blocked tutor leaves the directory.
+ * Nothing is deleted — bookings, payments and chats stay. Admin accounts and
+ * the acting admin can't be blocked.
+ */
+export async function blockAccount(profileId: string): Promise<ManageState> {
+  const admin = await requireRole("admin");
+  const parsed = adminTargetSchema.safeParse({ id: profileId });
+  if (!parsed.success) return { error: "Unknown account." };
+  if (parsed.data.id === admin.id) return { error: "You can't block your own account." };
+
+  const supabase = createAdminClient();
+  const { data: target } = await supabase
+    .from("profiles")
+    .select("id, full_name, role, is_admin")
+    .eq("id", parsed.data.id)
+    .maybeSingle();
+  if (!target) return { error: "That account no longer exists." };
+  if (target.role === "admin" || target.is_admin) {
+    return { error: "Admin accounts can't be blocked." };
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      blocked_at: new Date().toISOString(),
+      blocked_by: admin.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", target.id);
+  if (error) {
+    return {
+      error: /blocked_at|column/i.test(error.message)
+        ? "Blocking isn't set up yet — apply migration 0043 in Supabase, then try again."
+        : `Couldn't block: ${error.message}`,
+    };
+  }
+
+  // Sign them out everywhere, now.
+  await supabase
+    .from("sessions")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("profile_id", target.id)
+    .is("revoked_at", null);
+
+  await audit(admin.id, "account_blocked", "profile", target.id, { name: target.full_name });
+  revalidateTutors();
+  return { message: `${target.full_name ?? "The account"} is blocked and has been signed out.` };
+}
+
+/** Lift a block: the person can sign in again (they start a fresh session). */
+export async function unblockAccount(profileId: string): Promise<ManageState> {
+  const admin = await requireRole("admin");
+  const parsed = adminTargetSchema.safeParse({ id: profileId });
+  if (!parsed.success) return { error: "Unknown account." };
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      blocked_at: null,
+      blocked_by: null,
+      blocked_reason: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsed.data.id)
+    .select("full_name")
+    .maybeSingle();
+  if (error) {
+    return {
+      error: /blocked_at|column/i.test(error.message)
+        ? "Blocking isn't set up yet — apply migration 0043 in Supabase, then try again."
+        : `Couldn't unblock: ${error.message}`,
+    };
+  }
+
+  await audit(admin.id, "account_unblocked", "profile", parsed.data.id, {});
+  revalidateTutors();
+  return { message: `${data?.full_name ?? "The account"} is unblocked and can sign in again.` };
+}

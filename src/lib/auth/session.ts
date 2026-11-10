@@ -59,8 +59,26 @@ export const getSessionProfile = cache(async (): Promise<Profile | null> => {
     .gt("expires_at", new Date().toISOString())
     .maybeSingle();
 
-  return (data?.profiles as Profile | undefined) ?? null;
+  const profile = (data?.profiles as Profile | undefined) ?? null;
+  // A blocked account (0043) is signed out on its very next request, even if
+  // a session somehow survived the block (blocking also revokes them).
+  if (profile?.blocked_at) return null;
+  return profile;
 });
+
+/**
+ * True when the profile has been blocked by an admin (0043). Used by the
+ * sign-in paths to refuse with a clear message instead of a silent bounce.
+ * `select("*")` so a database without 0043 simply reads "not blocked".
+ */
+export async function isProfileBlocked(profileId: string): Promise<boolean> {
+  const { data } = await createAdminClient()
+    .from("profiles")
+    .select("*")
+    .eq("id", profileId)
+    .maybeSingle();
+  return Boolean((data as { blocked_at?: string | null } | null)?.blocked_at);
+}
 
 /** Revoke the current session and clear the cookie (sign-out). */
 export async function revokeSession(): Promise<void> {

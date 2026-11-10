@@ -55,6 +55,9 @@ export function toTutorListings(rows: TutorProfileRow[]): TutorListing[] {
   for (const row of rows) {
     const embedded = unwrapEmbed(row.profiles);
     if (!embedded) continue; // embed filtered out (or profile gone) — skip
+    // Blocked by an admin (0043): not bookable, not listed. Filtered here
+    // rather than in SQL so a database without the column keeps working.
+    if ((embedded as { blocked_at?: string | null }).blocked_at) continue;
     // Split the credentials embed off so nothing but the email leaves here.
     const { credentials, ...profile } = embedded;
     const contactEmail = unwrapEmbed(credentials ?? null)?.email?.trim() || null;

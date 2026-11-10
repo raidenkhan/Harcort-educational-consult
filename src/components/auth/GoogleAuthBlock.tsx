@@ -19,6 +19,8 @@ import { useSyncExternalStore } from "react";
 
 const ERROR_MESSAGES: Record<string, string> = {
   not_configured: "Google sign-in isn't set up yet. Use email to sign in.",
+  account_blocked:
+    "This account has been blocked. If you think this is a mistake, contact the Harcourt team.",
   state_mismatch: "That sign-in link has expired. Please try again.",
   code_exchange_failed:
     "Google couldn't complete the sign-in. Please try again.",

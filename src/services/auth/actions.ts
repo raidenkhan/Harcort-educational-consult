@@ -8,6 +8,7 @@ import { DUMMY_HASH, hashPassword, verifyPassword } from "@/lib/auth/password";
 import { optionalText, formText } from "@/lib/forms";
 import {
   createSession,
+  isProfileBlocked,
   revokeSession,
   setSessionCookie,
 } from "@/lib/auth/session";
@@ -258,6 +259,12 @@ export async function signInAction(
   }
 
   throttle.clear(emailKey);
+  if (await isProfileBlocked(credential.profile_id)) {
+    return {
+      error:
+        "This account has been blocked. If you think this is a mistake, contact the Harcourt team.",
+    };
+  }
   const token = await createSession(credential.profile_id);
   await setSessionCookie(token);
 

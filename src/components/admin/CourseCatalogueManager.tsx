@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import { BookPlus, Search } from "lucide-react";
 import { createCourse, deleteCourse, type ManageState } from "@/services/admin/manage";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Modal } from "@/components/ui/Modal";
 import { Input, Select } from "@/components/ui/Fields";
 import { ActionStatus, ConfirmAction } from "./ConfirmAction";
+import { Pager, usePagination } from "./Pager";
 
 export type CatalogueCourse = {
   id: string;
@@ -20,81 +22,138 @@ export type CatalogueCourse = {
   bookings: number;
 };
 
-/** Admin → Courses → Add a course: published to the programme immediately. */
-function AddCourseForm({ programmes, defaultProgramme }: { programmes: string[]; defaultProgramme: string }) {
+/** The Add-course form, shown inside the modal. Mounted fresh each time the
+ *  modal opens, so a previous attempt's values and errors never linger. */
+function AddCourseFormBody({
+  programmes,
+  defaultProgramme,
+  onAdded,
+}: {
+  programmes: string[];
+  defaultProgramme: string;
+  onAdded: (result: ManageState) => void;
+}) {
   const [state, formAction, pending] = useActionState<ManageState, FormData>(createCourse, {});
-  const formRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
-    if (state.message) formRef.current?.reset();
-  }, [state]);
+    if (state.message) onAdded(state);
+  }, [state, onAdded]);
 
   return (
-    <Card>
-      <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-        <BookPlus className="h-4 w-4 text-brand-600" aria-hidden="true" /> Add a course
-      </h3>
-      <p className="mt-1 text-sm text-slate-600">
-        Published straight away: students of that programme see it on their
-        Courses page, and tutors can offer it.
-      </p>
-      <form ref={formRef} action={formAction} className="mt-4 grid gap-3 sm:grid-cols-6">
-        <label className="text-sm sm:col-span-3">
-          <span className="mb-1 block font-medium text-slate-700">Programme</span>
-          <Select name="subject" defaultValue={defaultProgramme} required>
-            {programmes.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="text-sm sm:col-span-1">
-          <span className="mb-1 block font-medium text-slate-700">Code</span>
-          <Input name="code" placeholder="ME 261" required autoComplete="off" />
-        </label>
-        <label className="text-sm sm:col-span-2">
-          <span className="mb-1 block font-medium text-slate-700">Course name</span>
-          <Input name="name" required autoComplete="off" />
-        </label>
-        <label className="text-sm sm:col-span-2">
-          <span className="mb-1 block font-medium text-slate-700">Credit hours</span>
-          <Input name="credits" type="number" min={0} max={12} />
-        </label>
-        <label className="text-sm sm:col-span-2">
-          <span className="mb-1 block font-medium text-slate-700">Year</span>
-          <Select name="year" defaultValue="">
-            <option value="">Any year</option>
-            {[1, 2, 3, 4].map((y) => (
-              <option key={y} value={y}>
-                Year {y}
-              </option>
-            ))}
-          </Select>
-        </label>
-        <label className="text-sm sm:col-span-2">
-          <span className="mb-1 block font-medium text-slate-700">Semester</span>
-          <Select name="semester" defaultValue="">
-            <option value="">Both / not set</option>
-            <option value="1">Semester 1</option>
-            <option value="2">Semester 2</option>
-          </Select>
-        </label>
-        <label className="text-sm sm:col-span-6">
-          <span className="mb-1 block font-medium text-slate-700">
-            Description <span className="font-normal text-slate-400">(optional)</span>
-          </span>
-          <Input name="description" maxLength={500} />
-        </label>
+    <form action={formAction} className="grid gap-3 sm:grid-cols-6">
+      <label className="text-sm sm:col-span-3">
+        <span className="mb-1 block font-medium text-slate-700">Programme</span>
+        <Select name="subject" defaultValue={defaultProgramme} required>
+          {programmes.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </Select>
+      </label>
+      <label className="text-sm sm:col-span-1">
+        <span className="mb-1 block font-medium text-slate-700">Code</span>
+        <Input name="code" placeholder="ME 261" required autoComplete="off" />
+      </label>
+      <label className="text-sm sm:col-span-2">
+        <span className="mb-1 block font-medium text-slate-700">Course name</span>
+        <Input name="name" required autoComplete="off" />
+      </label>
+      <label className="text-sm sm:col-span-2">
+        <span className="mb-1 block font-medium text-slate-700">Credit hours</span>
+        <Input name="credits" type="number" min={0} max={12} />
+      </label>
+      <label className="text-sm sm:col-span-2">
+        <span className="mb-1 block font-medium text-slate-700">Year</span>
+        <Select name="year" defaultValue="">
+          <option value="">Any year</option>
+          {[1, 2, 3, 4].map((y) => (
+            <option key={y} value={y}>
+              Year {y}
+            </option>
+          ))}
+        </Select>
+      </label>
+      <label className="text-sm sm:col-span-2">
+        <span className="mb-1 block font-medium text-slate-700">Semester</span>
+        <Select name="semester" defaultValue="">
+          <option value="">Both / not set</option>
+          <option value="1">Semester 1</option>
+          <option value="2">Semester 2</option>
+        </Select>
+      </label>
+      <label className="text-sm sm:col-span-6">
+        <span className="mb-1 block font-medium text-slate-700">
+          Description <span className="font-normal text-slate-400">(optional)</span>
+        </span>
+        <Input name="description" maxLength={500} />
+      </label>
+      {state.error && (
         <div className="sm:col-span-6">
-          <Button type="submit" disabled={pending}>
-            {pending ? "Adding…" : "Add course"}
-          </Button>
+          <ActionStatus result={{ error: state.error }} />
         </div>
-      </form>
-      <div className="mt-3">
-        <ActionStatus result={state} />
+      )}
+      <div className="sm:col-span-6">
+        <Button type="submit" disabled={pending} className="w-full sm:w-auto">
+          {pending ? "Adding…" : "Add course"}
+        </Button>
       </div>
-    </Card>
+    </form>
+  );
+}
+
+/** Admin → Courses → "Add course" button: opens the form in a modal so the
+ *  page stays short. On success the modal closes and the catalogue's status
+ *  line reports it. */
+function AddCourseButton({
+  programmes,
+  defaultProgramme,
+  onAdded,
+}: {
+  programmes: string[];
+  defaultProgramme: string;
+  onAdded: (result: ManageState) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const handleAdded = useCallback(
+    (result: ManageState) => {
+      setOpen(false);
+      onAdded(result);
+    },
+    [onAdded],
+  );
+
+  return (
+    <>
+      <Button
+        type="button"
+        onClick={() => {
+          setAttempt((n) => n + 1);
+          setOpen(true);
+        }}
+      >
+        <BookPlus className="h-4 w-4" aria-hidden="true" />
+        Add course
+      </Button>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Add a course"
+        description="Published straight away: students of that programme see it on their Courses page, and tutors can offer it."
+        className="max-w-2xl"
+      >
+        <div className="mt-4">
+          {open && (
+            <AddCourseFormBody
+              key={attempt}
+              programmes={programmes}
+              defaultProgramme={defaultProgramme}
+              onAdded={handleAdded}
+            />
+          )}
+        </div>
+      </Modal>
+    </>
   );
 }
 
@@ -127,10 +186,19 @@ export function CourseCatalogueManager({
           (a.code ?? a.name).localeCompare(b.code ?? b.name),
       );
   }, [courses, programme, query]);
+  // 10 per page; back to page 1 whenever the programme or search changes.
+  const paged = usePagination(visible, 10, `${programme}|${query}`);
 
   return (
     <div className="space-y-4">
-      <AddCourseForm programmes={programmes} defaultProgramme={programme} />
+      {/* Same pattern as Add tutor: one button, the form opens in a modal. */}
+      <div className="flex justify-end">
+        <AddCourseButton
+          programmes={programmes}
+          defaultProgramme={programme}
+          onAdded={setResult}
+        />
+      </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <Select
@@ -170,7 +238,7 @@ export function CourseCatalogueManager({
         </div>
       ) : (
         <Card padded={false} className="divide-y divide-slate-100 overflow-hidden">
-          {visible.map((c) => (
+          {paged.slice.map((c) => (
             <div key={c.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 sm:px-5">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-slate-900">
@@ -205,6 +273,16 @@ export function CourseCatalogueManager({
           ))}
         </Card>
       )}
+
+      <Pager
+        page={paged.page}
+        pages={paged.pages}
+        from={paged.from}
+        to={paged.to}
+        total={paged.total}
+        onPage={paged.setPage}
+        noun="courses"
+      />
     </div>
   );
 }

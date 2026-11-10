@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useCallback, useEffect, useState } from "react";
 import { UserPlus } from "lucide-react";
 import {
   createTutorAccount,
@@ -13,8 +13,10 @@ import type { AdminTutorRow } from "@/services/admin/queries";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Fields";
 import { ActionStatus, ConfirmAction } from "./ConfirmAction";
+import { Pager, usePagination } from "./Pager";
 
 const STATUS: Record<NonNullable<AdminTutorRow["status"]>, { label: string; tone: "green" | "amber" | "red" }> = {
   approved: { label: "In directory", tone: "green" },
@@ -22,52 +24,86 @@ const STATUS: Record<NonNullable<AdminTutorRow["status"]>, { label: string; tone
   rejected: { label: "Hidden", tone: "red" },
 };
 
-/** Admin → People → Add tutor: creates an approved tutor account. */
-function AddTutorForm() {
+/** The Add-tutor form, shown inside the modal. Mounted fresh each time the
+ *  modal opens, so a previous attempt's values and errors never linger. */
+function AddTutorFormBody({ onAdded }: { onAdded: (result: ManageState) => void }) {
   const [state, formAction, pending] = useActionState<ManageState, FormData>(createTutorAccount, {});
-  const formRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
-    if (state.message) formRef.current?.reset();
-  }, [state]);
+    if (state.message) onAdded(state);
+  }, [state, onAdded]);
 
   return (
-    <Card>
-      <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-        <UserPlus className="h-4 w-4 text-brand-600" aria-hidden="true" /> Add a tutor
-      </h3>
-      <p className="mt-1 text-sm text-slate-600">
-        Creates their account, already approved. Share the email and password
-        with them — they sign in and add their bio and courses from Settings.
-      </p>
-      <form ref={formRef} action={formAction} className="mt-4 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
-          <span className="mb-1 block font-medium text-slate-700">Full name</span>
-          <Input name="fullName" required autoComplete="off" />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium text-slate-700">Email</span>
-          <Input name="email" type="email" required autoComplete="off" />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium text-slate-700">Starting password</span>
-          <Input name="password" type="text" minLength={8} required autoComplete="new-password" />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium text-slate-700">
-            Phone <span className="font-normal text-slate-400">(optional)</span>
-          </span>
-          <Input name="phone" type="tel" placeholder="0241234567" />
-        </label>
+    <form action={formAction} className="grid gap-3 sm:grid-cols-2">
+      <label className="text-sm">
+        <span className="mb-1 block font-medium text-slate-700">Full name</span>
+        <Input name="fullName" required autoComplete="off" />
+      </label>
+      <label className="text-sm">
+        <span className="mb-1 block font-medium text-slate-700">Email</span>
+        <Input name="email" type="email" required autoComplete="off" />
+      </label>
+      <label className="text-sm">
+        <span className="mb-1 block font-medium text-slate-700">Starting password</span>
+        <Input name="password" type="text" minLength={8} required autoComplete="new-password" />
+      </label>
+      <label className="text-sm">
+        <span className="mb-1 block font-medium text-slate-700">
+          Phone <span className="font-normal text-slate-400">(optional)</span>
+        </span>
+        <Input name="phone" type="tel" placeholder="0241234567" />
+      </label>
+      {state.error && (
         <div className="sm:col-span-2">
-          <Button type="submit" disabled={pending}>
-            {pending ? "Adding…" : "Add tutor"}
-          </Button>
+          <ActionStatus result={{ error: state.error }} />
         </div>
-      </form>
-      <div className="mt-3">
-        <ActionStatus result={state} />
+      )}
+      <div className="sm:col-span-2">
+        <Button type="submit" disabled={pending} className="w-full sm:w-auto">
+          {pending ? "Adding…" : "Add tutor"}
+        </Button>
       </div>
-    </Card>
+    </form>
+  );
+}
+
+/** Admin → People → "Add tutor" button: opens the form in a modal so the
+ *  page stays short. On success the modal closes and the list's status line
+ *  reports it; the new tutor appears in the list (the action revalidates). */
+function AddTutorButton({ onAdded }: { onAdded: (result: ManageState) => void }) {
+  const [open, setOpen] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const handleAdded = useCallback(
+    (result: ManageState) => {
+      setOpen(false);
+      onAdded(result);
+    },
+    [onAdded],
+  );
+
+  return (
+    <>
+      <Button
+        type="button"
+        onClick={() => {
+          setAttempt((n) => n + 1);
+          setOpen(true);
+        }}
+      >
+        <UserPlus className="h-4 w-4" aria-hidden="true" />
+        Add tutor
+      </Button>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Add a tutor"
+        description="Creates their account, already approved. Share the email and password with them — they sign in and add their bio and courses from Settings."
+        className="max-w-xl"
+      >
+        <div className="mt-4">
+          {open && <AddTutorFormBody key={attempt} onAdded={handleAdded} />}
+        </div>
+      </Modal>
+    </>
   );
 }
 
@@ -79,10 +115,13 @@ function AddTutorForm() {
  */
 export function TutorManager({ tutors }: { tutors: (AdminTutorRow & { joinedLabel: string })[] }) {
   const [result, setResult] = useState<ManageState | null>(null);
+  const paged = usePagination(tutors, 10);
 
   return (
     <div className="space-y-4">
-      <AddTutorForm />
+      <div className="flex justify-end">
+        <AddTutorButton onAdded={setResult} />
+      </div>
 
       <ActionStatus result={result} />
 
@@ -92,7 +131,7 @@ export function TutorManager({ tutors }: { tutors: (AdminTutorRow & { joinedLabe
         </div>
       ) : (
         <Card padded={false} className="divide-y divide-slate-100 overflow-hidden">
-          {tutors.map((t) => {
+          {paged.slice.map((t) => {
             const status = t.status ? STATUS[t.status] : null;
             return (
               <div key={t.profileId} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
@@ -143,6 +182,16 @@ export function TutorManager({ tutors }: { tutors: (AdminTutorRow & { joinedLabe
           })}
         </Card>
       )}
+
+      <Pager
+        page={paged.page}
+        pages={paged.pages}
+        from={paged.from}
+        to={paged.to}
+        total={paged.total}
+        onPage={paged.setPage}
+        noun="tutors"
+      />
     </div>
   );
 }

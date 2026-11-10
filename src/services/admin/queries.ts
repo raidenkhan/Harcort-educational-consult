@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isMissingColumn } from "@/lib/postgres";
 import { readRate } from "@/services/tutors/rate";
 import { listAllEngagements } from "@/services/payments/queries";
 import { listUnpaidStudents } from "@/services/payments/unpaid";
@@ -91,6 +92,8 @@ export interface PlatformPerson {
   isAdmin: boolean;
   /** Tutors only: the application status (null when no tutor profile yet). */
   tutorStatus: "pending" | "approved" | "rejected" | null;
+  /** Blocked by an admin (0043). */
+  blocked: boolean;
 }
 
 type PersonRow = {
@@ -100,6 +103,7 @@ type PersonRow = {
   public_code: string | null;
   created_at: string;
   is_admin: boolean | null;
+  blocked_at?: string | null;
   credentials?: { email: string | null } | { email: string | null }[] | null;
   tutor_profiles?:
     | { verification_status: PlatformPerson["tutorStatus"] }
@@ -118,21 +122,25 @@ const one = <T,>(value: T | T[] | null | undefined): T | null =>
 export async function listPlatformPeople(): Promise<PlatformPerson[]> {
   const supabase = createAdminClient();
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select(
-      "id, full_name, role, public_code, created_at, is_admin, credentials(email), tutor_profiles(verification_status)",
-    )
-    .in("role", ["student", "tutor"])
-    .order("full_name")
-    .limit(2000);
+  const base =
+    "id, full_name, role, public_code, created_at, is_admin, credentials(email), tutor_profiles(verification_status)";
+  const run = (columns: string) =>
+    supabase
+      .from("profiles")
+      .select(columns)
+      .in("role", ["student", "tutor"])
+      .order("full_name")
+      .limit(2000);
+  // 0043 adds blocked_at; a database without it lists everyone as active.
+  let { data, error } = await run(`${base}, blocked_at`);
+  if (error && isMissingColumn(error)) ({ data, error } = await run(base));
 
   if (error) {
     console.error(`[admin] listPlatformPeople: ${error.message}`);
     return [];
   }
 
-  return ((data ?? []) as PersonRow[]).map((row) => ({
+  return ((data ?? []) as unknown as PersonRow[]).map((row) => ({
     id: row.id,
     name: row.full_name || (row.role === "tutor" ? "Tutor" : "Student"),
     role: row.role,
@@ -144,6 +152,7 @@ export async function listPlatformPeople(): Promise<PlatformPerson[]> {
       row.role === "tutor"
         ? (one(row.tutor_profiles)?.verification_status ?? null)
         : null,
+    blocked: Boolean(row.blocked_at),
   }));
 }
 
