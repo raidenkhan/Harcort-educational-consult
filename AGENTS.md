@@ -1039,6 +1039,7 @@ SUPABASE_SERVICE_ROLE_KEY=   # REQUIRED — everything runs through this.
 NEXT_PUBLIC_ADMIN_WHATSAPP=   # student Contact-admin WhatsApp button (digits only, e.g. 233201234567)
 RESEND_API_KEY=               # optional — email notifications (Resend, free tier)
 EMAIL_FROM=                   # optional — verified-domain sender, e.g. "Harcourt <noreply@yourdomain.com>"
+EMAIL_REPLY_TO=               # optional — where student replies go; may be a Gmail (only the SENDER needs a verified domain)
 APP_URL=                      # optional — public origin for email links (default http://localhost:3000)
 ANALYTICS_SALT=               # optional — extra salt for the page-view visitor hash (0025)
 PAYSTACK_SECRET_KEY=          # Paystack secret (sk_test_… / sk_live_…) — server only

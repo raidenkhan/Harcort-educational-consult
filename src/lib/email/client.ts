@@ -33,5 +33,17 @@ export function getEmailClient(): Resend | null {
 export const EMAIL_FROM =
   process.env.EMAIL_FROM ?? "Harcourt Educational Consult <onboarding@resend.dev>";
 
+/**
+ * Reply-To for every email. The sender must be on a domain verified in
+ * Resend, but replies can go anywhere — including a Gmail inbox that could
+ * never be a sender (nobody can verify gmail.com). Set it to the inbox the
+ * team actually reads, e.g. EMAIL_REPLY_TO=team@example.com. Ignored
+ * unless it looks like an email address.
+ */
+const rawReplyTo = process.env.EMAIL_REPLY_TO?.trim() ?? "";
+export const EMAIL_REPLY_TO: string | null = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawReplyTo)
+  ? rawReplyTo
+  : null;
+
 /** Public origin for links inside emails (chat, admin, tutor pages). */
 export const APP_URL = process.env.APP_URL ?? "http://localhost:3000";

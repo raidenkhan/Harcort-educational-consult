@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { randomUUID } from "node:crypto";
-import { EMAIL_FROM, getEmailClient, isEmailConfigured, APP_URL } from "./client";
+import { EMAIL_FROM, EMAIL_REPLY_TO, getEmailClient, isEmailConfigured, APP_URL } from "./client";
 import { emailErrorReason } from "./errors";
 import { adminEmails, emailsForProfiles } from "./recipients";
 import {
@@ -54,6 +54,7 @@ export async function deliver(to: string, message: EmailMessage): Promise<string
     const { error } = await client.emails.send({
       from: EMAIL_FROM,
       to,
+      ...(EMAIL_REPLY_TO ? { replyTo: EMAIL_REPLY_TO } : {}),
       subject: message.subject,
       text: message.text,
       html: message.html,
