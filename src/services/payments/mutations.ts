@@ -34,6 +34,7 @@ import {
 } from "./schemas";
 import { generatePaymentToken, hashPaymentToken, paymentLinkPath } from "./links";
 import { checkoutTotal } from "./fees";
+import { paystackCheckoutMessage } from "./paystackMessage";
 import { CART_MAX_ITEMS, clampSemesters } from "@/services/cart/cart";
 import { getPaymentLinkByToken } from "./queries";
 import { discountOn, discountReasonMessage, normalizeDiscountCode } from "@/services/discounts/codes";
@@ -564,7 +565,8 @@ async function runCheckout(
         .from("payments")
         .update({ status: "failed" })
         .eq("id", init.id);
-      return { error: err.message };
+      console.error(`[payments] Paystack refused checkout: ${err.message}`);
+      return { error: paystackCheckoutMessage(err.message, email) };
     }
     console.error(`[payments] checkout ${reference}: outcome unknown`, err);
     return {
@@ -1663,6 +1665,25 @@ export async function startCartCheckout(
     engagementIds.push(data);
   }
 
+  return checkoutEngagements(profile, engagementIds, formData.get("discountCode"), returnTo);
+}
+
+/**
+ * Steps 3–6 of a checkout, for agreements that already exist: read what each
+ * owes, apply a discount code (0044), write the batch and start ONE Paystack
+ * charge. Shared by the cart / Book-tutor checkout (which first prices the
+ * lines into agreements) and by paying existing bookings from the cart or
+ * Dashboard → Payments (`payBookings`). The caller has already checked the
+ * agreements belong to `profile`.
+ */
+async function checkoutEngagements(
+  profile: Profile,
+  engagementIds: string[],
+  rawDiscountCode: FormDataEntryValue | null,
+  returnTo: string,
+): Promise<PaymentFormState> {
+  const supabase = createAdminClient();
+
   // ── 3. Read back what each agreement now owes (never trust the client).
   const { data: engagementRows, error: engagementError } = await supabase
     .from("engagements")
@@ -1686,7 +1707,7 @@ export async function startCartCheckout(
   // absorbs it — agreements keep their full price (so the tutor's share is
   // unchanged); the student is charged the remainder, and the discount is
   // credited by `applyPendingDiscount` once Paystack verifies the payment.
-  const discountCode = normalizeDiscountCode(formData.get("discountCode"));
+  const discountCode = normalizeDiscountCode(rawDiscountCode);
   let discount: { row: DiscountCodeRow; allocations: Allocation[]; total: bigint } | null = null;
   if (discountCode) {
     const { check, row, missingTable } = await checkCodeForStudent(discountCode, profile.id);
@@ -1847,7 +1868,8 @@ export async function startCartCheckout(
         .update({ status: "failed" })
         .eq("batch_id", batchId)
         .eq("status", "initialized");
-      return { error: err.message };
+      console.error(`[payments] Paystack refused checkout: ${err.message}`);
+      return { error: paystackCheckoutMessage(err.message, email) };
     }
     console.error(`[payments] cart checkout ${reference}: outcome unknown`, err);
     return {
@@ -1855,4 +1877,114 @@ export async function startCartCheckout(
         "We couldn't reach Paystack to start this payment. Nothing has been charged — please try again in a moment.",
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Bookings in the cart: pay or cancel existing agreements
+// ---------------------------------------------------------------------------
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Pay one or more of the student's EXISTING unpaid bookings in one Paystack
+ * charge, with an optional discount code — the "Pay" in the cart and on
+ * Dashboard → Payments (always through the payment modal, so a code can be
+ * applied). Ownership and status are checked here; the amounts are read back
+ * from the agreements by `checkoutEngagements`, never taken from the page.
+ */
+export async function payBookings(
+  _prev: PaymentFormState,
+  formData: FormData,
+): Promise<PaymentFormState> {
+  const profile = await requireProfile();
+  if (profileIsAdmin(profile)) return { error: "Admin accounts can't book courses. Use a student account to book and pay." };
+  if (!isPaystackConfigured()) {
+    return { error: "Payments are not configured yet — please try again later." };
+  }
+
+  let ids: string[] = [];
+  try {
+    const parsed = JSON.parse(String(formData.get("engagementIds") ?? "[]"));
+    ids = Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string" && UUID_RE.test(id)) : [];
+  } catch {
+    ids = [];
+  }
+  ids = [...new Set(ids)].slice(0, CART_MAX_ITEMS);
+  if (ids.length === 0) return { error: "Choose a booking to pay for." };
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("engagements")
+    .select("id, student_id, status")
+    .in("id", ids);
+  if (error) return { error: "Could not read your bookings — please try again." };
+  const rows = (data ?? []) as { id: string; student_id: string; status: string }[];
+  if (rows.length !== ids.length || rows.some((r) => r.student_id !== profile.id)) {
+    return { error: "One of these bookings isn't yours." };
+  }
+  if (rows.some((r) => r.status !== "pending_payment" && r.status !== "active")) {
+    return { error: "One of these bookings can't be paid any more — refresh and try again." };
+  }
+
+  const returnTo = formData.get("returnTo") === "payments" ? "/dashboard/payments" : "/cart?paid=1";
+  return checkoutEngagements(profile, ids, formData.get("discountCode"), returnTo);
+}
+
+/** How recent a checkout must be to block a cancel (it might still complete). */
+const CANCEL_BLOCK_MS = 30 * 60 * 1000;
+
+/**
+ * Cancel one of the student's bookings from the cart. Only an UNPAID booking
+ * can be cancelled (money on it means a refund conversation with the admin
+ * team), and not while a checkout started in the last 30 minutes could still
+ * complete — otherwise a payment could land on a cancelled booking.
+ */
+export async function cancelBooking(engagementId: string): Promise<PaymentFormState> {
+  const profile = await requireProfile();
+  if (!UUID_RE.test(engagementId)) return { error: "Unknown booking." };
+
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("engagements")
+    .select("id, student_id, status, paid_amount")
+    .eq("id", engagementId)
+    .maybeSingle();
+  const row = data as { id: string; student_id: string; status: string; paid_amount: number | string | null } | null;
+  if (!row || row.student_id !== profile.id) return { error: "Unknown booking." };
+  if (row.status !== "pending_payment" || Number(row.paid_amount ?? 0) > 0) {
+    return { error: "Only unpaid bookings can be cancelled here. For a paid booking, message the Harcourt team." };
+  }
+
+  const { count } = await supabase
+    .from("payments")
+    .select("id", { count: "exact", head: true })
+    .eq("engagement_id", row.id)
+    .eq("status", "initialized")
+    .gte("created_at", new Date(Date.now() - CANCEL_BLOCK_MS).toISOString());
+  if ((count ?? 0) > 0) {
+    return {
+      error: "A payment for this booking was started in the last 30 minutes. If you didn't finish it, try cancelling again a little later.",
+    };
+  }
+
+  const { error } = await supabase
+    .from("engagements")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", row.id)
+    .eq("student_id", profile.id)
+    .eq("status", "pending_payment");
+  if (error) return { error: `Couldn't cancel: ${error.message}` };
+
+  await supabase.from("payment_events").insert({
+    engagement_id: row.id,
+    type: "engagement.cancelled",
+    actor_id: profile.id,
+    actor_role: "student",
+    source: "app",
+    data: { reason: "cancelled_by_student_in_cart" },
+  });
+
+  revalidatePath("/cart");
+  revalidatePath("/dashboard", "layout");
+  return { message: "Booking cancelled." };
 }

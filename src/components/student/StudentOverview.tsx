@@ -113,7 +113,7 @@ export function StudentOverview({
       {/* ── Waiting for payment ─────────────────────────────────── */}
       {summary.awaitingCount > 0 && (
         <Link
-          href="/dashboard/payments"
+          href="/cart"
           className="mt-4 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 transition hover:bg-amber-100"
         >
           <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -177,7 +177,7 @@ export function StudentOverview({
                   </div>
                   {awaiting ? (
                     <Link
-                      href="/dashboard/payments"
+                      href="/cart"
                       className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700"
                     >
                       Pay now <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />

@@ -15,6 +15,8 @@ import { cartLinePesewas, cartLinePrice, cartSubtotalPesewas } from "@/services/
 import { sessionModeLabel } from "@/services/auth/sessionFormat";
 import { formatGhs } from "@/lib/money";
 import { AccountChoiceModal } from "@/components/auth/AccountChoiceModal";
+import { CartBookings, type PaidBooking } from "./CartBookings";
+import type { PayableBooking } from "@/components/payments/PayBookingsModal";
 import { checkoutTotal } from "@/services/payments/fees";
 import {
   DiscountCodeField,
@@ -32,7 +34,17 @@ import {
  * passed from the server to keep the displayed total in sync with what will
  * actually be charged.
  */
-export function CartView({ signedIn }: { signedIn: boolean }) {
+export function CartView({
+  signedIn,
+  pendingBookings = [],
+  paidBookings = [],
+}: {
+  signedIn: boolean;
+  /** Bookings already made but not paid (signed-in students). */
+  pendingBookings?: PayableBooking[];
+  /** A few recent paid bookings (signed-in students). */
+  paidBookings?: PaidBooking[];
+}) {
   const searchParams = useSearchParams();
   const { lines, remove, clear, disabled } = useCart();
   // Signed out: "Make payment" asks whether they have an account first.
@@ -122,6 +134,29 @@ export function CartView({ signedIn }: { signedIn: boolean }) {
   }
 
   // Empty cart state
+  if (lines.length === 0 && (pendingBookings.length > 0 || paidBookings.length > 0)) {
+    return (
+      <>
+        <BentoBackdrop variant="smooth" tone="purple" className="-z-10" />
+        <Container className="py-8 sm:py-12">
+          <div className="mx-auto max-w-3xl space-y-8">
+            <h1 className="font-display text-2xl font-bold tracking-[-0.01em] text-slate-900 sm:text-3xl">
+              Your cart
+            </h1>
+            <CartBookings pending={pendingBookings} paid={paidBookings} />
+            <p className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm text-slate-600">
+              Nothing new in your cart.{" "}
+              <Link href="/courses" className="font-semibold text-brand-700 hover:underline">
+                Browse courses
+              </Link>{" "}
+              to book another.
+            </p>
+          </div>
+        </Container>
+      </>
+    );
+  }
+
   if (lines.length === 0) {
     return (
       <Container className="py-16">
@@ -151,6 +186,11 @@ export function CartView({ signedIn }: { signedIn: boolean }) {
       <BentoBackdrop variant="smooth" tone="purple" className="-z-10" />
       <Container className="py-8 sm:py-12">
         <div className="mx-auto max-w-3xl">
+          {(pendingBookings.length > 0 || paidBookings.length > 0) && (
+            <div className="mb-10">
+              <CartBookings pending={pendingBookings} paid={paidBookings} />
+            </div>
+          )}
           <div className="mb-6 flex items-center justify-between">
             <h1 className="font-display text-2xl font-bold tracking-[-0.01em] text-slate-900 sm:text-3xl">
               Your cart ({lines.length} course{lines.length === 1 ? "" : "s"})

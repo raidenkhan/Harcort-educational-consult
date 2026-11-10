@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import { initializeInstallmentPayment } from "@/services/payments/mutations";
 
 /**
@@ -18,6 +19,7 @@ export function PayInstallmentButton({
   amountDisplay,
   disabled = false,
   disabledReason,
+  summary,
 }: {
   engagementId: string;
   /** Null = a one-off payment with no admin-created schedule (0039). */
@@ -25,7 +27,10 @@ export function PayInstallmentButton({
   amountDisplay: string;
   disabled?: boolean;
   disabledReason?: string;
+  /** What the confirm modal lists before Paystack. */
+  summary?: { title: string; amount: string; fee: string | null };
 }) {
+  const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     initializeInstallmentPayment,
     {},
@@ -47,32 +52,59 @@ export function PayInstallmentButton({
     );
   }
 
+  // Every Pay opens a confirm modal first (the same habit as the booking
+  // modal); this one has no discount box — codes apply to whole bookings,
+  // not to one installment of an admin-made plan.
   return (
-    <form action={formAction}>
-      <input type="hidden" name="engagementId" value={engagementId} />
-      {/* Omitted when null — an empty string would fail the uuid schema and
-          the action would report "Missing installment" for a valid one-off. */}
-      {installmentId ? (
-        <input type="hidden" name="installmentId" value={installmentId} />
-      ) : null}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Opening Paystack…" : `Pay ${amountDisplay}`}
+    <>
+      <Button type="button" onClick={() => setOpen(true)}>
+        {`Pay ${amountDisplay}`}
         <CreditCard className="ml-2 h-4 w-4" />
       </Button>
-
-      {/* A failed checkout used to be silent: the button stopped spinning and
-          nothing else changed, which reads exactly like "the server is not
-          responding". Say what happened. */}
-      {state?.error && (
-        <p className="mt-2 text-xs font-medium text-red-600" role="alert">
-          {state.error}
-        </p>
-      )}
-      {state?.message && !state.checkoutUrl && (
-        <p className="mt-2 text-xs font-medium text-slate-600" role="status">
-          {state.message}
-        </p>
-      )}
-    </form>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Pay this installment"
+        description="Discount codes apply to whole bookings — use them from your cart or when you book."
+        className="max-w-md"
+      >
+        <form action={formAction} className="mt-4 space-y-4">
+          <input type="hidden" name="engagementId" value={engagementId} />
+          {/* Omitted when null — an empty string would fail the uuid schema and
+              the action would report "Missing installment" for a valid one-off. */}
+          {installmentId ? (
+            <input type="hidden" name="installmentId" value={installmentId} />
+          ) : null}
+          {summary && (
+            <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+              <p className="font-medium text-slate-900">{summary.title}</p>
+              <div className="flex justify-between text-slate-600">
+                <span>Amount</span>
+                <span className="font-medium text-slate-900">{summary.amount}</span>
+              </div>
+              {summary.fee && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Processing fee</span>
+                  <span className="font-medium text-slate-900">{summary.fee}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-slate-200 pt-2 font-semibold text-slate-900">
+                <span>Total</span>
+                <span>{amountDisplay}</span>
+              </div>
+            </div>
+          )}
+          {state.error && (
+            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+              {state.error}
+            </p>
+          )}
+          <Button type="submit" disabled={pending || Boolean(state.checkoutUrl)} className="w-full">
+            {pending || state.checkoutUrl ? "Opening Paystack…" : `Pay ${amountDisplay}`}
+            <CreditCard className="ml-2 h-4 w-4" />
+          </Button>
+        </form>
+      </Modal>
+    </>
   );
 }

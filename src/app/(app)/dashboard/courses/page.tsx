@@ -22,14 +22,14 @@ import { cn } from "@/lib/cn";
  * The student's programme is set in Settings (their account is associated
  * with it); this page shows that programme's courses, grouped by semester,
  * and under EACH course the tutors who teach it, each with "Choose & pay".
- * Year is only a filter here (?year=1..4, default all years) — it is not a
- * saved setting. The course name opens the course page (notes, videos, the
+ * Year and semester are filters here (?year=1..4, ?semester=1|2, both
+ * default to all) — not saved settings. The course name opens the course page (notes, videos, the
  * same tutors).
  */
 export default async function StudentCoursesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string }>;
+  searchParams: Promise<{ year?: string; semester?: string }>;
 }) {
   const profile = await requireProfile();
   // Student surface only — the tab is hidden for admins and a tutor's
@@ -57,8 +57,9 @@ export default async function StudentCoursesPage({
     );
   }
 
-  const { year: yearParam } = await searchParams;
+  const { year: yearParam, semester: semesterParam } = await searchParams;
   const yearFilter = YEARS.find((y) => String(y) === yearParam) ?? null;
+  const semesterFilter = semesterParam === "1" ? 1 : semesterParam === "2" ? 2 : null;
 
   const [allCourses, tutors, bookings] = await Promise.all([
     listCourses(),
@@ -69,10 +70,11 @@ export default async function StudentCoursesPage({
   const programCourses = engineeringCourses(allCourses).filter(
     (c) => c.subject === profile.program,
   );
-  // The year filter keeps year-less (general) courses visible.
-  const visible = yearFilter
-    ? programCourses.filter((c) => c.year == null || c.year === yearFilter)
-    : programCourses;
+  // Both filters keep courses that aren't tied to one (year-less, or running
+  // in both semesters) visible.
+  const visible = programCourses
+    .filter((c) => !yearFilter || c.year == null || c.year === yearFilter)
+    .filter((c) => !semesterFilter || c.semester == null || c.semester === semesterFilter);
   const buckets = groupCoursesForPicker(visible);
   const offerings = offeringsByCourse(tutors, visible);
   const tutorById = new Map(tutors.map((t) => [t.tutorProfile.id, t]));
@@ -82,6 +84,19 @@ export default async function StudentCoursesPage({
     { value: null, label: "All years" },
     ...YEARS.map((y) => ({ value: y, label: `Year ${y}` })),
   ];
+  const semesterOptions = [
+    { value: null, label: "Both semesters" },
+    { value: 1, label: "Semester 1" },
+    { value: 2, label: "Semester 2" },
+  ];
+  /** A filter link that keeps the other filter as it is. */
+  const filterHref = (year: number | null, semester: number | null) => {
+    const params = new URLSearchParams();
+    if (year) params.set("year", String(year));
+    if (semester) params.set("semester", String(semester));
+    const q = params.toString();
+    return q ? `/dashboard/courses?${q}` : "/dashboard/courses";
+  };
 
   return (
     <div>
@@ -101,31 +116,52 @@ export default async function StudentCoursesPage({
             </Link>
           </p>
         </div>
-        <nav aria-label="Filter by year" className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
-          {yearOptions.map((option) => {
-            const active = option.value === yearFilter;
-            return (
-              <Link
-                key={option.label}
-                href={option.value ? `/dashboard/courses?year=${option.value}` : "/dashboard/courses"}
-                aria-current={active ? "true" : undefined}
-                className={cn(
-                  "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                  active ? "bg-petrol-900 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-                )}
-              >
-                {option.label}
-              </Link>
-            );
-          })}
-        </nav>
+        <div className="flex flex-wrap gap-2">
+          <nav aria-label="Filter by year" className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
+            {yearOptions.map((option) => {
+              const active = option.value === yearFilter;
+              return (
+                <Link
+                  key={option.label}
+                  href={filterHref(option.value, semesterFilter)}
+                  aria-current={active ? "true" : undefined}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                    active ? "bg-petrol-900 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                  )}
+                >
+                  {option.label}
+                </Link>
+              );
+            })}
+          </nav>
+          <nav aria-label="Filter by semester" className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
+            {semesterOptions.map((option) => {
+              const active = option.value === semesterFilter;
+              return (
+                <Link
+                  key={option.label}
+                  href={filterHref(yearFilter, option.value)}
+                  aria-current={active ? "true" : undefined}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                    active ? "bg-petrol-900 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                  )}
+                >
+                  {option.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
       </div>
 
       {/* ── Courses, each with its tutors ───────────────────────── */}
       {visible.length === 0 ? (
         <p className="mt-6 rounded-lg border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm text-slate-500">
           No courses listed for {profile.program}
-          {yearFilter ? ` Year ${yearFilter}` : ""} yet.
+          {yearFilter ? ` Year ${yearFilter}` : ""}
+          {semesterFilter ? `, Semester ${semesterFilter}` : ""} yet.
         </p>
       ) : (
         <div className="mt-8 space-y-10">

@@ -7,6 +7,7 @@ import { checkoutTotal } from "@/services/payments/fees";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { PayInstallmentButton } from "./PayInstallmentButton";
+import { PayBookingsButton } from "./PayBookingsModal";
 
 /**
  * Student payments card — the money side of the student dashboard.
@@ -170,9 +171,20 @@ export async function StudentPaymentsCard() {
                         </div>
                         <div className="flex items-center gap-3">
                           <Badge tone="amber">Unpaid</Badge>
-                          <PayInstallmentButton
-                            engagementId={engagement.id}
-                            amountDisplay={formatGhs(checkout.totalPesewas)}
+                          {/* Opens the payment modal — a discount code can
+                              be applied there before Paystack. */}
+                          <PayBookingsButton
+                            returnTo="payments"
+                            label={`Pay ${formatGhs(checkout.totalPesewas)}`}
+                            bookings={[
+                              {
+                                id: engagement.id,
+                                courseLabel: engagement.courseTitle || "Course",
+                                tutorName: engagement.tutorName || "your tutor",
+                                detail: "Semester fee",
+                                owedPesewas: engagement.remainingPesewas.toString(),
+                              },
+                            ]}
                           />
                         </div>
                       </li>
@@ -239,6 +251,15 @@ export async function StudentPaymentsCard() {
                           engagementId={engagement.id}
                           installmentId={installment.id}
                           amountDisplay={formatGhs(checkout.totalPesewas)}
+                          summary={{
+                            title: `${engagement.courseTitle || "Course"} — ${
+                              engagement.installments.length === 1
+                                ? "semester fee"
+                                : `installment ${installment.idx} of ${engagement.installments.length}`
+                            }`,
+                            amount: formatGhs(outstanding),
+                            fee: checkout.feePesewas > BigInt(0) ? formatGhs(checkout.feePesewas) : null,
+                          }}
                         />
                       ) : null}
                     </div>
