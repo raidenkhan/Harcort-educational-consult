@@ -848,7 +848,7 @@ mobile app.
   and the views build their links from `usePathname()`. Notifications has a
   full-history page; the bell offers "View all" to students. Students no
   longer get Messages/Groups in the navbar. **Home** is an overview —
-  courses booked, tutors, semesters booked, next lesson, bookings awaiting
+  courses booked, tutors, next lesson, bookings awaiting
   payment, a My-bookings list and "what you can do" doors — from
   `listStudentBookings` (reads `semesters` + `session_mode`) and the pure
   `summarizeBookings` / `orderBookings` (`payments/bookings.ts`, unit-tested).

@@ -3,7 +3,6 @@ import {
   AlertCircle,
   BookOpen,
   CalendarClock,
-  CalendarRange,
   ChevronRight,
   GraduationCap,
   MessageCircle,
@@ -61,7 +60,7 @@ function Tile({
 const MODE_LABEL = { one_on_one: "One-on-one", group: "Group" } as const;
 
 /**
- * The student Home overview: what they've booked (courses, tutors, how long),
+ * The student Home overview: what they've booked (courses, tutors),
  * the next lesson, anything waiting for payment, every booking in one list,
  * and the doors to everything else they can do.
  */
@@ -79,7 +78,7 @@ export function StudentOverview({
     <div>
       {/* ── At a glance ─────────────────────────────────────────── */}
       <section aria-label="At a glance">
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <Tile
             icon={BookOpen}
             label="Courses booked"
@@ -95,14 +94,6 @@ export function StudentOverview({
             note={summary.tutorsBooked === 1 ? "tutor teaching you" : "tutors teaching you"}
             href="/dashboard/messages"
             tint="bg-petrol-50 text-petrol-700"
-          />
-          <Tile
-            icon={CalendarRange}
-            label="Time booked"
-            value={summary.semestersBooked === 0 ? "—" : semestersLabel(summary.semestersBooked)}
-            note="of tutoring, across courses"
-            href="/dashboard/payments"
-            tint="bg-emerald-50 text-emerald-700"
           />
           <Tile
             icon={CalendarClock}
