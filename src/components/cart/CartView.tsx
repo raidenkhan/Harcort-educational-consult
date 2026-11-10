@@ -150,13 +150,17 @@ export function CartView({
               Your cart
             </h1>
             <CartBookings pending={pendingBookings} paid={paidBookings} />
-            <p className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm text-slate-600">
-              Nothing new in your cart.{" "}
-              <Link href="/courses" className="font-semibold text-brand-700 hover:underline">
-                Browse courses
-              </Link>{" "}
-              to book another.
-            </p>
+            {/* Only when nothing is waiting for payment — with a booking in
+                the cart, the cart isn't empty. */}
+            {pendingBookings.length === 0 && (
+              <p className="rounded-lg border border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm text-slate-600">
+                Your cart is empty.{" "}
+                <Link href="/courses" className="font-semibold text-brand-700 hover:underline">
+                  Browse courses
+                </Link>{" "}
+                to book one.
+              </p>
+            )}
           </div>
         </Container>
       </>
