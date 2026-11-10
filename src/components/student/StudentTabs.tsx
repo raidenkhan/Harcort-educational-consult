@@ -53,9 +53,9 @@ const TABS: Section[] = [
   {
     href: "/dashboard/courses",
     label: "Courses",
-    title: "Courses for your program",
+    title: "Book a course",
     description:
-      "Your program and year, its courses, and the materials and tutors on each one.",
+      "Your programme's courses and the tutors who teach them — choose a tutor and pay to book.",
     icon: BookOpen,
     studentOnly: true,
   },
@@ -106,7 +106,7 @@ const TABS: Section[] = [
     href: "/dashboard/settings",
     label: "Settings",
     title: "Settings",
-    description: "Your phone number, text alerts, program and account.",
+    description: "Your programme, phone number, text alerts and account.",
     icon: Settings,
   },
 ];

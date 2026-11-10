@@ -5,6 +5,7 @@ import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { RoleSwitcher } from "@/components/auth/RoleSwitcher";
 import { PhoneForm } from "@/components/auth/PhoneForm";
 import { SmsPreferenceForm } from "@/components/auth/SmsPreferenceForm";
+import { ProgramSetting } from "@/components/auth/ProgramSetting";
 import { accraDate } from "@/lib/time";
 import { cn } from "@/lib/cn";
 
@@ -16,12 +17,24 @@ import { cn } from "@/lib/cn";
 export function AccountSettings({
   profile,
   className,
+  programs,
 }: {
   profile: Profile;
   className?: string;
+  /** Students only: the programmes they can choose from (Settings →
+   *  Programme). Omitted for admins, who have no programme. */
+  programs?: string[];
 }) {
   return (
     <div className={cn("grid grid-cols-1 gap-6 sm:grid-cols-2", className)}>
+      {profile.role === "student" && programs && (
+        <ProgramSetting
+          key={profile.program ?? "none"}
+          programs={programs}
+          current={profile.program ?? null}
+        />
+      )}
+
       {/* Phone (0022) — where session text updates go. Optional for every
           role; an empty value clears the number. The opt-out switch (0027)
           sits with it: the number and the permission to use it are one

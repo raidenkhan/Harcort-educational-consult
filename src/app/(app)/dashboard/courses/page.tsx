@@ -1,154 +1,198 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { GraduationCap, Settings } from "lucide-react";
 import { requireProfile } from "@/services/auth/queries";
 import { listCourses } from "@/services/courses/queries";
 import { offeringsByCourse } from "@/services/courses/offerings";
 import { safeListApprovedTutors } from "@/services/tutors/queries";
+import { listStudentBookings } from "@/services/payments/queries";
+import { bookedTutorKeys } from "@/services/payments/bookings";
 import {
-  sortFields,
-  groupCoursesForPicker,
   engineeringCourses,
+  groupCoursesForPicker,
+  YEARS,
 } from "@/components/home/courseTaxonomy";
-import { StudyPrefsPicker } from "@/components/auth/StudyPrefsPicker";
+import { CourseTutorRow } from "@/components/courses/CourseTutorRow";
+import { Card } from "@/components/ui/Card";
+import { cn } from "@/lib/cn";
 
 /**
- * Student dashboard — Courses. Per-program personalization (board flow:
- * Program → Year → Course → Tutors → pay). Students pick what they study and
- * the year they're in; the page lists that program's courses grouped by
- * term with how many tutors teach each, and opening one shows its tutors
- * (inside the dashboard, /dashboard/courses/[id]) to choose from and pay.
+ * Student dashboard — Courses: where booking happens.
+ *
+ * The student's programme is set in Settings (their account is associated
+ * with it); this page shows that programme's courses, grouped by semester,
+ * and under EACH course the tutors who teach it, each with "Choose & pay".
+ * Year is only a filter here (?year=1..4, default all years) — it is not a
+ * saved setting. The course name opens the course page (notes, videos, the
+ * same tutors).
  */
-export default async function StudentCoursesPage() {
+export default async function StudentCoursesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }>;
+}) {
   const profile = await requireProfile();
   // Student surface only — the tab is hidden for admins and a tutor's
   // dashboard is `/tutor`.
   if (profile.role !== "student") redirect("/dashboard");
 
-  const [allCourses, tutors] = await Promise.all([
+  if (!profile.program) {
+    return (
+      <Card className="text-center">
+        <GraduationCap className="mx-auto h-8 w-8 text-brand-600" aria-hidden="true" />
+        <h2 className="mt-3 font-display text-xl font-bold text-slate-900">
+          Choose your programme first
+        </h2>
+        <p className="mx-auto mt-1 max-w-md text-sm text-slate-600">
+          Set the programme you study in Settings. Your Courses page then shows
+          its courses and the tutors you can book for each one.
+        </p>
+        <Link
+          href="/dashboard/settings"
+          className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-brand-600 px-4 text-sm font-semibold text-white shadow-xs hover:bg-brand-700"
+        >
+          <Settings className="h-4 w-4" aria-hidden="true" /> Go to Settings
+        </Link>
+      </Card>
+    );
+  }
+
+  const { year: yearParam } = await searchParams;
+  const yearFilter = YEARS.find((y) => String(y) === yearParam) ?? null;
+
+  const [allCourses, tutors, bookings] = await Promise.all([
     listCourses(),
     safeListApprovedTutors(),
+    listStudentBookings(profile),
   ]);
-  const courses = engineeringCourses(allCourses);
 
-  const programSubjects = sortFields(
-    Array.from(new Set(courses.map((c) => c.subject))),
+  const programCourses = engineeringCourses(allCourses).filter(
+    (c) => c.subject === profile.program,
   );
-  const programCourses = profile.program
-    ? courses.filter((c) => c.subject === profile.program)
-    : [];
-  // Year tier: once a student picks a year, hide other years' courses and
-  // keep the year-less (general) ones; no year yet shows the whole program.
-  const yearCourses = profile.program
-    ? programCourses.filter(
-        (c) => profile.year == null || c.year == null || c.year === profile.year,
-      )
-    : [];
-  // Grouped by TERM, not one flat list: a KNUST year carries roughly eight
-  // courses per semester, so "all of Level 200 at once" buries the structure
-  // the student is actually working in. The buckets are
-  // "Level 200 · Semester 1" / "… Semester 2" / "… Both semesters", the same
-  // vocabulary as the /courses directory and the tutor's course picker.
-  const courseBuckets = groupCoursesForPicker(yearCourses);
-  // How many tutors teach each course (matched by code — see offerings.ts).
-  const offerings = offeringsByCourse(tutors, yearCourses);
+  // The year filter keeps year-less (general) courses visible.
+  const visible = yearFilter
+    ? programCourses.filter((c) => c.year == null || c.year === yearFilter)
+    : programCourses;
+  const buckets = groupCoursesForPicker(visible);
+  const offerings = offeringsByCourse(tutors, visible);
+  const tutorById = new Map(tutors.map((t) => [t.tutorProfile.id, t]));
+  const withTutors = visible.filter((c) => (offerings[c.id]?.length ?? 0) > 0).length;
+
+  const yearOptions = [
+    { value: null, label: "All years" },
+    ...YEARS.map((y) => ({ value: y, label: `Year ${y}` })),
+  ];
 
   return (
-    <section className="mt-10">
-      <div className="max-w-2xl">
-        <StudyPrefsPicker
-          key={`${profile.program ?? "none"}-${profile.year ?? "any"}`}
-          programs={programSubjects}
-          currentProgram={profile.program ?? null}
-          currentYear={profile.year ?? null}
-        />
+    <div>
+      {/* ── Programme (from Settings) + year filter ─────────────── */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Your programme
+          </p>
+          <h2 className="mt-1 font-display text-xl font-bold tracking-tight text-slate-900">
+            {profile.program}
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            {visible.length} course{visible.length === 1 ? "" : "s"} · {withTutors} with tutors ·{" "}
+            <Link href="/dashboard/settings" className="font-medium text-brand-700 hover:underline">
+              Change in Settings
+            </Link>
+          </p>
+        </div>
+        <nav aria-label="Filter by year" className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
+          {yearOptions.map((option) => {
+            const active = option.value === yearFilter;
+            return (
+              <Link
+                key={option.label}
+                href={option.value ? `/dashboard/courses?year=${option.value}` : "/dashboard/courses"}
+                aria-current={active ? "true" : undefined}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  active ? "bg-petrol-900 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                )}
+              >
+                {option.label}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
-      {profile.program && (
-        <div className="mt-8">
-          <div className="flex flex-wrap items-baseline gap-3 border-b border-slate-200 pb-2">
-            <h3 className="font-display text-lg font-semibold text-slate-900">
-              {profile.program}
-            </h3>
-            {profile.year != null && (
-              <span className="text-sm font-medium text-slate-500">
-                · Year {profile.year}
-              </span>
-            )}
-            <span className="ml-auto text-xs font-medium uppercase tracking-widest text-slate-400">
-              {yearCourses.length}{" "}
-              {yearCourses.length === 1 ? "course" : "courses"}
-            </span>
-          </div>
-          {yearCourses.length === 0 ? (
-            <p className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm text-slate-500">
-              No courses listed for {profile.program}
-              {profile.year != null ? ` Year ${profile.year}` : ""} yet —
-              check back soon, or browse all courses.
-            </p>
-          ) : (
-            <div className="mt-4 space-y-8">
-              {courseBuckets.map((bucket) => (
-                <div key={bucket.key}>
-                  <div className="flex flex-wrap items-baseline gap-2">
-                    <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                      {bucket.label}
-                    </h4>
-                    <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">
-                      {bucket.items.length}{" "}
-                      {bucket.items.length === 1 ? "course" : "courses"}
-                    </span>
-                  </div>
-                  <ul className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {bucket.items.map((course) => (
-                      <li key={course.id} className="h-full">
-                        <Link
-                          href={`/dashboard/courses/${course.id}`}
-                          className="group flex h-full flex-col rounded-lg border border-slate-200 bg-white p-5 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lift focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-                        >
+      {/* ── Courses, each with its tutors ───────────────────────── */}
+      {visible.length === 0 ? (
+        <p className="mt-6 rounded-lg border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm text-slate-500">
+          No courses listed for {profile.program}
+          {yearFilter ? ` Year ${yearFilter}` : ""} yet.
+        </p>
+      ) : (
+        <div className="mt-8 space-y-10">
+          {buckets.map((bucket) => (
+            <section key={bucket.key} aria-label={bucket.label}>
+              <div className="flex flex-wrap items-baseline gap-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                  {bucket.label}
+                </h3>
+                <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">
+                  {bucket.items.length} {bucket.items.length === 1 ? "course" : "courses"}
+                </span>
+              </div>
+
+              <ul className="mt-3 space-y-3">
+                {bucket.items.map((course) => {
+                  const courseOfferings = offerings[course.id] ?? [];
+                  const booked = bookedTutorKeys(bookings, course);
+                  return (
+                    <li key={course.id}>
+                      <Card padded={false} className="overflow-hidden">
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 pt-4">
                           {course.code && (
-                            <span className="mb-1 flex flex-wrap items-center gap-2">
-                              <span className="rounded-[2px] bg-brand-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-brand-800">
-                                {course.code}
-                              </span>
-                              {course.credits != null && (
-                                <span className="text-[11px] text-slate-400">
-                                  {course.credits} credit hour
-                                  {course.credits === 1 ? "" : "s"}
-                                </span>
-                              )}
+                            <span className="rounded-[2px] bg-brand-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-brand-800">
+                              {course.code}
                             </span>
                           )}
-                          <span className="font-display text-base font-semibold leading-snug text-slate-900">
+                          <Link
+                            href={`/dashboard/courses/${course.id}`}
+                            className="font-display text-base font-semibold text-slate-900 hover:text-brand-700"
+                          >
                             {course.name}
-                          </span>
-                          {course.description && (
-                            <span className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-slate-600">
-                              {course.description}
+                          </Link>
+                          {course.credits != null && (
+                            <span className="text-xs text-slate-400">
+                              {course.credits} credit hour{course.credits === 1 ? "" : "s"}
                             </span>
                           )}
-                          <span className="mt-auto flex items-center justify-between gap-2 pt-3 text-sm">
-                            <span className="text-xs text-slate-500">
-                              {(() => {
-                                const n = offerings[course.id]?.length ?? 0;
-                                return n === 0
-                                  ? "No tutors yet"
-                                  : `${n} tutor${n === 1 ? "" : "s"} available`;
-                              })()}
-                            </span>
-                            <span className="font-semibold text-brand-600 transition-colors group-hover:text-brand-700">
-                              Choose a tutor →
-                            </span>
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
+                        </div>
+
+                        {courseOfferings.length === 0 ? (
+                          <p className="px-5 pb-4 pt-2 text-xs text-slate-500">
+                            No tutor teaches this course yet.
+                          </p>
+                        ) : (
+                          <div className="mt-1 divide-y divide-slate-100 border-t border-slate-100 px-5">
+                            {courseOfferings.map((offering) => (
+                              <CourseTutorRow
+                                key={offering.tutorServiceId}
+                                offering={offering}
+                                tutor={tutorById.get(offering.tutorProfileId)}
+                                booked={booked.has(offering.tutorCode ?? offering.tutorName)}
+                                courseCode={course.code ?? null}
+                                compact
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </Card>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
         </div>
       )}
-    </section>
+    </div>
   );
 }

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/Fields";
  * The phone number we text session updates to (0022), editable from the
  * dashboard. Optional for every role — submitting an empty field clears it.
  * The parent keys this on the saved value so a successful save remounts it
- * with the stored number (same pattern as `StudyPrefsPicker`).
+ * with the stored number (same pattern as `ProgramSetting`).
  */
 export function PhoneForm({ current }: { current?: string | null }) {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(

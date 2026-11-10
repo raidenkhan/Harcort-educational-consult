@@ -1,20 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CheckCircle2, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { requireProfile } from "@/services/auth/queries";
 import { getCourseById } from "@/services/courses/queries";
 import { offeringsByCourse } from "@/services/courses/offerings";
-import { normalizeCourseCode } from "@/services/courses/codes";
 import { safeListApprovedTutors } from "@/services/tutors/queries";
 import { listStudentBookings } from "@/services/payments/queries";
+import { bookedTutorKeys } from "@/services/payments/bookings";
 import { levelLabel } from "@/components/home/courseTaxonomy";
-import { BookTutorButton } from "@/components/tutors/BookTutorButton";
-import { Badge } from "@/components/ui/Badge";
+import { CourseTutorRow } from "@/components/courses/CourseTutorRow";
 import { Card } from "@/components/ui/Card";
-import { TutorAvatar } from "@/components/ui/TutorAvatar";
-import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
-
-const cedis = (n: number) => `GH₵${n.toLocaleString("en-GH")}`;
 
 /**
  * Dashboard → Courses → one course: the course, then every tutor who teaches
@@ -43,20 +38,7 @@ export default async function DashboardCoursePage({
 
   const offerings = offeringsByCourse(tutors, [course])[course.id] ?? [];
   const tutorById = new Map(tutors.map((t) => [t.tutorProfile.id, t]));
-  const code = normalizeCourseCode(course.code);
-
-  // Tutors this student already booked for this course (not cancelled).
-  const bookedTutorCodes = new Set(
-    bookings
-      .filter(
-        (b) =>
-          b.status !== "cancelled" &&
-          (code
-            ? normalizeCourseCode(b.courseCode) === code
-            : b.courseName.trim().toLowerCase() === course.name.trim().toLowerCase()),
-      )
-      .map((b) => b.tutorCode ?? b.tutorName),
-  );
+  const booked = bookedTutorKeys(bookings, course);
 
   const facts = [
     course.credits != null ? `${course.credits} credit hour${course.credits === 1 ? "" : "s"}` : null,
@@ -124,75 +106,18 @@ export default async function DashboardCoursePage({
           </div>
         ) : (
           <ul className="mt-4 space-y-3">
-            {offerings.map((offering) => {
-              const tutor = tutorById.get(offering.tutorProfileId);
-              const booked = bookedTutorCodes.has(offering.tutorCode ?? offering.tutorName);
-              const about = tutor?.tutorProfile.qualifications || tutor?.tutorProfile.bio;
-              return (
-                <li key={offering.tutorServiceId}>
-                  <Card className="flex flex-wrap items-center gap-4">
-                    <TutorAvatar
-                      name={offering.tutorName}
-                      src={tutor?.profile.avatar_url}
-                      size={48}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-1.5 text-base font-semibold text-slate-900">
-                        {offering.tutorName}
-                        {tutor?.profile.is_admin && <VerifiedBadge />}
-                      </p>
-                      {about && (
-                        <p className="mt-0.5 line-clamp-2 text-sm text-slate-600">{about}</p>
-                      )}
-                      <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600">
-                        {offering.priceOneOnOne !== null && (
-                          <span>
-                            One-on-one{" "}
-                            <span className="font-semibold text-slate-900">
-                              {cedis(offering.priceOneOnOne)}
-                            </span>
-                            /semester
-                          </span>
-                        )}
-                        {offering.priceGroup !== null && (
-                          <span>
-                            Group{" "}
-                            <span className="font-semibold text-slate-900">
-                              {cedis(offering.priceGroup)}
-                            </span>
-                            /semester
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      {booked && (
-                        <Badge tone="green">
-                          <CheckCircle2 className="mr-1 inline h-3 w-3" aria-hidden="true" />
-                          Booked
-                        </Badge>
-                      )}
-                      <BookTutorButton
-                        tutorName={offering.tutorName}
-                        offerings={[offering]}
-                        initialSelected={[offering.tutorServiceId]}
-                        signedIn
-                        label={booked ? "Book again" : "Choose & pay"}
-                        className="h-10 px-4"
-                      />
-                      {offering.tutorCode && (
-                        <Link
-                          href={`/tutors/${offering.tutorCode}${course.code ? `?course=${encodeURIComponent(course.code)}` : ""}`}
-                          className="text-xs font-medium text-slate-500 hover:text-slate-800"
-                        >
-                          View profile
-                        </Link>
-                      )}
-                    </div>
-                  </Card>
-                </li>
-              );
-            })}
+            {offerings.map((offering) => (
+              <li key={offering.tutorServiceId}>
+                <Card>
+                  <CourseTutorRow
+                    offering={offering}
+                    tutor={tutorById.get(offering.tutorProfileId)}
+                    booked={booked.has(offering.tutorCode ?? offering.tutorName)}
+                    courseCode={course.code ?? null}
+                  />
+                </Card>
+              </li>
+            ))}
           </ul>
         )}
       </section>

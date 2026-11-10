@@ -316,6 +316,39 @@ export async function setStudyPrefsAction(
   };
 }
 
+/**
+ * A student sets their programme from Settings — the programme their account
+ * is associated with, which decides which courses (and tutors) Dashboard →
+ * Courses shows. Programme only: the year is a filter on the Courses page,
+ * not something to save, so the stored year is left untouched.
+ */
+export async function setProgramAction(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const parsed = setStudyPrefsSchema
+    .pick({ program: true })
+    .safeParse({ program: formData.get("program") ?? "" });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Choose a programme." };
+  }
+
+  const profile = await requireProfile();
+  if (profile.role !== "student") {
+    return { error: "Only students choose a programme." };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ program: parsed.data.program, updated_at: new Date().toISOString() })
+    .eq("id", profile.id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard", "layout");
+  return { message: `Your programme is now ${parsed.data.program}.` };
+}
+
 /** A student changes how they want their sessions (0021) from the dashboard.
  * One-on-one or group — stored on the profile, so the tutor sees it on every
  * request they receive. Students only: for a tutor the value is meaningless.

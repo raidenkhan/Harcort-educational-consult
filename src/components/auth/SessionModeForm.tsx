@@ -10,7 +10,7 @@ import { SessionModePicker } from "./SessionModePicker";
  * The student's session format, editable from the dashboard (0021) — the
  * change-my-mind path for the answer they gave at sign-up. The parent keys
  * this on the saved value so a successful save remounts it with the stored
- * value (same pattern as `StudyPrefsPicker`).
+ * value (same pattern as `ProgramSetting`).
  */
 export function SessionModeForm({ current }: { current?: unknown }) {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(

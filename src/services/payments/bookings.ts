@@ -71,3 +71,28 @@ export function semestersLabel(n: number): string {
   const count = Math.max(1, n);
   return `${count} semester${count === 1 ? "" : "s"}`;
 }
+
+/**
+ * Tutors this student already has a live (not cancelled) booking with for
+ * one course — keyed by tutor public code (name as fallback), matched on the
+ * normalised course CODE so a booking made on any programme's copy of
+ * ME 261 counts on every copy.
+ */
+export function bookedTutorKeys(
+  bookings: StudentBooking[],
+  course: { code?: string | null; name: string },
+): Set<string> {
+  const code = normalizeCourseCode(course.code);
+  const name = course.name.trim().toLowerCase();
+  return new Set(
+    bookings
+      .filter(
+        (b) =>
+          b.status !== "cancelled" &&
+          (code
+            ? normalizeCourseCode(b.courseCode) === code
+            : b.courseName.trim().toLowerCase() === name),
+      )
+      .map((b) => b.tutorCode ?? b.tutorName),
+  );
+}

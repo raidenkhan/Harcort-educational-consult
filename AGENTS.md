@@ -852,11 +852,20 @@ mobile app.
   payment, a My-bookings list and "what you can do" doors — from
   `listStudentBookings` (reads `semesters` + `session_mode`) and the pure
   `summarizeBookings` / `orderBookings` (`payments/bookings.ts`, unit-tested).
-  **Booking from Courses:** a course card opens `/dashboard/courses/[id]`,
-  which lists every tutor teaching it (`offeringsByCourse`, matched by code)
-  with per-format prices and "Choose & pay" — `BookTutorButton` opened on that
-  course (`initialSelected`), so format + semesters + total + one Paystack
-  charge happen without leaving the dashboard.
+  **Booking happens in Courses.** The student's programme is set in
+  Settings (`ProgramSetting` → `setProgramAction`, programme only) and their
+  account is associated with it; Dashboard → Courses shows that programme's
+  courses grouped by semester, with a year filter (`?year=1..4`, a filter
+  only — not saved; year-less courses stay visible), and under EACH course
+  the tutors who teach it (`offeringsByCourse`, matched by code) as
+  `CourseTutorRow`s with per-format prices and "Choose & pay" —
+  `BookTutorButton` opened on that course (`initialSelected`), so format +
+  semesters + total + one Paystack charge happen on the page. No programme →
+  a prompt to set it in Settings. The course name opens
+  `/dashboard/courses/[id]` (notes link + the same tutor rows).
+  `bookedTutorKeys` (`payments/bookings.ts`, tested) marks tutors already
+  booked for a course. `StudyPrefsPicker` (programme + saved year on the
+  Courses page) is gone.
 ---
 
 ## 3. Architecture

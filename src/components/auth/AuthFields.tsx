@@ -14,7 +14,7 @@ import { RolePicker, type AuthRole } from "./RolePicker";
  * and the standalone /sign-in and /sign-up pages.
  */
 
-/** Matches StudyPrefsPicker's select styling so the two program pickers read
+/** Matches ProgramSetting's select styling so the two program pickers read
  *  as the same control. */
 const selectClass =
   "h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-xs transition focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/15";

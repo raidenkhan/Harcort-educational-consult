@@ -68,3 +68,27 @@ describe("semestersLabel", () => {
     expect(semestersLabel(0)).toBe("1 semester");
   });
 });
+
+describe("bookedTutorKeys", () => {
+  it("matches by course code across duplicate rows and skips cancelled", async () => {
+    const { bookedTutorKeys } = await import("./bookings");
+    const keys = bookedTutorKeys(
+      [
+        booking({ id: "a", courseCode: "me  261", tutorCode: "HC-T-1" }),
+        booking({ id: "b", courseCode: "ME 261", tutorCode: "HC-T-2", status: "cancelled" }),
+        booking({ id: "c", courseCode: "ME 255", tutorCode: "HC-T-3" }),
+      ],
+      { code: "ME 261", name: "Dynamics" },
+    );
+    expect([...keys]).toEqual(["HC-T-1"]);
+  });
+
+  it("falls back to the course name when there is no code", async () => {
+    const { bookedTutorKeys } = await import("./bookings");
+    const keys = bookedTutorKeys(
+      [booking({ courseCode: null, courseName: "Thermo", tutorCode: null, tutorName: "Esi" })],
+      { code: null, name: " thermo " },
+    );
+    expect([...keys]).toEqual(["Esi"]);
+  });
+});
