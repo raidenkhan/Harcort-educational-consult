@@ -71,8 +71,14 @@ export function CartView({
   // The action answers with Paystack's hosted checkout page — go there.
   // (Without this the Pay button started a charge and then did nothing.)
   useEffect(() => {
-    if (state?.checkoutUrl) window.location.assign(state.checkoutUrl);
-  }, [state]);
+    if (state?.checkoutUrl) {
+      // The picked courses are now bookings (they show under "Booked —
+      // awaiting payment" until paid), so they leave the picked list here
+      // and are never counted twice.
+      clear();
+      window.location.assign(state.checkoutUrl);
+    }
+  }, [state, clear]);
 
   // The SAME gross-up the server charges with (0034), so the number on the
   // Pay button is the number Paystack shows.

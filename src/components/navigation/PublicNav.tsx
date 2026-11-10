@@ -28,14 +28,19 @@ export const PUBLIC_NAV_LINKS = [
 export function PublicNav({
   profile,
   search = true,
+  showLinks = true,
 }: {
   profile: UserMenuProfile | null;
   /** False where no search index should load (e.g. a not-found page). */
   search?: boolean;
+  /** False on dashboard-side pages (e.g. a signed-in student's cart): the
+   *  Courses / Find a tutor / Video Lessons links belong to the landing side,
+   *  which the logo still links to. */
+  showLinks?: boolean;
 }) {
   return (
     <FloatingNav
-      links={PUBLIC_NAV_LINKS}
+      links={showLinks ? PUBLIC_NAV_LINKS : undefined}
       search={
         search ? (
           <Suspense fallback={<div className="h-9 w-9 sm:h-10 sm:w-10" />}>

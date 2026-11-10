@@ -961,6 +961,13 @@ mobile app.
   (`SemesterFilterSelect`, URL `?semester=`, keeps the year); the admin
   catalogue has **year and semester dropdowns** (client-side). Courses not
   tied to a year/semester stay visible under any filter.
+  The cart icon's badge counts everything in the cart: courses picked in this
+  browser PLUS unpaid bookings from `GET /api/cart` (session-scoped; a picked
+  course already booked counts once), refreshed on navigation and focus.
+  Starting a cart checkout clears the picked lines — they are bookings now.
+  A signed-in user's cart hides the landing links (Courses / Find a tutor /
+  Video Lessons; `PublicNav showLinks={false}`) — the logo goes back to the
+  landing side, where they show.
 ---
 
 ## 3. Architecture

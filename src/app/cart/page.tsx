@@ -57,7 +57,9 @@ export default async function CartPage() {
 
   return (
     <div className="relative flex flex-1 flex-col pb-20 lg:pb-0">
-      <PublicNav profile={profile} />
+      {/* Signed in, the cart is part of the dashboard: no landing-side links
+          (Courses / Find a tutor / Video Lessons) — the logo goes back there. */}
+      <PublicNav profile={profile} showLinks={!profile} />
       <main className="relative flex-1 pt-20 sm:pt-24">
         {/* CartView reads ?paid= with useSearchParams. */}
         <Suspense>
