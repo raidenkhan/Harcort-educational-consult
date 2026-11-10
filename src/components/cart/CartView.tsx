@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Check, CreditCard, ShoppingCart, Trash2 } from "lucide-react";
@@ -14,7 +14,7 @@ import type { PaymentFormState } from "@/services/payments/mutations";
 import { cartLinePesewas, cartLinePrice, cartSubtotalPesewas } from "@/services/cart/cart";
 import { sessionModeLabel } from "@/services/auth/sessionFormat";
 import { formatGhs } from "@/lib/money";
-import { AuthTrigger } from "@/components/auth/AuthTrigger";
+import { AccountChoiceModal } from "@/components/auth/AccountChoiceModal";
 import { checkoutTotal } from "@/services/payments/fees";
 
 /**
@@ -30,6 +30,8 @@ import { checkoutTotal } from "@/services/payments/fees";
 export function CartView({ signedIn }: { signedIn: boolean }) {
   const searchParams = useSearchParams();
   const { lines, remove, clear } = useCart();
+  // Signed out: "Make payment" asks whether they have an account first.
+  const [askAccount, setAskAccount] = useState(false);
   const [state, formAction, pending] = useActionState<PaymentFormState, FormData>(
     startCartCheckout,
     {},
@@ -246,14 +248,15 @@ export function CartView({ signedIn }: { signedIn: boolean }) {
                     : `Pay ${formatGhs(totalPesewas)}`}
                 </Button>
               ) : (
-                <AuthTrigger
-                  tab="sign-in"
-                  next="/cart"
-                  className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-brand-600 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-brand-700"
+                <button
+                  type="button"
+                  onClick={() => setAskAccount(true)}
+                  disabled={lines.length === 0}
+                  className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-brand-600 px-4 text-sm font-semibold text-white shadow-xs transition hover:bg-brand-700 disabled:opacity-50"
                 >
                   <CreditCard className="h-4 w-4" />
-                  Sign in to pay {formatGhs(totalPesewas)}
-                </AuthTrigger>
+                  Make payment · {formatGhs(totalPesewas)}
+                </button>
               )}
             </div>
           </form>
@@ -264,6 +267,8 @@ export function CartView({ signedIn }: { signedIn: boolean }) {
           </p>
         </div>
       </Container>
+
+      <AccountChoiceModal open={askAccount} onClose={() => setAskAccount(false)} next="/cart" />
     </>
   );
 }

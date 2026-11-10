@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { CreditCard } from "lucide-react";
-import { AuthTrigger } from "@/components/auth/AuthTrigger";
+import { AccountChoiceModal } from "@/components/auth/AccountChoiceModal";
 import { commitAndStartCheckout } from "@/services/payments/mutations";
 import type { PaymentFormState } from "@/services/payments/mutations";
 
@@ -27,6 +27,9 @@ export function CommitToCourseButton({
   signedIn: boolean;
   className?: string;
 }) {
+  // Signed out: the page to come back to after "have an account?" → sign in
+  // or sign up. Captured on click (never read from window during render).
+  const [authNext, setAuthNext] = useState<string | null>(null);
   const [state, formAction, pending] = useActionState<PaymentFormState, FormData>(
     commitAndStartCheckout,
     {},
@@ -40,10 +43,21 @@ export function CommitToCourseButton({
 
   if (!signedIn) {
     return (
-      <AuthTrigger tab="sign-up" className={className}>
-        <CreditCard className="mr-1.5 inline h-3.5 w-3.5" />
-        {label}
-      </AuthTrigger>
+      <>
+        <button
+          type="button"
+          className={className}
+          onClick={() => setAuthNext(window.location.pathname + window.location.search)}
+        >
+          <CreditCard className="mr-1.5 inline h-3.5 w-3.5" />
+          {label}
+        </button>
+        <AccountChoiceModal
+          open={authNext !== null}
+          onClose={() => setAuthNext(null)}
+          next={authNext ?? undefined}
+        />
+      </>
     );
   }
 

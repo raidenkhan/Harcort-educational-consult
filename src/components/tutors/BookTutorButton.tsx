@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { CalendarCheck, Check, CreditCard, Minus, Plus } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
-import { useAuthModal } from "@/components/auth/AuthModal";
+import { AccountChoiceModal } from "@/components/auth/AccountChoiceModal";
 import { useCart } from "@/components/cart/CartProvider";
 import type { CartOffering } from "@/components/cart/AddToCartButton";
 import { startCartCheckout, type PaymentFormState } from "@/services/payments/mutations";
@@ -37,8 +37,10 @@ const toPesewas = (cedis: number) => BigInt(Math.round(cedis * 100));
  * "Make payment":
  *   - signed in  → one Paystack charge for everything (`startCartCheckout`,
  *     the same batch path as the cart); the server re-prices every line.
- *   - signed out → the selection is saved to the cart (localStorage survives
- *     the sign-in round trip) and the auth modal opens, returning to /cart.
+ *   - signed out → the button still says "Make payment"; the selection is
+ *     saved to the cart (localStorage survives the round trip) and the
+ *     visitor is asked whether they have an account — sign in if yes, sign
+ *     up if no — both returning to /cart to pay.
  *
  * The total shown is computed with the same `checkoutTotal` the server
  * charges with, so the number on the button is the number on Paystack.
@@ -77,7 +79,7 @@ export function BookTutorButton({
   );
   const [semesters, setSemesters] = useState(1);
 
-  const { open: openAuth } = useAuthModal();
+  const [askAccount, setAskAccount] = useState(false);
   const { add } = useCart();
   const [state, formAction, pending] = useActionState<PaymentFormState, FormData>(
     startCartCheckout,
@@ -133,7 +135,9 @@ export function BookTutorButton({
       });
     }
     setOpen(false);
-    openAuth("sign-in", "/cart");
+    // One question first — have an account? — then the right form; both
+    // return to /cart, where this selection is waiting.
+    setAskAccount(true);
   };
 
   if (modes.length === 0) {
@@ -354,7 +358,7 @@ export function BookTutorButton({
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-brand-600 text-sm font-semibold text-white shadow-xs transition hover:bg-brand-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CreditCard className="h-4 w-4" aria-hidden="true" />
-              {chosen.length === 0 ? "Choose a course" : "Sign in to make payment"}
+              {chosen.length === 0 ? "Choose a course" : `Make payment · ${formatGhs(totalPesewas)}`}
             </button>
           )}
 
@@ -363,6 +367,8 @@ export function BookTutorButton({
           </p>
         </form>
       </Modal>
+
+      <AccountChoiceModal open={askAccount} onClose={() => setAskAccount(false)} next="/cart" />
     </>
   );
 }

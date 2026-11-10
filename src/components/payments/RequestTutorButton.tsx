@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, CreditCard, Send, ShieldCheck, User, Users } from "lucide-react";
-import { useAuthModal } from "@/components/auth/AuthModal";
+import { AccountChoiceModal } from "@/components/auth/AccountChoiceModal";
 import { sendTutorRequest } from "@/services/requests/mutations";
 import type { RequestFormState } from "@/services/requests/mutations";
 import { Button } from "@/components/ui/Button";
@@ -132,7 +132,8 @@ export function RequestTutorButton({
    *  (set by the post-sign-in redirect). */
   autoOpen?: boolean;
 }) {
-  const { open: openAuth } = useAuthModal();
+  // Signed out: where to return after the "have an account?" choice.
+  const [authNext, setAuthNext] = useState<string | null>(null);
   // A return-from-auth URL carries `?request=1`, so the dialog is open on the
   // FIRST render — no flash of the closed button.
   const [open, setOpen] = useState(autoOpen);
@@ -173,23 +174,32 @@ export function RequestTutorButton({
   // builds a same-site path.
   if (!signedIn) {
     return (
-      <button
-        type="button"
-        className={className}
-        onClick={() => {
-          const target = new URL(
-            profilePath ?? window.location.pathname,
-            window.location.origin,
-          );
-          if (initial?.courseId) {
-            target.searchParams.set("course", initial.courseId);
-          }
-          target.searchParams.set("request", "1");
-          openAuth("sign-up", `${target.pathname}${target.search}`);
-        }}
-      >
-        Request
-      </button>
+      <>
+        <button
+          type="button"
+          className={className}
+          onClick={() => {
+            const target = new URL(
+              profilePath ?? window.location.pathname,
+              window.location.origin,
+            );
+            if (initial?.courseId) {
+              target.searchParams.set("course", initial.courseId);
+            }
+            target.searchParams.set("request", "1");
+            // Ask "have an account?" first — sign in or sign up — and come
+            // back to this tutor's course with the request dialog open.
+            setAuthNext(`${target.pathname}${target.search}`);
+          }}
+        >
+          Request
+        </button>
+        <AccountChoiceModal
+          open={authNext !== null}
+          onClose={() => setAuthNext(null)}
+          next={authNext ?? undefined}
+        />
+      </>
     );
   }
 
