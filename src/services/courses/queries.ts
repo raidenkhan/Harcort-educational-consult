@@ -211,7 +211,8 @@ export async function listTutorsForCourse(
     .select("*, profiles!inner(*), tutor_services(*, courses(*))")
     .in("id", ids)
     .eq("verification_status", "approved")
-    .neq("profiles.role", "student");
+    .eq("profiles.role", "tutor")
+        .eq("profiles.is_admin", false);
 
   return toTutorListings((data ?? []) as TutorProfileRow[]);
 }

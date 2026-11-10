@@ -6,7 +6,7 @@ import { readRate } from "./rate";
  * `tutor_services(*, courses(*))`) into the public TutorListing shape.
  *
  * Kept pure and unit-tested because PostgREST has a trap here: when a query
- * filters on an embedded relation (`.neq("profiles.role", "student")`), rows
+ * filters on an embedded relation (`.eq("profiles.role", "tutor")`), rows
  * whose embed FAILS the filter are kept but their embed is nulled — e.g. a
  * tutor who self-switched to student (role switcher) still has an approved
  * tutor_profiles row, and it comes back as `{ ...profiles: null }`. Rendering

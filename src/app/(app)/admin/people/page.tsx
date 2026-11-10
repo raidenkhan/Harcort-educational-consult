@@ -3,7 +3,9 @@ import {
   listApprovedTutorsForAdmin,
   listPendingTutors,
   listPlatformPeople,
+  listTutorsForAdmin,
 } from "@/services/admin/queries";
+import { TutorManager } from "@/components/admin/TutorManager";
 import { approveTutor, rejectTutor } from "@/services/admin/mutations";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -23,10 +25,11 @@ import { accraDate } from "@/lib/time";
 export default async function AdminPeoplePage() {
   await requireRole("admin");
 
-  const [pending, approvedCount, people] = await Promise.all([
+  const [pending, approvedCount, people, tutors] = await Promise.all([
     listPendingTutors(),
     listApprovedTutorsForAdmin(),
     listPlatformPeople(),
+    listTutorsForAdmin(),
   ]);
 
   return (
@@ -40,6 +43,15 @@ export default async function AdminPeoplePage() {
             ...person,
             joinedLabel: accraDate(new Date(person.joinedAt)),
           }))}
+        />
+      </AdminSection>
+
+      <AdminSection
+        title="Tutors"
+        description="Add a tutor (approved straight away), remove one from the directory, or delete a tutor who has no bookings."
+      >
+        <TutorManager
+          tutors={tutors.map((t) => ({ ...t, joinedLabel: accraDate(new Date(t.joinedAt)) }))}
         />
       </AdminSection>
 

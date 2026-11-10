@@ -55,7 +55,8 @@ export const listApprovedTutors = unstable_cache(
       .from("tutor_profiles")
       .select("*, profiles!inner(*, credentials(email)), tutor_services(*, courses(*))")
       .eq("verification_status", "approved")
-      .neq("profiles.role", "student")
+      .eq("profiles.role", "tutor")
+        .eq("profiles.is_admin", false)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -92,7 +93,8 @@ export async function getTutorByPublicCode(
         .from("tutor_profiles")
         .select("*, profiles!inner(*, credentials(email)), tutor_services(*, courses(*))")
         .eq("verification_status", "approved")
-        .neq("profiles.role", "student")
+        .eq("profiles.role", "tutor")
+        .eq("profiles.is_admin", false)
         .eq("profiles.public_code", normalized)
         .limit(1);
       if (error) {

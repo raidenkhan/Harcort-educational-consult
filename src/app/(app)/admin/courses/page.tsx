@@ -5,6 +5,10 @@ import {
   listPendingCourses,
 } from "@/services/courses/queries";
 import { CourseLibraryConsole } from "@/components/admin/CourseLibraryConsole";
+import { CourseCatalogueManager } from "@/components/admin/CourseCatalogueManager";
+import { AdminSection } from "@/components/admin/AdminSection";
+import { courseUsageCounts } from "@/services/admin/queries";
+import { sortFields } from "@/components/home/courseTaxonomy";
 import { PendingCoursesPanel } from "@/components/admin/PendingCoursesPanel";
 
 /**
@@ -15,14 +19,36 @@ import { PendingCoursesPanel } from "@/components/admin/PendingCoursesPanel";
 export default async function AdminCoursesPage() {
   await requireRole("admin");
 
-  const [courses, assets, pending] = await Promise.all([
+  const [courses, assets, pending, usage] = await Promise.all([
     listCourses(),
     listAllCourseAssets(),
     listPendingCourses(),
+    courseUsageCounts(),
   ]);
+  const programmes = sortFields(Array.from(new Set(courses.map((c) => c.subject))));
 
   return (
     <>
+      <AdminSection
+        title="Course catalogue"
+        description="Add a course to any programme, or delete one. A course with bookings can't be deleted."
+      >
+        <CourseCatalogueManager
+          programmes={programmes}
+          courses={courses.map((c) => ({
+            id: c.id,
+            subject: c.subject,
+            code: c.code ?? null,
+            name: c.name,
+            credits: c.credits ?? null,
+            year: c.year ?? null,
+            semester: c.semester ?? null,
+            offers: usage.offers[c.id] ?? 0,
+            bookings: usage.bookings[c.id] ?? 0,
+          }))}
+        />
+      </AdminSection>
+
       <PendingCoursesPanel courses={pending} />
 
       <p className="mt-10 max-w-2xl text-sm leading-relaxed text-slate-600">

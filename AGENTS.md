@@ -131,7 +131,8 @@ mobile app.
   switchable), the switch updates `profiles.role` and revalidates the cached
   tutor directory. A tutor who switches to student keeps their tutor_profile
   row (status untouched) but drops out of the public list — the list filter
-  is `profiles.role <> 'student'` — and switching back re-lists them. Role
+  is now `profiles.role = 'tutor' AND NOT profiles.is_admin` (admins are
+  staff, never listed) — and switching back re-lists them. Role
   is chosen at sign-up (email form) or on the one-time `/onboarding` screen
   (brand-new Google accounts, 0010 — no pre-auth picker on the auth tabs).
 - **Per-request session format + paywall (0024).** The session format is
@@ -866,6 +867,26 @@ mobile app.
   `bookedTutorKeys` (`payments/bookings.ts`, tested) marks tutors already
   booked for a course. `StudyPrefsPicker` (programme + saved year on the
   Courses page) is gone.
+- **Admins manage tutors and courses; nothing attached to admins.** Admins are
+  staff: every admin sees the same console, and the tutor directory, tutor
+  profile pages and course tutor lists now require `profiles.role = 'tutor'`
+  and `is_admin = false` (an admin with a stray tutor profile — Logan Green —
+  no longer appears as a bookable tutor). People → **Tutors**
+  (`TutorManager`): **Add a tutor** creates the account with an admin-set
+  starting password (`register_user`, role tutor) plus a tutor profile
+  approved through `admin_approve_tutor`; **Delete** removes the whole account
+  but is refused when the tutor has ANY booking, because
+  `engagements.tutor_profile_id` CASCADES (0011) and would erase payment
+  records — such a tutor can be **removed from the directory** (reject,
+  history kept) and **restored**. Courses → **Course catalogue**
+  (`CourseCatalogueManager`): add a course to any programme (published
+  immediately, code shape-validated and normalised) and delete courses —
+  refused while a booking uses the course (`engagements.course_id` is
+  RESTRICT); tutor offers and assets cascade, and the confirm button says how
+  many offers go. Actions live in `services/admin/manage.ts` (audited in
+  `admin_audit_log`), schemas in `admin/schemas.ts` (tested), list data from
+  `listTutorsForAdmin` / `courseUsageCounts`. Two-step `ConfirmAction` for
+  anything permanent.
 ---
 
 ## 3. Architecture

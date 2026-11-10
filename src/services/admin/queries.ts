@@ -4,7 +4,8 @@ import { listAllEngagements } from "@/services/payments/queries";
 import { listUnpaidStudents } from "@/services/payments/unpaid";
 
 /**
- * Admin queries. Pages gate access with requireRole("admin"); reads run on
+ * Admin queries (tutor/course management, unpaid students, people). Pages
+ * gate access with requireRole("admin"); reads run on
  * the server-only client and scope explicitly (defense in depth).
  */
 
@@ -214,4 +215,90 @@ export async function loadUnpaidStudents() {
       };
     }),
   });
+}
+
+export interface AdminTutorRow {
+  profileId: string;
+  name: string;
+  email: string | null;
+  publicCode: string | null;
+  status: "pending" | "approved" | "rejected" | null;
+  bookings: number;
+  services: number;
+  joinedAt: string;
+}
+
+/** Every tutor account with its status, booking and course-offer counts —
+ *  the People tab's tutor management list (delete is only offered at 0
+ *  bookings). Admin-role accounts are staff, never listed here. */
+export async function listTutorsForAdmin(): Promise<AdminTutorRow[]> {
+  const supabase = createAdminClient();
+  const [tutorsRes, engagementsRes, servicesRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name, public_code, created_at, credentials(email), tutor_profiles(id, verification_status)")
+      .eq("role", "tutor")
+      .order("full_name")
+      .limit(1000),
+    supabase.from("engagements").select("tutor_profile_id").limit(10000),
+    supabase.from("tutor_services").select("tutor_profile_id").limit(10000),
+  ]);
+  if (tutorsRes.error) {
+    console.error(`[admin] listTutorsForAdmin failed: ${tutorsRes.error.message}`);
+    return [];
+  }
+  const tally = (rows: { tutor_profile_id: string }[] | null) => {
+    const m = new Map<string, number>();
+    for (const r of rows ?? []) m.set(r.tutor_profile_id, (m.get(r.tutor_profile_id) ?? 0) + 1);
+    return m;
+  };
+  const bookings = tally(engagementsRes.data as { tutor_profile_id: string }[] | null);
+  const services = tally(servicesRes.data as { tutor_profile_id: string }[] | null);
+
+  type Row = {
+    id: string;
+    full_name: string | null;
+    public_code: string | null;
+    created_at: string;
+    credentials?: { email: string | null } | { email: string | null }[] | null;
+    tutor_profiles?:
+      | { id: string; verification_status: AdminTutorRow["status"] }
+      | { id: string; verification_status: AdminTutorRow["status"] }[]
+      | null;
+  };
+  return ((tutorsRes.data ?? []) as Row[]).map((r) => {
+    const tp = one(r.tutor_profiles);
+    return {
+      profileId: r.id,
+      name: r.full_name || "Tutor",
+      email: one(r.credentials)?.email ?? null,
+      publicCode: r.public_code,
+      status: tp?.verification_status ?? null,
+      bookings: tp ? (bookings.get(tp.id) ?? 0) : 0,
+      services: tp ? (services.get(tp.id) ?? 0) : 0,
+      joinedAt: r.created_at,
+    };
+  });
+}
+
+/** Per-course tutor-offer and booking counts — the catalogue's delete guard
+ *  and its "N tutors" labels. */
+export async function courseUsageCounts(): Promise<{
+  offers: Record<string, number>;
+  bookings: Record<string, number>;
+}> {
+  const supabase = createAdminClient();
+  const [servicesRes, engagementsRes] = await Promise.all([
+    supabase.from("tutor_services").select("course_id").limit(10000),
+    supabase.from("engagements").select("course_id").limit(10000),
+  ]);
+  const tally = (rows: { course_id: string | null }[] | null) => {
+    const m: Record<string, number> = {};
+    for (const r of rows ?? []) if (r.course_id) m[r.course_id] = (m[r.course_id] ?? 0) + 1;
+    return m;
+  };
+  return {
+    offers: tally(servicesRes.data as { course_id: string | null }[] | null),
+    bookings: tally(engagementsRes.data as { course_id: string | null }[] | null),
+  };
 }
