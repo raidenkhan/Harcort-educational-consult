@@ -4,6 +4,7 @@ import { BentoBackdrop } from "@/components/ui/BentoBackdrop";
 import { Container } from "@/components/ui/Container";
 import { StudentHeader, StudentNav } from "@/components/student/StudentTabs";
 import { countUnreadGroupMessages } from "@/services/groups/queries";
+import { listNotificationsFor } from "@/services/notifications/store";
 
 /**
  * Student dashboard shell — one dashboard (`/dashboard`) with its sections
@@ -32,8 +33,15 @@ export default async function DashboardLayout({
   if (profile.role === "admin") redirect("/admin");
 
   const firstName = profile.full_name.split(" ")[0];
-  const groupUnread =
-    profile.role === "student" ? await countUnreadGroupMessages(profile) : 0;
+  // Sidebar badges: unread group messages (0036) and unread notifications
+  // (0042, null when the table doesn't exist yet → no badge).
+  const [groupUnread, notifications] =
+    profile.role === "student"
+      ? await Promise.all([
+          countUnreadGroupMessages(profile),
+          listNotificationsFor(profile.id, 1),
+        ])
+      : [0, null];
 
   return (
     // `overflow-clip`, not `overflow-hidden`: hidden makes this wrapper a
@@ -64,7 +72,10 @@ export default async function DashboardLayout({
             <StudentNav
               role={profile.role}
               firstName={firstName}
-              groupUnread={groupUnread}
+              badges={{
+                "/dashboard/groups": groupUnread,
+                "/dashboard/notifications": notifications?.unread ?? 0,
+              }}
             />
           </aside>
           <div className="mt-8 min-w-0 lg:mt-0 [&>*:first-child]:mt-0">{children}</div>

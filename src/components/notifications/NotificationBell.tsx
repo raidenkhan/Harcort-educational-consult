@@ -27,7 +27,7 @@ const POLL_MS = 60_000;
  * badge, and opens a panel of the latest notifications. Opening one marks it
  * read and follows its link. Hidden entirely until migration 0042 exists.
  */
-export function NotificationBell() {
+export function NotificationBell({ allHref }: { allHref?: string } = {}) {
   const router = useRouter();
   const [feed, setFeed] = useState<Feed | null>(null);
   // Snapshot of the clock at fetch time — relative times are computed from
@@ -203,6 +203,22 @@ export function NotificationBell() {
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* Students have a full history page in their dashboard. */}
+          {allHref && (
+            <div className="border-t border-slate-100 px-4 py-2.5 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  router.push(allHref);
+                }}
+                className="text-xs font-semibold text-brand-700 hover:underline"
+              >
+                View all notifications
+              </button>
+            </div>
           )}
         </div>
       )}

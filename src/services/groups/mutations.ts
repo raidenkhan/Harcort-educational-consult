@@ -83,6 +83,7 @@ export async function createGroup(
   if (memberError) return { error: memberError.message };
 
   revalidatePath("/groups");
+  revalidatePath("/dashboard/groups");
   return { ok: true, groupId };
 }
 
@@ -122,6 +123,7 @@ export async function joinGroup(
   }
 
   revalidatePath("/groups");
+  revalidatePath("/dashboard/groups");
   return { ok: true, groupId: g.id };
 }
 
@@ -250,6 +252,7 @@ export async function addGroupMembers(
   );
 
   revalidatePath("/groups");
+  revalidatePath("/dashboard/groups");
   return { ok: true, groupId, added: toAdd.length };
 }
 
@@ -289,6 +292,7 @@ export async function joinGroupById(
   }
 
   revalidatePath("/groups");
+  revalidatePath("/dashboard/groups");
   return { ok: true, groupId };
 }
 
@@ -348,6 +352,7 @@ export async function sendGroupMessage(
   }
 
   revalidatePath("/groups");
+  revalidatePath("/dashboard/groups");
   return { ok: true };
 }
 
@@ -369,6 +374,7 @@ export async function leaveGroup(formData: FormData): Promise<void> {
     .eq("profile_id", profile.id);
 
   revalidatePath("/groups");
+  revalidatePath("/dashboard/groups");
 }
 
 /**
@@ -410,4 +416,5 @@ export async function archiveGroup(formData: FormData): Promise<void> {
     .eq("id", parsed.data.groupId);
 
   revalidatePath("/groups");
+  revalidatePath("/dashboard/groups");
 }

@@ -31,8 +31,9 @@ const TABS: Record<UserRole, Tab[]> = {
   student: [
     { href: "/dashboard", label: "Home", icon: LayoutDashboard },
     { href: "/tutors", label: "Find tutors", icon: Compass },
-    { href: "/chat", label: "Messages", icon: MessageCircle },
-    { href: "/groups", label: "Groups", icon: Users },
+    // Students' messages and groups live inside the dashboard (sidebar).
+    { href: "/dashboard/messages", label: "Messages", icon: MessageCircle },
+    { href: "/dashboard/groups", label: "Groups", icon: Users },
     // A real route since the dashboard was split into tabs — the timetable
     // has its own page, not an anchor on one endless scroll.
     { href: "/dashboard/timetable", label: "Timetable", icon: CalendarClock },
@@ -106,7 +107,8 @@ export function MobileTabBar({
 
         {tabs.map((tab, i) => {
           const active = i === activeIndex;
-          const badge = tab.href === "/groups" ? groupUnread : 0;
+          const badge =
+            tab.href === "/groups" || tab.href === "/dashboard/groups" ? groupUnread : 0;
           return (
             <Link
               key={tab.href}

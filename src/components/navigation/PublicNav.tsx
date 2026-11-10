@@ -44,7 +44,9 @@ export function PublicNav({
     >
       {profile ? (
         <>
-          <NotificationBell />
+          <NotificationBell
+            allHref={profile.role === "student" ? "/dashboard/notifications" : undefined}
+          />
           <CartNavButton />
           <UserMenu profile={profile} />
         </>

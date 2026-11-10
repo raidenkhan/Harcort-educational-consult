@@ -79,6 +79,7 @@ export async function startConversation(
   }
 
   revalidatePath("/chat");
+  revalidatePath("/dashboard/messages");
   return { ok: true, conversationId: (inserted as { id: string }).id };
 }
 
@@ -155,6 +156,7 @@ export async function sendMessage(
   }
 
   revalidatePath("/chat");
+  revalidatePath("/dashboard/messages");
   return { ok: true };
 }
 
@@ -236,5 +238,6 @@ export async function startAdminConversation(
   }
 
   revalidatePath("/chat");
+  revalidatePath("/dashboard/messages");
   return { ok: true, conversationId: (inserted as { id: string }).id };
 }

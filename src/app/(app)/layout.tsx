@@ -94,7 +94,11 @@ async function AppHeader() {
     // `/tutor` for tutors, `/dashboard` for everyone else), same as the
     // public nav, so the right-hand side is identical signed in or out.
     <FloatingNav links={links}>
-      {profile && <NotificationBell />}
+      {profile && (
+        <NotificationBell
+          allHref={profile.role === "student" ? "/dashboard/notifications" : undefined}
+        />
+      )}
       <CartNavButton />
       {profile && <UserMenu profile={profile} />}
     </FloatingNav>

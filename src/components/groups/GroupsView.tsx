@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
   ArrowLeft,
@@ -213,6 +213,8 @@ function MessageRow({
 
 function SuggestedGroups({ suggested }: { suggested: JoinableGroup[] }) {
   const router = useRouter();
+  // /groups for tutors and admins, /dashboard/groups for students.
+  const basePath = usePathname();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -228,7 +230,7 @@ function SuggestedGroups({ suggested }: { suggested: JoinableGroup[] }) {
       setError(res.error);
       return;
     }
-    router.push(`/groups?g=${groupId}`);
+    router.push(`${basePath}?g=${groupId}`);
   };
 
   if (suggested.length === 0) return null;
@@ -324,6 +326,8 @@ export function GroupsView({
   canCreate: boolean;
 }) {
   const router = useRouter();
+  // /groups for tutors and admins, /dashboard/groups for students.
+  const basePath = usePathname();
   const scrollRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const addFormRef = useRef<HTMLFormElement>(null);
@@ -352,12 +356,12 @@ export function GroupsView({
 
   const selectGroup = (id: string) => {
     lastNav.current = nowMs();
-    router.push(`/groups?g=${id}`);
+    router.push(`${basePath}?g=${id}`);
   };
   const closeThread = () => {
     lastNav.current = nowMs();
     setShowMembers(false);
-    router.replace("/groups");
+    router.replace(basePath);
   };
 
   const threadHasBody = (body: string) =>

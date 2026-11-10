@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Check, Inbox, Loader2, MessageCircle, Send } from "lucide-react";
 import { sendMessage, type ConversationFormState } from "@/services/chat/mutations";
 import { ReportMessageButton } from "@/components/chat/ReportMessageButton";
@@ -188,6 +188,9 @@ export function ChatView({
   // drift out of sync with the active conversation (the old local state
   // would go stale and every row ended up opening the same fallback chat).
   const searchParams = useSearchParams();
+  // /chat for tutors and admins, /dashboard/messages for students — thread
+  // links stay on whichever page rendered this view.
+  const basePath = usePathname();
   // The URL must name THIS conversation — otherwise the pane stays on the
   // list for the moment it takes the new thread's props to arrive, instead of
   // flashing the previous conversation's content.
@@ -200,11 +203,11 @@ export function ChatView({
 
   const selectConversation = (id: string) => {
     lastNav.current = nowMs();
-    router.push(`/chat?c=${id}`);
+    router.push(`${basePath}?c=${id}`);
   };
   const closeThread = () => {
     lastNav.current = nowMs();
-    router.replace("/chat");
+    router.replace(basePath);
   };
 
   // True once the server thread contains this body from me (reconciliation).

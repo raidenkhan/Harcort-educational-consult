@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Banknote,
+  Bell,
   BookOpen,
   CalendarClock,
   House,
@@ -31,9 +32,10 @@ import type { UserRole } from "@/types";
  *
  * Two pieces: `StudentHeader` (the section's title + description, above
  * everything) and `StudentNav` (the menu — a sticky vertical sidebar from
- * `lg` up, a scrollable row below). The menu also carries Messages and Groups
- * (with the unread badge); for students those links left the top navbar, so
- * the dashboard menu is the one place to find them on desktop.
+ * `lg` up, a scrollable row below). Messages, Groups and Notifications are
+ * dashboard sections like the rest (`/dashboard/messages`, `/dashboard/groups`,
+ * `/dashboard/notifications`), so the menu stays on screen while you use
+ * them; `/chat` and `/groups` send students here.
  */
 type Section = {
   href: string;
@@ -46,12 +48,6 @@ type Section = {
   studentOnly?: boolean;
 };
 
-/** Links in the menu that lead out of the dashboard (no header of their own
- *  here — their pages have their own). */
-const ELSEWHERE = [
-  { href: "/chat", label: "Messages", icon: MessageCircle },
-  { href: "/groups", label: "Groups", icon: Users },
-] as const;
 
 const TABS: Section[] = [
   {
@@ -79,6 +75,31 @@ const TABS: Section[] = [
     description:
       "Every agreement, what you've paid and what's left — pay the balance from here.",
     icon: Banknote,
+    studentOnly: true,
+  },
+  {
+    href: "/dashboard/messages",
+    label: "Messages",
+    title: "Conversations with your tutors",
+    description: "Contact a tutor from their profile — your chats live here.",
+    icon: MessageCircle,
+    studentOnly: true,
+  },
+  {
+    href: "/dashboard/groups",
+    label: "Groups",
+    title: "Learn together",
+    description:
+      "Groups your tutors add you to appear here — join with a code or in one tap.",
+    icon: Users,
+    studentOnly: true,
+  },
+  {
+    href: "/dashboard/notifications",
+    label: "Notifications",
+    title: "Notifications",
+    description: "Messages, bookings, sessions and payment updates — everything you've been sent.",
+    icon: Bell,
     studentOnly: true,
   },
   {
@@ -154,16 +175,15 @@ const linkClass = (active: boolean) =>
 export function StudentNav({
   role,
   firstName,
-  groupUnread = 0,
+  badges = {},
 }: {
   role: UserRole;
   firstName: string;
-  /** Unread study-group messages (0036) — the badge that used to sit on the
-   *  navbar's Groups link. */
-  groupUnread?: number;
+  /** Unread counts keyed by section href — Groups (0036 study-group unread,
+   *  the badge that used to sit on the navbar) and Notifications (0042). */
+  badges?: Record<string, number>;
 }) {
   const { sections, activeHref } = useSections(role, firstName);
-  const showElsewhere = role === "student";
 
   return (
     <nav
@@ -172,45 +192,31 @@ export function StudentNav({
     >
       {sections.map(({ href, label, icon: Icon }) => {
         const active = href === activeHref;
+        const badge = badges[href] ?? 0;
         return (
           <Link
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
+            aria-label={badge ? `${label}, ${badge} unread` : undefined}
             className={linkClass(active)}
           >
             <Icon className="h-4 w-4" aria-hidden="true" />
             {label}
+            {badge > 0 && (
+              <span
+                className={cn(
+                  "ml-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",
+                  active ? "bg-white text-brand-700" : "bg-brand-600 text-white",
+                )}
+              >
+                {badge > 99 ? "99+" : badge}
+              </span>
+            )}
           </Link>
         );
       })}
 
-      {showElsewhere && (
-        <>
-          {/* A hairline between the dashboard's own sections and the links
-              that lead to Messages / Groups (vertical layout only). */}
-          <span aria-hidden="true" className="mx-2 hidden h-px bg-slate-200 lg:my-1 lg:block" />
-          {ELSEWHERE.map(({ href, label, icon: Icon }) => {
-            const badge = href === "/groups" ? groupUnread : 0;
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-label={badge ? `${label}, ${badge} unread` : undefined}
-                className={linkClass(false)}
-              >
-                <Icon className="h-4 w-4" aria-hidden="true" />
-                {label}
-                {badge > 0 && (
-                  <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                    {badge > 99 ? "99+" : badge}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </>
-      )}
     </nav>
   );
 }
