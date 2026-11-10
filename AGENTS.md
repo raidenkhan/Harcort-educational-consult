@@ -911,6 +911,13 @@ mobile app.
   that goes into the tutor's email (`TutorApplications`). The People
   directory, the Tutors list and the course catalogue page 10 rows at a time
   (`usePagination` + `Pager`; changing the filter/search resets to page 1).
+  The admin **course library** (0017) sits between the catalogue and the
+  tutor-added-course queue, all on ONE card (`CourseLibraryConsole`): a
+  course dropdown, then that course's Materials and Videos side by side, each
+  with an Add button that opens its form in a modal, each list paged 10 at a
+  time. Its old Year / "Save year" box and "Everything here is public…" note
+  are gone (`setCourseYear` remains in `courses/mutations.ts` but is no longer
+  used by the UI; a course's year is set when it's added from the catalogue).
 ---
 
 ## 3. Architecture

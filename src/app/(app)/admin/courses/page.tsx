@@ -4,17 +4,18 @@ import {
   listCourses,
   listPendingCourses,
 } from "@/services/courses/queries";
-import { CourseLibraryConsole } from "@/components/admin/CourseLibraryConsole";
 import { CourseCatalogueManager } from "@/components/admin/CourseCatalogueManager";
+import { CourseLibraryConsole } from "@/components/admin/CourseLibraryConsole";
 import { AdminSection } from "@/components/admin/AdminSection";
 import { courseUsageCounts } from "@/services/admin/queries";
 import { sortFields } from "@/components/home/courseTaxonomy";
 import { PendingCoursesPanel } from "@/components/admin/PendingCoursesPanel";
 
 /**
- * Courses tab — the course-library console: attach materials and tutorial
- * videos to a course, and review what's already published on the public
- * /courses/[id] pages. The tutor-added course queue sits above it (0031).
+ * Courses tab, top to bottom: the course catalogue (add / delete courses,
+ * paged), the course library (one card — pick a course, then its materials
+ * and videos with Add buttons that open modals), and the queue of courses
+ * tutors added that are waiting for approval.
  */
 export default async function AdminCoursesPage() {
   await requireRole("admin");
@@ -49,23 +50,26 @@ export default async function AdminCoursesPage() {
         />
       </AdminSection>
 
+      {/* The course library — everything on one card, before the tutor-added
+          course queue. */}
+      <AdminSection
+        title="Course library"
+        description="Notes and tutorial videos for each course. They appear on the course's public page as soon as you add them."
+      >
+        <CourseLibraryConsole
+          courses={courses.map((course) => ({
+            id: course.id,
+            subject: course.subject,
+            name: course.name,
+            year: course.year,
+          }))}
+          materials={assets.materials}
+          videos={assets.videos}
+        />
+      </AdminSection>
+
       <PendingCoursesPanel courses={pending} />
 
-      <p className="mt-10 max-w-2xl text-sm leading-relaxed text-slate-600">
-        Everything here is public — it appears on the course&apos;s page the
-        moment you save it. Materials open the file link you provide; videos
-        play inline from YouTube.
-      </p>
-      <CourseLibraryConsole
-        courses={courses.map((course) => ({
-          id: course.id,
-          subject: course.subject,
-          name: course.name,
-          year: course.year,
-        }))}
-        materials={assets.materials}
-        videos={assets.videos}
-      />
     </>
   );
 }
