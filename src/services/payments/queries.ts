@@ -12,6 +12,7 @@ import {
   isPlausiblePaymentToken,
 } from "@/services/payments/links";
 import type { Profile } from "@/types";
+import type { StudentBooking } from "@/services/payments/bookings";
 
 /**
  * Payments read queries. Every query is scoped explicitly to the acting
@@ -1071,4 +1072,68 @@ export async function listOpenRequestsForAdmin(): Promise<OpenPlanRequestView[]>
         row.tutorServiceId !== null &&
         !covered.has(`${row.studentId}::${row.tutorServiceId}`),
     );
+}
+
+// ---------------------------------------------------------------------------
+// Student Home — bookings overview
+// ---------------------------------------------------------------------------
+
+type BookingRow = {
+  id: string;
+  status: StudentBooking["status"];
+  agreed_total: unknown;
+  paid_amount?: unknown;
+  semesters?: number | null;
+  session_mode?: string | null;
+  created_at: string;
+  courses?: { name: string | null; code: string | null } | { name: string | null; code: string | null }[] | null;
+  tutor_profiles?:
+    | { profiles?: { full_name: string | null; public_code: string | null } | { full_name: string | null; public_code: string | null }[] | null }
+    | { profiles?: { full_name: string | null; public_code: string | null } | { full_name: string | null; public_code: string | null }[] | null }[]
+    | null;
+};
+
+/**
+ * The student's bookings for the Home overview: course (with code), tutor,
+ * format, semesters bought and money. Its own query (not `listEngagements`)
+ * because Home needs `semesters` + `session_mode` (0040/0041), which the
+ * shared agreement select does not carry; a database without those columns
+ * falls back to one-semester, format-unknown rows rather than failing.
+ */
+export async function listStudentBookings(profile: Profile): Promise<StudentBooking[]> {
+  const supabase = createAdminClient();
+  const base = `id, status, agreed_total, created_at,
+    courses(name, code), tutor_profiles(profiles(full_name, public_code))`;
+
+  const run = (columns: string) =>
+    supabase
+      .from("engagements")
+      .select(columns)
+      .eq("student_id", profile.id)
+      .order("created_at", { ascending: false });
+  let res = await run(`${base}, paid_amount, semesters, session_mode`);
+  if (res.error && isMissingColumn(res.error)) res = await run(base);
+  if (res.error) {
+    console.error(`[payments] listStudentBookings failed: ${res.error.message}`);
+    return [];
+  }
+
+  return ((res.data ?? []) as unknown as BookingRow[]).map((row) => {
+    const course = one(row.courses);
+    const tutor = one(one(row.tutor_profiles)?.profiles);
+    const mode = row.session_mode;
+    return {
+      id: row.id,
+      status: row.status,
+      courseName: course?.name ?? "Course",
+      courseCode: course?.code ?? null,
+      tutorName: tutor?.full_name ?? "Tutor",
+      tutorCode: tutor?.public_code ?? null,
+      sessionMode: mode === "group" || mode === "one_on_one" ? mode : null,
+      semesters: row.semesters ?? 1,
+      agreedTotal: toBigint(row.agreed_total),
+      paidPesewas: row.paid_amount != null ? toBigint(row.paid_amount) : BigInt(0),
+      createdAt: row.created_at,
+    };
+  });
 }

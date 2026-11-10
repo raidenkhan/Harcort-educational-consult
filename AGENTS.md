@@ -838,6 +838,25 @@ mobile app.
   the notification); the reminder is worded for the situation
   (pay for ME 261 with Kofi → /dashboard/payments, or pick a course →
   /courses). Before 0042 is applied the bell hides and the button says so.
+- **Student dashboard: one place for everything.** The menu is a sticky
+  vertical sidebar (`StudentHeader` + `StudentNav`): Home, Courses,
+  Timetable, Payments, Messages, Groups, Notifications, Settings, with unread
+  badges on Groups and Notifications. Messages and Groups render INSIDE the
+  dashboard (`/dashboard/messages`, `/dashboard/groups`) from shared
+  `ChatScreen` / `GroupsScreen` components; `/chat` and `/groups` still serve
+  tutors and admins and redirect students with `?c=` / `?g=` / `?code=` kept,
+  and the views build their links from `usePathname()`. Notifications has a
+  full-history page; the bell offers "View all" to students. Students no
+  longer get Messages/Groups in the navbar. **Home** is an overview —
+  courses booked, tutors, semesters booked, next lesson, bookings awaiting
+  payment, a My-bookings list and "what you can do" doors — from
+  `listStudentBookings` (reads `semesters` + `session_mode`) and the pure
+  `summarizeBookings` / `orderBookings` (`payments/bookings.ts`, unit-tested).
+  **Booking from Courses:** a course card opens `/dashboard/courses/[id]`,
+  which lists every tutor teaching it (`offeringsByCourse`, matched by code)
+  with per-format prices and "Choose & pay" — `BookTutorButton` opened on that
+  course (`initialSelected`), so format + semesters + total + one Paystack
+  charge happen without leaving the dashboard.
 ---
 
 ## 3. Architecture

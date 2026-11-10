@@ -48,11 +48,18 @@ export function BookTutorButton({
   offerings,
   signedIn,
   className,
+  initialSelected,
+  label = "Book tutor",
 }: {
   tutorName: string;
   offerings: CartOffering[];
   signedIn: boolean;
   className?: string;
+  /** Services ticked when the dialog opens — a course page passes its own
+   *  course, so the student lands on price + semesters, not a checklist. */
+  initialSelected?: string[];
+  /** The trigger button's text. */
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -65,7 +72,9 @@ export function BookTutorButton({
   }, [offerings]);
 
   const [mode, setMode] = useState<SessionMode>(modes[0] ?? "one_on_one");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(initialSelected ?? []),
+  );
   const [semesters, setSemesters] = useState(1);
 
   const { open: openAuth } = useAuthModal();
@@ -151,7 +160,7 @@ export function BookTutorButton({
         )}
       >
         <CalendarCheck className="h-4 w-4" aria-hidden="true" />
-        Book tutor
+        {label}
       </button>
 
       <Modal

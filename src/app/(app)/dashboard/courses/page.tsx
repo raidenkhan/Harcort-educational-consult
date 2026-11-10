@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/services/auth/queries";
 import { listCourses } from "@/services/courses/queries";
+import { offeringsByCourse } from "@/services/courses/offerings";
+import { safeListApprovedTutors } from "@/services/tutors/queries";
 import {
   sortFields,
   groupCoursesForPicker,
@@ -11,9 +13,10 @@ import { StudyPrefsPicker } from "@/components/auth/StudyPrefsPicker";
 
 /**
  * Student dashboard — Courses. Per-program personalization (board flow:
- * Program → Year → Course → Materials → Tutors). Students pick what they
- * study and the year they're in; the page lists that program's courses
- * grouped by term, and each course page carries its materials + tutors.
+ * Program → Year → Course → Tutors → pay). Students pick what they study and
+ * the year they're in; the page lists that program's courses grouped by
+ * term with how many tutors teach each, and opening one shows its tutors
+ * (inside the dashboard, /dashboard/courses/[id]) to choose from and pay.
  */
 export default async function StudentCoursesPage() {
   const profile = await requireProfile();
@@ -21,7 +24,10 @@ export default async function StudentCoursesPage() {
   // dashboard is `/tutor`.
   if (profile.role !== "student") redirect("/dashboard");
 
-  const allCourses = await listCourses();
+  const [allCourses, tutors] = await Promise.all([
+    listCourses(),
+    safeListApprovedTutors(),
+  ]);
   const courses = engineeringCourses(allCourses);
 
   const programSubjects = sortFields(
@@ -43,6 +49,8 @@ export default async function StudentCoursesPage() {
   // "Level 200 · Semester 1" / "… Semester 2" / "… Both semesters", the same
   // vocabulary as the /courses directory and the tutor's course picker.
   const courseBuckets = groupCoursesForPicker(yearCourses);
+  // How many tutors teach each course (matched by code — see offerings.ts).
+  const offerings = offeringsByCourse(tutors, yearCourses);
 
   return (
     <section className="mt-10">
@@ -94,7 +102,7 @@ export default async function StudentCoursesPage() {
                     {bucket.items.map((course) => (
                       <li key={course.id} className="h-full">
                         <Link
-                          href={`/courses/${course.id}`}
+                          href={`/dashboard/courses/${course.id}`}
                           className="group flex h-full flex-col rounded-lg border border-slate-200 bg-white p-5 shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lift focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
                         >
                           {course.code && (
@@ -118,8 +126,18 @@ export default async function StudentCoursesPage() {
                               {course.description}
                             </span>
                           )}
-                          <span className="mt-auto pt-3 text-sm font-semibold text-brand-600 transition-colors group-hover:text-brand-700">
-                            Materials &amp; tutors →
+                          <span className="mt-auto flex items-center justify-between gap-2 pt-3 text-sm">
+                            <span className="text-xs text-slate-500">
+                              {(() => {
+                                const n = offerings[course.id]?.length ?? 0;
+                                return n === 0
+                                  ? "No tutors yet"
+                                  : `${n} tutor${n === 1 ? "" : "s"} available`;
+                              })()}
+                            </span>
+                            <span className="font-semibold text-brand-600 transition-colors group-hover:text-brand-700">
+                              Choose a tutor →
+                            </span>
                           </span>
                         </Link>
                       </li>
