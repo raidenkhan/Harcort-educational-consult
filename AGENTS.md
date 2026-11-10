@@ -918,6 +918,33 @@ mobile app.
   time. Its old Year / "Save year" box and "Everything here is public…" note
   are gone (`setCourseYear` remains in `courses/mutations.ts` but is no longer
   used by the UI; a course's year is set when it's added from the catalogue).
+  The library's Add buttons open forms whose **Save material / Save video**
+  button is pinned to the bottom of the modal (sticky), so it's visible even
+  when the form is taller than a phone screen.
+- **Discount codes (0044).** Admin → **Discount codes** creates PERSONAL,
+  SINGLE-USE **percentage** codes for one student (`DiscountCodesManager`):
+  type a code or **Generate** one — `generateDiscountCode` builds
+  NAME-PROGYEAR-RANDOM (e.g. `AMA-ME2-K7QX9P`) where the 6-symbol block comes
+  from a crypto RNG with rejection sampling over an unambiguous 31-symbol
+  alphabet (no 0/O/1/I/L). Students enter the code in the Book-tutor dialog
+  or the cart (`DiscountCodeField` → `checkDiscountCode`), which shows the
+  discount line and the new total (per-line rounding identical to the
+  server). **Harcourt absorbs every discount**: agreements keep their full
+  price (tutor share unchanged); `startCartCheckout` re-checks the code,
+  charges only the remainder (+ the fee on the remainder), and records a
+  PENDING `discount_redemptions` row against the Paystack reference;
+  `applyPendingDiscount` (called by `reconcileBatchByReference` on apply AND
+  on already-paid) flips it pending→applied as the atomic claim and credits
+  each agreement through the `apply_discount_credit` RPC — a
+  `DISCOUNT-…` `payments` row (paystack_status `discount`, no receipt
+  emails) that spreads across installments and activates a pending
+  agreement (needed when a >50% discount leaves the real payment below the
+  activation threshold). A 100% code skips Paystack: the credit is applied
+  at checkout and group seats are taken. Lookups validate the code shape
+  before the case-insensitive `ilike`, so `_`/`%` wildcards can't match
+  another student's code; "not yours" and "not found" share one message.
+  Pure rules in `discounts/codes.ts` (tested). Discounts apply on the
+  cart/Book-tutor checkout only (not the legacy single-course paywall).
 ---
 
 ## 3. Architecture
@@ -1005,6 +1032,7 @@ and all are safe to re-run:
 | `0041_cart_semesters.sql` | `engagements.semesters` (1..4, default 1). `prepare_cart_engagement` gains `p_semesters` (old 4-arg version dropped to keep PostgREST unambiguous): `agreed_total = per-semester price × semesters`, computed from `tutor_services`. Until it is applied, checkout falls back to the 4-arg RPC for 1 semester and refuses more |
 | `0042_notifications.sql` | `notifications` — the in-app bell: recipient, kind, title, body, link, `read_at`, `created_by` (the admin who sent a reminder) and a UNIQUE `source_key` dedupe claim (the outbox drain writes `outbox:<row id>`). Indexes for the recipient's newest-first list, the unread badge and "last reminded". Deny-all RLS |
 | `0043_block_accounts.sql` | `profiles.blocked_at` / `blocked_by` / `blocked_reason` — an admin-blocked student or tutor can't sign in, is treated as signed out, and (tutors) leaves the directory; nothing is deleted. Partial index on blocked rows |
+| `0044_discount_codes.sql` | `discount_codes` (personal, single-use percentage codes; case-insensitive unique code) and `discount_redemptions` (UNIQUE per code; the Paystack reference + per-agreement allocations; `pending`→`applied` is the exactly-once claim), plus `apply_discount_credit` — the Harcourt-funded `DISCOUNT-…` payment that credits an agreement without receipts and activates it. Deny-all RLS |
 
 Key security properties:
 - **No Supabase Auth.** Passwords live only in `credentials`; sessions in
@@ -1151,7 +1179,7 @@ every send).
 
 Setup runbook:
 1. `npm install`
-2. Apply migrations `0001` → `0043` in the Supabase SQL Editor, in order
+2. Apply migrations `0001` → `0044` in the Supabase SQL Editor, in order
    (each is safe to re-run)
 3. `npm run dev` → http://localhost:3000 (no confirmation emails — sign-up
    signs you in immediately)

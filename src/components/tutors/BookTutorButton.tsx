@@ -8,6 +8,11 @@ import { useCart } from "@/components/cart/CartProvider";
 import type { CartOffering } from "@/components/cart/AddToCartButton";
 import { startCartCheckout, type PaymentFormState } from "@/services/payments/mutations";
 import { checkoutTotal } from "@/services/payments/fees";
+import {
+  DiscountCodeField,
+  discountForLines,
+  type AppliedDiscount,
+} from "@/components/payments/DiscountCodeField";
 import { MAX_SEMESTERS, MIN_SEMESTERS } from "@/services/cart/cart";
 import type { SessionMode } from "@/services/auth/sessionFormat";
 import { formatGhs } from "@/lib/money";
@@ -100,7 +105,14 @@ export function BookTutorButton({
     BigInt(0),
   );
   const subtotal = perSemester * BigInt(semesters);
-  const { feePesewas, totalPesewas } = checkoutTotal(subtotal);
+  // Discount code (signed-in students): per course, like the server.
+  const [discount, setDiscount] = useState<AppliedDiscount | null>(null);
+  const discountPesewas = discountForLines(
+    chosen.map((o) => toPesewas(priceFor(o, mode) ?? 0) * BigInt(semesters)),
+    signedIn ? discount : null,
+  );
+  const payable = subtotal - discountPesewas;
+  const { feePesewas, totalPesewas } = checkoutTotal(payable);
 
   const toggle = (id: string) =>
     setSelected((current) => {
@@ -181,6 +193,7 @@ export function BookTutorButton({
         <form action={formAction} className="mt-5 space-y-5">
           <input type="hidden" name="cartLines" value={JSON.stringify(lines)} />
           <input type="hidden" name="returnTo" value="dashboard" />
+          {signedIn && discount && <input type="hidden" name="discountCode" value={discount.code} />}
 
           {/* 1 — format */}
           {modes.length > 1 && (
@@ -310,6 +323,10 @@ export function BookTutorButton({
             </div>
           </div>
 
+          {/* Discount code — signed-in students only (a signed-out visitor
+              applies it on the cart after signing in). */}
+          {signedIn && <DiscountCodeField applied={discount} onChange={setDiscount} />}
+
           {/* Price counter */}
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4" aria-live="polite">
             <div className="space-y-1.5 text-sm">
@@ -320,6 +337,12 @@ export function BookTutorButton({
                 </span>
                 <span className="font-medium text-slate-900">{formatGhs(subtotal)}</span>
               </div>
+              {discountPesewas > BigInt(0) && discount && (
+                <div className="flex justify-between text-emerald-700">
+                  <span>Discount ({discount.percent}%)</span>
+                  <span className="font-medium">−{formatGhs(discountPesewas)}</span>
+                </div>
+              )}
               {feePesewas > BigInt(0) && (
                 <div className="flex justify-between text-slate-600">
                   <span>Processing fee</span>
@@ -352,7 +375,9 @@ export function BookTutorButton({
                 ? "Opening payment…"
                 : chosen.length === 0
                   ? "Choose a course"
-                  : `Make payment · ${formatGhs(totalPesewas)}`}
+                  : totalPesewas === BigInt(0)
+                    ? "Book with discount"
+                    : `Make payment · ${formatGhs(totalPesewas)}`}
             </button>
           ) : (
             <button

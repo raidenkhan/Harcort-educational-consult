@@ -60,10 +60,15 @@ function AssetFormBody({
           {state.error}
         </p>
       )}
-      <Button type="submit" disabled={pending} className="w-full sm:w-auto">
-        <Plus className="h-4 w-4" />
-        {pending ? "Saving…" : submitLabel}
-      </Button>
+      {/* Pinned to the bottom of the modal (the modal panel is the scroll
+          container), so the save button is always on screen — even when the
+          form is taller than a phone's viewport. */}
+      <div className="sticky bottom-0 -mx-6 -mb-6 flex justify-end gap-2 border-t border-slate-100 bg-white px-6 py-4">
+        <Button type="submit" disabled={pending} className="w-full sm:w-auto">
+          <Plus className="h-4 w-4" />
+          {pending ? "Saving…" : submitLabel}
+        </Button>
+      </div>
     </form>
   );
 }
@@ -71,6 +76,7 @@ function AssetFormBody({
 /** A button that opens one asset form in a modal. */
 function AddAssetButton({
   label,
+  submitLabel,
   title,
   description,
   icon: Icon,
@@ -79,6 +85,9 @@ function AddAssetButton({
   children,
 }: {
   label: string;
+  /** The modal's save button — worded differently from the opener so it
+   *  reads as "save this", not "open another form". */
+  submitLabel: string;
   title: string;
   description: string;
   icon: typeof FileText;
@@ -111,7 +120,7 @@ function AddAssetButton({
       </Button>
       <Modal open={open} onClose={() => setOpen(false)} title={title} description={description} className="max-w-xl">
         {open && (
-          <AssetFormBody key={attempt} serverAction={serverAction} submitLabel={label} onSaved={handleSaved}>
+          <AssetFormBody key={attempt} serverAction={serverAction} submitLabel={submitLabel} onSaved={handleSaved}>
             {children}
           </AssetFormBody>
         )}
@@ -195,6 +204,7 @@ export function CourseLibraryConsole({
             </h3>
             <AddAssetButton
               label="Add material"
+              submitLabel="Save material"
               title="Add a material"
               description={`Attach a file to ${courseName}. It appears on the course page straight away.`}
               icon={FileText}
@@ -277,6 +287,7 @@ export function CourseLibraryConsole({
             </h3>
             <AddAssetButton
               label="Add video"
+              submitLabel="Save video"
               title="Add a tutorial video"
               description={`Add a YouTube lesson to ${courseName}. It plays inline on the course page.`}
               icon={Video}

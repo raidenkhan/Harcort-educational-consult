@@ -10,6 +10,7 @@ import {
   TrendingUp,
   Users,
   Settings,
+  TicketPercent,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -22,7 +23,8 @@ import { cn } from "@/lib/cn";
  *   People   → tutor applications, password resets, reports
  *   Courses  → tutor-added courses to approve + the course library
  *   Sessions → attendance tracker (route stays /admin/attendance)
- *   Payments → sub-tabs: payouts, plan requests, agreements, links, log
+ *   Payments → sub-tabs: paid, unpaid, payouts, plans, agreements, links, log
+ *   Discount codes → personal single-use % discounts (0044)
  *   Insights → sub-tabs: performance (/admin/analytics), texts (/admin/sms)
  *   Settings → the admin's own phone/SMS + account
  */
@@ -38,6 +40,7 @@ const TABS: {
   { href: "/admin/courses", label: "Courses", icon: LibraryBig },
   { href: "/admin/attendance", label: "Sessions", icon: CalendarCheck },
   { href: "/admin/payments", label: "Payments", icon: Wallet },
+  { href: "/admin/discounts", label: "Discount codes", icon: TicketPercent },
   { href: "/admin/analytics", label: "Insights", icon: TrendingUp, also: ["/admin/sms"] },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];

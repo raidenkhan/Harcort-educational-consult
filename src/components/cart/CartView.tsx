@@ -16,6 +16,11 @@ import { sessionModeLabel } from "@/services/auth/sessionFormat";
 import { formatGhs } from "@/lib/money";
 import { AccountChoiceModal } from "@/components/auth/AccountChoiceModal";
 import { checkoutTotal } from "@/services/payments/fees";
+import {
+  DiscountCodeField,
+  discountForLines,
+  type AppliedDiscount,
+} from "@/components/payments/DiscountCodeField";
 
 /**
  * The cart — turns a localStorage wish list into ONE Paystack charge.
@@ -60,7 +65,13 @@ export function CartView({ signedIn }: { signedIn: boolean }) {
   // The SAME gross-up the server charges with (0034), so the number on the
   // Pay button is the number Paystack shows.
   const subtotalPesewas = cartSubtotalPesewas(lines);
-  const { feePesewas, totalPesewas } = checkoutTotal(subtotalPesewas);
+  // Discount code (signed-in students): per line, like the server.
+  const [discount, setDiscount] = useState<AppliedDiscount | null>(null);
+  const discountPesewas = discountForLines(
+    lines.map((line) => cartLinePesewas(line) ?? BigInt(0)),
+    signedIn ? discount : null,
+  );
+  const { feePesewas, totalPesewas } = checkoutTotal(subtotalPesewas - discountPesewas);
 
   // Success state after payment
   if (justPaid) {
@@ -160,6 +171,7 @@ export function CartView({ signedIn }: { signedIn: boolean }) {
           )}
 
           <form action={formAction}>
+            {signedIn && discount && <input type="hidden" name="discountCode" value={discount.code} />}
             {/* Hidden input with cart data */}
             <input
               type="hidden"
@@ -230,6 +242,13 @@ export function CartView({ signedIn }: { signedIn: boolean }) {
               })}
             </div>
 
+            {/* Discount code — signed-in students (sign in first to use one). */}
+            {signedIn && (
+              <div className="mt-6">
+                <DiscountCodeField applied={discount} onChange={setDiscount} />
+              </div>
+            )}
+
             {/* Totals */}
             <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
               <div className="space-y-2 text-sm">
@@ -239,6 +258,12 @@ export function CartView({ signedIn }: { signedIn: boolean }) {
                     {formatGhs(subtotalPesewas)}
                   </span>
                 </div>
+                {discountPesewas > BigInt(0) && discount && (
+                  <div className="flex justify-between text-emerald-700">
+                    <span>Discount ({discount.percent}%)</span>
+                    <span className="font-medium">−{formatGhs(discountPesewas)}</span>
+                  </div>
+                )}
                 {feePesewas > BigInt(0) && (
                   <div className="flex justify-between">
                     <span className="text-slate-600">Processing fee</span>
@@ -269,7 +294,9 @@ export function CartView({ signedIn }: { signedIn: boolean }) {
                   <CreditCard className="h-4 w-4" />
                   {pending || state?.checkoutUrl
                     ? "Opening payment…"
-                    : `Pay ${formatGhs(totalPesewas)}`}
+                    : totalPesewas === BigInt(0)
+                      ? "Book with discount"
+                      : `Pay ${formatGhs(totalPesewas)}`}
                 </Button>
               ) : (
                 <button

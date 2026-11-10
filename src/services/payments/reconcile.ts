@@ -10,6 +10,7 @@ import {
   type PaystackTransaction,
 } from "./paystack";
 import { seatGroupBookingForEngagement } from "@/services/groups/booking";
+import { applyPendingDiscount } from "@/services/discounts/store";
 
 /**
  * Charge reconciliation — the one place a Paystack charge is applied.
@@ -391,6 +392,9 @@ async function reconcileBatchByReference(ref: string): Promise<ReconcileOutcome>
   const firstEngagement = engagementIds[0] ?? "";
 
   if (batch.status === "paid") {
+    // Another path applied the charge; make sure its discount (0044) landed
+    // too — the claim inside makes this a no-op if it already did.
+    await applyPendingDiscount(ref);
     return { status: "already_paid", engagementId: firstEngagement };
   }
   if (batch.status === "cancelled") {
@@ -459,6 +463,7 @@ async function reconcileBatchByReference(ref: string): Promise<ReconcileOutcome>
       .eq("id", batch.id)
       .maybeSingle();
     if ((after as { status?: string } | null)?.status === "paid") {
+      await applyPendingDiscount(ref);
       return { status: "already_paid", engagementId: firstEngagement };
     }
     if (isDefinitiveRefusal(applyError.message)) {
@@ -470,6 +475,10 @@ async function reconcileBatchByReference(ref: string): Promise<ReconcileOutcome>
     }
     return { status: "refused", reason: applyError.message };
   }
+
+  // Harcourt's discount (0044), credited exactly once — before seating, so a
+  // booking the discount completes is active when the group seat runs.
+  await applyPendingDiscount(ref);
 
   // One text for the whole charge, deduped on the reference Paystack knows.
   await textPaymentReceived(firstEngagement, courseAmount, ref);

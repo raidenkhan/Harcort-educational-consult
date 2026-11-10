@@ -36,6 +36,14 @@ import { generatePaymentToken, hashPaymentToken, paymentLinkPath } from "./links
 import { checkoutTotal } from "./fees";
 import { CART_MAX_ITEMS, clampSemesters } from "@/services/cart/cart";
 import { getPaymentLinkByToken } from "./queries";
+import { discountOn, discountReasonMessage, normalizeDiscountCode } from "@/services/discounts/codes";
+import {
+  applyPendingDiscount,
+  checkCodeForStudent,
+  recordPendingRedemption,
+  type Allocation,
+  type DiscountCodeRow,
+} from "@/services/discounts/store";
 
 /**
  * Payment mutations — the write side of the payments domain.
@@ -1668,9 +1676,55 @@ export async function startCartCheckout(
       (row) => [row.id, BigInt(Math.round(Number(row.agreed_total) - Number(row.paid_amount ?? 0)))],
     ),
   );
-  const items = engagementIds.map((id) => ({ engagement_id: id, amount: owedById.get(id) ?? BigInt(0) }));
-  if (items.some((item) => item.amount <= BigInt(0))) {
+  const owedItems = engagementIds.map((id) => ({ engagement_id: id, amount: owedById.get(id) ?? BigInt(0) }));
+  if (owedItems.some((item) => item.amount <= BigInt(0))) {
     return { error: "One of these courses has nothing left to pay — untick it and try again." };
+  }
+
+  // ── 3b. Discount code (0044). Re-checked HERE (never trusted from the
+  // page): the student's own, active, unused, unexpired code. Harcourt
+  // absorbs it — agreements keep their full price (so the tutor's share is
+  // unchanged); the student is charged the remainder, and the discount is
+  // credited by `applyPendingDiscount` once Paystack verifies the payment.
+  const discountCode = normalizeDiscountCode(formData.get("discountCode"));
+  let discount: { row: DiscountCodeRow; allocations: Allocation[]; total: bigint } | null = null;
+  if (discountCode) {
+    const { check, row, missingTable } = await checkCodeForStudent(discountCode, profile.id);
+    if (missingTable) return { error: "Discount codes aren't available yet — remove the code to continue." };
+    if (!check.ok || !row) return { error: check.ok ? "That discount code isn't valid." : discountReasonMessage(check.reason) };
+    const allocations = owedItems
+      .map((item) => ({ engagement_id: item.engagement_id, amount: Number(discountOn(item.amount, check.percent)) }))
+      .filter((a) => a.amount > 0);
+    discount = { row, allocations, total: allocations.reduce((sum, a) => sum + BigInt(a.amount), BigInt(0)) };
+  }
+  const discountFor = new Map((discount?.allocations ?? []).map((a) => [a.engagement_id, BigInt(a.amount)]));
+  // What the student actually pays per agreement; a 100%-discounted line has
+  // nothing to charge and is left out of the Paystack batch.
+  const items = owedItems
+    .map((item) => ({ engagement_id: item.engagement_id, amount: item.amount - (discountFor.get(item.engagement_id) ?? BigInt(0)) }))
+    .filter((item) => item.amount > BigInt(0));
+
+  // Fully covered by the discount: nothing to charge — credit it now.
+  if (discount && items.length === 0) {
+    const freeReference = `HARC-FREE-${randomUUID().slice(0, 12).toUpperCase()}`;
+    const recorded = await recordPendingRedemption({
+      row: discount.row,
+      studentId: profile.id,
+      reference: freeReference,
+      allocations: discount.allocations,
+      discountTotal: discount.total,
+    });
+    if (!recorded.ok) return { error: recorded.error };
+    await applyPendingDiscount(freeReference);
+    // The same follow-up a verified payment gets: group bookings take a seat.
+    for (const allocation of discount.allocations) {
+      await seatGroupBookingForEngagement(allocation.engagement_id);
+    }
+    revalidatePath("/dashboard", "layout");
+    return {
+      message: "Booked with your discount.",
+      checkoutUrl: "/dashboard?payment=return&payment_status=received",
+    };
   }
 
   const netTotal = items.reduce((sum, item) => sum + item.amount, BigInt(0));
@@ -1678,7 +1732,7 @@ export async function startCartCheckout(
   const signature = `${profile.id}:${items
     .map((item) => `${item.engagement_id}=${item.amount}`)
     .sort()
-    .join(",")}:${feePesewas}`;
+    .join(",")}:${feePesewas}${discountCode ? `:${discountCode}` : ""}`;
 
   // ── 4. Double-tap guard: the same selection within ten minutes reuses the
   // live checkout page instead of minting a second reference.
@@ -1717,6 +1771,19 @@ export async function startCartCheckout(
     return { error: friendlyError(rpcError(batchError)) };
   }
 
+  // The discount rides on this Paystack reference; it is credited when the
+  // charge is verified (webhook / return path / sweep — exactly once).
+  if (discount) {
+    const recorded = await recordPendingRedemption({
+      row: discount.row,
+      studentId: profile.id,
+      reference,
+      allocations: discount.allocations,
+      discountTotal: discount.total,
+    });
+    if (!recorded.ok) return { error: recorded.error };
+  }
+
   // ── 6. Start the Paystack charge for the GROSS total (0034 — the fee is the
   // student's). The reconcile path verifies Paystack took exactly
   // batch.amount + batch.fee_amount.
@@ -1740,6 +1807,7 @@ export async function startCartCheckout(
         batch_id: batchId,
         net_amount: Number(netTotal),
         service_fee: Number(feePesewas),
+        ...(discount ? { discount_code: discountCode, discount_amount: Number(discount.total) } : {}),
       },
     });
 
